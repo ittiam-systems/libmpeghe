@@ -1,0 +1,6 @@
+//@Input_path 
+//@Output_path 
+@Start
+-ifile:es01_mono_48k_td_br32000_mha1.mp4 -ofile:es01_mono_48k_td_br32000_mha1_to_mhas.mhas
+-ifile:es01_mono_48k_td_br32000_mhm1.mp4 -ofile:es01_mono_48k_td_br32000_mhm1_to_mhas.mhas
+@Stop

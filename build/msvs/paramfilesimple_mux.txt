@@ -1,0 +1,6 @@
+//@Input_path 
+//@Output_path 
+@Start
+-ifile:es01_mono_48k_td_br32000.mhas -ofile:es01_mono_48k_td_br32000_mha1.mp4 -op_fmt:2
+-ifile:es01_mono_48k_td_br32000.mhas -ofile:es01_mono_48k_td_br32000_mhm1.mp4 -op_fmt:3
+@Stop

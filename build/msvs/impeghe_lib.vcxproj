@@ -1,0 +1,254 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\encoder\impeghe_acelp_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_acelp_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_api.c" />
+    <ClCompile Include="..\..\encoder\impeghe_avq_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_avq_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_crc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_dmx_cicp2geometry.c" />
+    <ClCompile Include="..\..\encoder\impeghe_dmx_matrix_common.c" />
+    <ClCompile Include="..\..\encoder\impeghe_dmx_matrix_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_dmx_matrix_enc_api.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_api.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_gain_calculator.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_gain_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_mux.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_tables.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_uni_drc_eq.c" />
+    <ClCompile Include="..\..\encoder\impeghe_drc_uni_drc_filter_bank.c" />
+    <ClCompile Include="..\..\encoder\impeghe_enc_fac.c" />
+    <ClCompile Include="..\..\encoder\impeghe_enc_mct.c" />
+    <ClCompile Include="..\..\encoder\impeghe_enc_mct_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fdp_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_amb_comp_mod.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_ch_assignment.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_common_functions.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_config.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_decomposition.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_dir_based_pre_dom_sound_syn.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_dir_vec_estimation.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_dyn_correction.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_encoder.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_fft.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_frame.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_init.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_matrix.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_pre_dom_sound_syn.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_spatial_encoder.c" />
+    <ClCompile Include="..\..\encoder\impeghe_hoa_vector_based_predom_sound_syn.c" />
+    <ClCompile Include="..\..\encoder\impeghe_huffman_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_igf_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_lpc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_lpc_avq.c" />
+    <ClCompile Include="..\..\encoder\impeghe_lpd_utils.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fd_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fd_fac.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fd_qc_adjthr.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fd_qc_util.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fd_quant.c" />
+    <ClCompile Include="..\..\encoder\impeghe_lpd_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_ltpf_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_mae_write.c" />
+    <ClCompile Include="..\..\encoder\impeghe_oam_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_oam_enc_ld.c" />
+    <ClCompile Include="..\..\encoder\impeghe_oam_enc_utils.c" />
+    <ClCompile Include="..\..\encoder\impeghe_mhas_write.c" />
+    <ClCompile Include="..\..\encoder\impeghe_psy_mod.c" />
+    <ClCompile Include="..\..\encoder\impeghe_resampler.c" />
+    <ClCompile Include="..\..\encoder\impeghe_resampler_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_simple_matrix.c" />
+    <ClCompile Include="..\..\encoder\impeghe_stereo_lpd.c" />
+    <ClCompile Include="..\..\encoder\impeghe_stereo_lpd_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_tbe_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_tbe_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_tcx_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_psy_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_acelp_tools.c" />
+    <ClCompile Include="..\..\encoder\impeghe_enc_main.c" />
+    <ClCompile Include="..\..\encoder\impeghe_write_bitstream.c" />
+    <ClCompile Include="..\..\encoder\impeghe_arith_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_asc_write.c" />
+    <ClCompile Include="..\..\encoder\impeghe_bitbuffer.c" />
+    <ClCompile Include="..\..\encoder\impeghe_cplx_pred.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fft.c" />
+    <ClCompile Include="..\..\encoder\impeghe_ms.c" />
+    <ClCompile Include="..\..\encoder\impeghe_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_windowing.c" />
+    <ClCompile Include="..\..\encoder\impeghe_block_switch.c" />
+    <ClCompile Include="..\..\encoder\impeghe_signal_classifier.c" />
+    <ClCompile Include="..\..\encoder\impeghe_signal_classifier_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_tns_usac.c" />
+    <ClCompile Include="..\..\encoder\impeghe_psy_utils.c" />
+    <ClCompile Include="..\..\encoder\impeghe_lpd_rom.c" />
+    <ClCompile Include="..\..\encoder\impeghe_ltpf_enc.c" />
+    <ClCompile Include="..\..\encoder\impeghe_fd_mdct.c" />
+    <ClCompile Include="..\..\encoder\impeghe_nf.c" />
+    <ClCompile Include="..\..\encoder\impeghe_tcx_mdct.c" />
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{D1E1D887-385E-4785-8E65-9CCF36315FAB}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>ia_heaac_enc_msvs_arm9e</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
+    <ProjectName>impeghe_lib</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v141</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;_LIB;_WINDOWS</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <AdditionalIncludeDirectories>../../test;../../encoder;</AdditionalIncludeDirectories>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <StackReserveSize>16777216</StackReserveSize>
+      <ImageHasSafeExceptionHandlers>true</ImageHasSafeExceptionHandlers>
+      <IgnoreSpecificDefaultLibraries>libc.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <ProjectReference>
+      <UseLibraryDependencyInputs>true</UseLibraryDependencyInputs>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;_LIB;_WINDOWS</PreprocessorDefinitions>
+      <SDLCheck>false</SDLCheck>
+      <AdditionalIncludeDirectories>../../test;../../encoder;</AdditionalIncludeDirectories>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <OmitFramePointers>false</OmitFramePointers>
+      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;WIN32;NDEBUG;_CONSOLE;_CRT_SECURE_NO_WARNINGS;_LIB;_WINDOWS</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>../../test;../../encoder;</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_LIB;_WINDOWS;NDEBUG;_CONSOLE</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>../../test;../../encoder;</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

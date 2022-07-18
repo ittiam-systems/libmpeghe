@@ -1,0 +1,156 @@
+###############################################################################
+#  Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
+#  All rights reserved.
+#
+#  Redistribution and use in source and binary forms, with or without
+#  modification, are permitted (subject to the limitations in the
+#  disclaimer below) provided that the following conditions are met:
+#  •	Redistributions of source code must retain the above copyright
+#  notice, this list of conditions and the following disclaimer.
+#  •	Redistributions in binary form must reproduce the above copyright
+#  notice, this list of conditions and the following disclaimer in the
+#  documentation and/or other materials provided with the distribution.
+#  •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
+#  Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
+#  to endorse or promote products derived from this software without
+#  specific prior written permission.
+#
+#  NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
+#  BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
+#  LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
+#  LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
+#  BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+#  IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+#  OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+#  IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
+#  ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+#  DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+#  OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+#  HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+#  STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+#  IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+#  POSSIBILITY OF SUCH DAMAGE.
+###############################################################################
+
+#This is for including values like architecture, compiler command amd assembler commands etc.
+include ./Make.defs
+
+CFLAGS 		+= -c -O3 -Wall -Wsequence-point
+
+
+LIBS		= ../lib/ia_mpegh_enc_lib_$(ARCH).a
+
+PATH_ENC    = ../../encoder
+PATH_TEST   = ../../test
+
+SRCS_LIBS += $(PATH_ENC)/impeghe_acelp_enc.c\
+    $(PATH_ENC)/impeghe_acelp_rom.c\
+	$(PATH_ENC)/impeghe_acelp_tools.c\
+	$(PATH_ENC)/impeghe_api.c\
+	$(PATH_ENC)/impeghe_arith_enc.c\
+	$(PATH_ENC)/impeghe_asc_write.c\
+	$(PATH_ENC)/impeghe_avq_enc.c\
+	$(PATH_ENC)/impeghe_avq_rom.c\
+	$(PATH_ENC)/impeghe_bitbuffer.c\
+	$(PATH_ENC)/impeghe_block_switch.c\
+	$(PATH_ENC)/impeghe_cplx_pred.c\
+	$(PATH_ENC)/impeghe_crc.c\
+	$(PATH_ENC)/impeghe_dmx_cicp2geometry.c\
+	$(PATH_ENC)/impeghe_dmx_matrix_common.c\
+	$(PATH_ENC)/impeghe_dmx_matrix_enc.c\
+	$(PATH_ENC)/impeghe_dmx_matrix_enc_api.c\
+	$(PATH_ENC)/impeghe_drc_api.c\
+	$(PATH_ENC)/impeghe_drc_enc.c\
+	$(PATH_ENC)/impeghe_drc_gain_calculator.c\
+	$(PATH_ENC)/impeghe_drc_gain_enc.c\
+	$(PATH_ENC)/impeghe_drc_mux.c\
+    $(PATH_ENC)/impeghe_drc_tables.c\
+    $(PATH_ENC)/impeghe_drc_uni_drc_eq.c\
+    $(PATH_ENC)/impeghe_drc_uni_drc_filter_bank.c\
+    $(PATH_ENC)/impeghe_enc_fac.c\
+    $(PATH_ENC)/impeghe_enc_main.c\
+    $(PATH_ENC)/impeghe_enc_mct.c\
+	$(PATH_ENC)/impeghe_enc_mct_rom.c\
+    $(PATH_ENC)/impeghe_fdp_enc.c\
+    $(PATH_ENC)/impeghe_fd_enc.c\
+    $(PATH_ENC)/impeghe_fd_fac.c\
+    $(PATH_ENC)/impeghe_fd_mdct.c\
+    $(PATH_ENC)/impeghe_fd_qc_adjthr.c\
+    $(PATH_ENC)/impeghe_fd_qc_util.c\
+    $(PATH_ENC)/impeghe_fd_quant.c\
+    $(PATH_ENC)/impeghe_fft.c\
+    $(PATH_ENC)/impeghe_hoa_amb_comp_mod.c\
+    $(PATH_ENC)/impeghe_hoa_ch_assignment.c\
+	$(PATH_ENC)/impeghe_hoa_common_functions.c\
+	$(PATH_ENC)/impeghe_hoa_config.c\
+	$(PATH_ENC)/impeghe_hoa_decomposition.c\
+	$(PATH_ENC)/impeghe_hoa_dir_based_pre_dom_sound_syn.c\
+	$(PATH_ENC)/impeghe_hoa_dir_vec_estimation.c\
+	$(PATH_ENC)/impeghe_hoa_dyn_correction.c\
+	$(PATH_ENC)/impeghe_hoa_encoder.c\
+	$(PATH_ENC)/impeghe_hoa_fft.c\
+	$(PATH_ENC)/impeghe_hoa_frame.c\
+	$(PATH_ENC)/impeghe_hoa_init.c\
+	$(PATH_ENC)/impeghe_hoa_matrix.c\
+	$(PATH_ENC)/impeghe_hoa_pre_dom_sound_syn.c\
+	$(PATH_ENC)/impeghe_hoa_rom.c\
+	$(PATH_ENC)/impeghe_hoa_spatial_encoder.c\
+	$(PATH_ENC)/impeghe_hoa_vector_based_predom_sound_syn.c\
+	$(PATH_ENC)/impeghe_huffman_rom.c\
+	$(PATH_ENC)/impeghe_igf_enc.c\
+	$(PATH_ENC)/impeghe_lpc.c\
+	$(PATH_ENC)/impeghe_lpc_avq.c\
+	$(PATH_ENC)/impeghe_lpd_enc.c\
+	$(PATH_ENC)/impeghe_lpd_rom.c\
+	$(PATH_ENC)/impeghe_lpd_utils.c\
+	$(PATH_ENC)/impeghe_ltpf_enc.c\
+	$(PATH_ENC)/impeghe_ltpf_rom.c\
+	$(PATH_ENC)/impeghe_mae_write.c\
+	$(PATH_ENC)/impeghe_mhas_write.c\
+	$(PATH_ENC)/impeghe_ms.c\
+	$(PATH_ENC)/impeghe_nf.c\
+	$(PATH_ENC)/impeghe_oam_enc.c\
+	$(PATH_ENC)/impeghe_oam_enc_ld.c\
+	$(PATH_ENC)/impeghe_oam_enc_utils.c\
+	$(PATH_ENC)/impeghe_psy_mod.c\
+	$(PATH_ENC)/impeghe_psy_rom.c\
+	$(PATH_ENC)/impeghe_psy_utils.c\
+	$(PATH_ENC)/impeghe_resampler.c\
+	$(PATH_ENC)/impeghe_resampler_rom.c\
+	$(PATH_ENC)/impeghe_rom.c\
+	$(PATH_ENC)/impeghe_signal_classifier.c\
+	$(PATH_ENC)/impeghe_signal_classifier_rom.c\
+	$(PATH_ENC)/impeghe_simple_matrix.c\
+	$(PATH_ENC)/impeghe_stereo_lpd.c\
+	$(PATH_ENC)/impeghe_stereo_lpd_rom.c\
+	$(PATH_ENC)/impeghe_tbe_enc.c\
+	$(PATH_ENC)/impeghe_tbe_rom.c\
+	$(PATH_ENC)/impeghe_tcx_enc.c\
+	$(PATH_ENC)/impeghe_tcx_mdct.c\
+	$(PATH_ENC)/impeghe_tns_usac.c\
+	$(PATH_ENC)/impeghe_windowing.c\
+	$(PATH_ENC)/impeghe_write_bitstream.c
+
+INCLUDES = -I$(PATH_ENC) -I$(PATH_TEST)
+
+OBJS_LIBS			= $(SRCS_LIBS:.c=.o)
+
+CFLAGS += $(INCLUDES)
+
+all: $(LIBS)
+	
+$(OBJS_LIBS): %.o: %.c
+	$(CC) $(CFLAGS) $*.c -o $*.o
+	
+$(LIBS): $(OBJS_LIBS)
+	$(AR) -r $(LIBS) $(OBJS_LIBS) 
+	rm -f $(OBJS_LIBS)
+
+clean: src_clean 		
+	rm -f $(LIBS)
+
+src_clean:
+	rm -f $(OBJS_LIBS) 
+
+    
+#CFLAGS 		= -c -m32 -O3 -Wall -Wsequence-point -fdata-sections -ffunction-sections --debug -g

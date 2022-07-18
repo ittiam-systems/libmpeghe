@@ -1,0 +1,31 @@
+@Input_path ../../smoke_test_suite/inp/
+@Output_path ../../smoke_test_suite/out/
+@Oam_path ../../smoke_test_suite/inp/oam/
+@Hoa_path ../../smoke_test_suite/inp/hoa/
+
+@Start
+
+//OAM
+-oam_file:sine.oam -ofile:sine_oam.mhas -br:192000 -cicp:6
+
+//MHAS
+-ifile:sine_2ch.wav -ofile:sine_2ch.mhas -op_fmt:1 -br:64000
+-ifile:sine_2ch_fade.wav -ofile:sine_2ch_fade.mhas -op_fmt:1 -br:64000
+-ifile:sine_6ch.wav -ofile:sine_6ch.mhas -op_fmt:1 -br:192000
+
+//MP4
+-ifile:sine_2ch.wav -ofile:sine_2ch.mp4 -op_fmt:2 -br:64000
+-ifile:sine_2ch_fade.wav -ofile:sine_2ch_fade.mp4 -op_fmt:2 -br:64000
+-ifile:sine_6ch.wav -ofile:sine_6ch.mp4 -op_fmt:2 -br:192000
+
+//HOA
+//HOA - 1st Order example
+-hoa_file:Street1/street_1_00+.wav -ofile:street_1.mhas -op_fmt:1 -br:128000
+
+//HOA - 2nd Order example
+-hoa_file:Street2/street_2_00+.wav -ofile:street_2.mhas -op_fmt:1 -br:256000
+
+//HOA - 3rd Order example
+-hoa_file:Street3/street_3_00+.wav -ofile:street_3.mhas -op_fmt:1 -br:256000
+
+@Stop
