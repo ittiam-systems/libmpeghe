@@ -290,6 +290,12 @@ Brief description about documents present in  `docs` folder
 * [`IA-MPEG-H-3D-Audio-LC-Enc-BP.doc`](docs/IA-MPEG-H-3D-Audio-LC-Enc-BP.doc) - Describes the build procedure for the MPEG-H 3D Audio Low Complexity Profile Encoder on Unix/MacOS platforms. 
 * [`IA-MPEG-H-3D-Audio-LC-Enc-GSG.doc`](docs/IA-MPEG-H-3D-Audio-LC-Enc-GSG.doc) - Getting Started Guide for the MPEG-H 3D Audio Low Complexity Profile Encoder.
 
+# FFMPEG Plugin Support
+
+An intial version of a FFMPEG plugin is provided along with documentation for integrating the MPEG-H 3D Audio Low Complexity Profile Encoder library and plugin into FFMPEG framework.
+
+For more details, refer to [`ITT_FFMPEG_MPEGH_ENC_UG.docx`](ffmpeg_plugin/ffmpeg/docs/ITT_FFMPEG_MPEGH_ENC_UG.docx)
+
 ### Guidelines working with GitHub
 
 Please refer to the [guildelines](GUIDELINES.md) for the following processes
