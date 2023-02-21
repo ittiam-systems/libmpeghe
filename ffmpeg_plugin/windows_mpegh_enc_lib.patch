@@ -1,0 +1,160 @@
+diff --git a/build/msvs/impeghe_lib.vcxproj b/build/msvs/impeghe_lib.vcxproj
+index 1d17c09..1d3114f 100644
+--- a/build/msvs/impeghe_lib.vcxproj
++++ b/build/msvs/impeghe_lib.vcxproj
+@@ -116,27 +116,27 @@
+   </PropertyGroup>
+   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+-    <ConfigurationType>StaticLibrary</ConfigurationType>
++    <ConfigurationType>DynamicLibrary</ConfigurationType>
+     <UseDebugLibraries>true</UseDebugLibraries>
+     <PlatformToolset>v141</PlatformToolset>
+-    <CharacterSet>MultiByte</CharacterSet>
++    <CharacterSet>Unicode</CharacterSet>
+     <WholeProgramOptimization>true</WholeProgramOptimization>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+-    <ConfigurationType>StaticLibrary</ConfigurationType>
++    <ConfigurationType>DynamicLibrary</ConfigurationType>
+     <UseDebugLibraries>false</UseDebugLibraries>
+     <PlatformToolset>v141</PlatformToolset>
+     <WholeProgramOptimization>true</WholeProgramOptimization>
+     <CharacterSet>Unicode</CharacterSet>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+-    <ConfigurationType>StaticLibrary</ConfigurationType>
++    <ConfigurationType>DynamicLibrary</ConfigurationType>
+     <UseDebugLibraries>true</UseDebugLibraries>
+     <PlatformToolset>v141</PlatformToolset>
+     <CharacterSet>Unicode</CharacterSet>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+-    <ConfigurationType>StaticLibrary</ConfigurationType>
++    <ConfigurationType>DynamicLibrary</ConfigurationType>
+     <UseDebugLibraries>false</UseDebugLibraries>
+     <PlatformToolset>v141</PlatformToolset>
+     <WholeProgramOptimization>true</WholeProgramOptimization>
+@@ -160,15 +160,24 @@
+     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+   </ImportGroup>
+   <PropertyGroup Label="UserMacros" />
+-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" />
++  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
++    <TargetName>libia_mpeghe</TargetName>
++    <TargetExt>.dll</TargetExt>
++  </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+     <LinkIncremental>true</LinkIncremental>
++    <TargetExt>.dll</TargetExt>
++    <TargetName>libia_mpeghe</TargetName>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+     <LinkIncremental>false</LinkIncremental>
++    <TargetName>libia_mpeghe</TargetName>
++    <TargetExt>.dll</TargetExt>
+   </PropertyGroup>
+   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+     <LinkIncremental>false</LinkIncremental>
++    <TargetExt>.dll</TargetExt>
++    <TargetName>libia_mpeghe</TargetName>
+   </PropertyGroup>
+   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+     <ClCompile>
+@@ -199,7 +208,7 @@
+       <PrecompiledHeader>NotUsing</PrecompiledHeader>
+       <WarningLevel>Level3</WarningLevel>
+       <Optimization>Disabled</Optimization>
+-      <PreprocessorDefinitions>CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;_LIB;_WINDOWS</PreprocessorDefinitions>
++      <PreprocessorDefinitions>EXPORT_MSVS_DLL;CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;_LIB;_WINDOWS</PreprocessorDefinitions>
+       <SDLCheck>false</SDLCheck>
+       <AdditionalIncludeDirectories>../../test;../../encoder;</AdditionalIncludeDirectories>
+       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+@@ -237,7 +246,7 @@
+       <Optimization>MaxSpeed</Optimization>
+       <FunctionLevelLinking>true</FunctionLevelLinking>
+       <IntrinsicFunctions>true</IntrinsicFunctions>
+-      <PreprocessorDefinitions>CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_LIB;_WINDOWS;NDEBUG;_CONSOLE</PreprocessorDefinitions>
++      <PreprocessorDefinitions>EXPORT_MSVS_DLL;CRC_SUPPORT;INFINITE_LOOP_FIX;ENABLE_SET_JUMP;EAR_CON;MPEG_H_SLPD;_LIB;_WINDOWS;NDEBUG;_CONSOLE</PreprocessorDefinitions>
+       <SDLCheck>true</SDLCheck>
+       <AdditionalIncludeDirectories>../../test;../../encoder;</AdditionalIncludeDirectories>
+     </ClCompile>
+diff --git a/encoder/impeghe_api.c b/encoder/impeghe_api.c
+index ef3ba39..916a6c5 100644
+--- a/encoder/impeghe_api.c
++++ b/encoder/impeghe_api.c
+@@ -1564,7 +1564,11 @@ VOID impeghe_get_lib_id_strings(pVOID pv_output)
+  *  \return IA_ERRORCODE      Error code
+  *
+  */
++#ifdef EXPORT_MSVS_DLL
++DLL_SYMBOLS IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
++#else
+ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
++#endif
+ {
+   pVOID pv_value;
+   IA_ERRORCODE err_code = IA_NO_ERROR;
+@@ -1676,7 +1680,11 @@ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
+  *  \return IA_ERRORCODE      Error code
+  *
+  */
++#ifdef EXPORT_MSVS_DLL
++DLL_SYMBOLS IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output)
++#else
+ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output)
++#endif
+ {
+   IA_ERRORCODE err_code = IA_NO_ERROR;
+   ia_mpeghe_api_struct *p_obj_mpeghe = (ia_mpeghe_api_struct *)p_ia_mpeghe_obj;
+@@ -1832,7 +1840,11 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
+  *  \return IA_ERRORCODE      Error code
+  *
+  */
++#ifdef EXPORT_MSVS_DLL
++DLL_SYMBOLS IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output)
++#else
+ IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output)
++#endif
+ {
+   IA_ERRORCODE err_code = IA_NO_ERROR;
+   WORD32 header_bytes = 0;
+@@ -1870,7 +1882,11 @@ IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_out
+  *  \return VOID
+  *
+  */
++#ifdef EXPORT_MSVS_DLL
++DLL_SYMBOLS VOID impeghe_delete(pVOID pv_output)
++#else
+ VOID impeghe_delete(pVOID pv_output)
++#endif
+ {
+   LOOPIDX idx;
+   ia_output_config *pstr_output_config = (ia_output_config *)pv_output;
+diff --git a/encoder/impeghe_api.h b/encoder/impeghe_api.h
+index 7945f7e..bbe68e8 100644
+--- a/encoder/impeghe_api.h
++++ b/encoder/impeghe_api.h
+@@ -35,10 +35,22 @@
+ #ifndef IMPEGHE_API_H
+ #define IMPEGHE_API_H
+ 
++#ifdef EXPORT_MSVS_DLL
++#define DLL_SYMBOLS __declspec(dllexport)
++#endif
++
+ VOID impeghe_get_lib_id_strings(pVOID pv_output);
++
++#ifdef EXPORT_MSVS_DLL
++DLL_SYMBOLS IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output);
++DLL_SYMBOLS IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output);
++DLL_SYMBOLS IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output);
++DLL_SYMBOLS VOID impeghe_delete(pVOID pv_output);
++#else
+ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output);
+ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output);
+ IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output);
+ VOID impeghe_delete(pVOID pv_output);
++#endif
+ 
+ #endif /* IMPEGHE_API_H */

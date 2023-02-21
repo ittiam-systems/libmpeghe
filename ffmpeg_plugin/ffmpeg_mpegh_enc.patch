@@ -1,0 +1,3897 @@
+diff --git a/configure b/configure
+index ba5793b2ff..3eb20dc892 100755
+--- a/configure
++++ b/configure
+@@ -7751,7 +7751,7 @@ TARGET_SAMPLES=${target_samples:-\$(SAMPLES)}
+ CFLAGS-ffplay=${sdl2_cflags}
+ CFLAGS_HEADERS=$CFLAGS_HEADERS
+ LIB_INSTALL_EXTRA_CMD=$LIB_INSTALL_EXTRA_CMD
+-EXTRALIBS=$extralibs
++EXTRALIBS=$extralibs -lia_mpeghe -L.
+ COMPAT_OBJS=$compat_objs
+ INSTALL=$install
+ LIBTARGET=${LIBTARGET}
+diff --git a/libavcodec/Makefile b/libavcodec/Makefile
+index 457ec58377..cca3f54771 100644
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -810,6 +810,7 @@ OBJS-$(CONFIG_ZLIB_DECODER)            += lcldec.o
+ OBJS-$(CONFIG_ZLIB_ENCODER)            += lclenc.o
+ OBJS-$(CONFIG_ZMBV_DECODER)            += zmbv.o
+ OBJS-$(CONFIG_ZMBV_ENCODER)            += zmbvenc.o
++OBJS-$(CONFIG_IA_MPEGH_ENCODER)	+= ia_mpegh_enc.o impeghe_error.o
+ 
+ # (AD)PCM decoders/encoders
+ OBJS-$(CONFIG_PCM_ALAW_DECODER)           += pcm.o
+diff --git a/libavcodec/allcodecs.c b/libavcodec/allcodecs.c
+index bdfc2f6f45..198ec1781d 100644
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -781,6 +781,7 @@ extern const FFCodec ff_libvpx_vp8_encoder;
+ extern const FFCodec ff_libvpx_vp8_decoder;
+ extern FFCodec ff_libvpx_vp9_encoder;
+ extern FFCodec ff_libvpx_vp9_decoder;
++extern const FFCodec ff_ia_mpegh_encoder;
+ /* preferred over libwebp */
+ extern const FFCodec ff_libwebp_anim_encoder;
+ extern const FFCodec ff_libwebp_encoder;
+diff --git a/libavcodec/ia_mpegh_enc.c b/libavcodec/ia_mpegh_enc.c
+new file mode 100644
+index 0000000000..b176e4603a
+--- /dev/null
++++ b/libavcodec/ia_mpegh_enc.c
+@@ -0,0 +1,1277 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++
++   In addition to the warranty disclaimers contained in these licenses,
++   Ittiam Systems Pvt. Ltd. makes the following disclaimers regarding the
++   third-party components on behalf of itself, its affiliates and investors,
++   its contributors, the copyright holders, and the licensors of the
++   third-party components:
++
++   YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT LICENSE(S) BY THIRD
++   PARTIES, INCLUDING, WITHOUT LIMITATION, THE PATENT OWNERS LISTED AT
++   [LINK TO POOL LICENSORS -
++   https://www.via-corp.com/licensing/mpeg-h/mpeg-h-3d-licensors/] TO THE
++   FULLEST EXTENT PERMITTED UNDER APPLICABLE LAW, THE SOFTWARE IS PROVIDED
++   “AS IS,” AND ANY REPRESENTATIONS OR WARRANTIES OF ANY KIND, WHETHER ORAL
++   OR WRITTEN, WHETHER EXPRESS, IMPLIED, OR ARISING BY STATUTE, CUSTOM, COURSE
++   OF DEALING, OR TRADE USAGE, INCLUDING WITHOUT LIMITATION THE IMPLIED
++   WARRANTIES OF TITLE, MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
++   AND NONINFRINGEMENT, ARE DISCLAIMED. IN NO EVENT WILL ITTIAM (AND ITS
++   AFFILIATES AND INVESTORS), THE COPYRIGHT OWNERS, CONTRIBUTORS, OR LICENSORS,
++   BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++   CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
++   SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
++   INTERRUPTION), HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
++   CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
++   ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++
++---------------------------------------------------------------
++*/
++
++// For strnlen
++#define _POSIX_C_SOURCE 200809L
++
++#include <string.h>
++#include <stdio.h>
++#include <stdlib.h>
++
++#include "libavutil/opt.h"
++#include "codec_internal.h"
++#include "encode.h"
++#include "internal.h"
++#include "audio_frame_queue.h"
++
++#include "impeghe_type_def.h"
++#include "impeghe_api.h"
++#include "impeghe_error_standards.h"
++#include "impeghe_error_handler.h"
++#include "impeghe_apicmd_standards.h"
++#include "impeghe_block_switch_const.h"
++#include "impeghe_drc_common.h"
++#include "impeghe_drc_uni_drc.h"
++#include "impeghe_drc_api.h"
++#include "impeghe_dmx_cicp2geometry.h"
++#include "impeghe_dmx_matrix_common.h"
++#include "impeghe_memory_standards.h"
++#include "impeghe_drc_user_config.h"
++#include "impeghe_error_codes.h"
++#include "impeghe_mp4_writer.h"
++
++// Constant hash defines
++#define IA_MAX_CMD_LINE_LENGTH 300
++#define MAX_HOA_IN_FILES 50
++
++#define IA_MHAC_CONFIG_VERSION 1
++#define IA_MHAC_PROFILE_LEVEL_INDICATION 1
++#define IA_MHAC_REFRENCE_CHANNEL_LAYOUT 1
++#define IA_MHAC_LENGTH 2
++
++#define IA_OUTPUT_FMT 1
++// Global Variables
++ia_input_config *pv_input;
++ia_output_config *pv_output;
++pVOID p_ia_mpeghe_obj;
++int flag = 1;
++FILE *g_pf_inps[56];
++WORD8 pb_oam_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
++WORD8 pb_oam_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
++FILE *g_pf_inp_ham = NULL;
++FILE *g_pf_inp_hoa_mtx = NULL;
++FILE *g_pf_hoa_input[50];
++FLAG g_is_hoa_input = 0;
++WORD32 g_num_hoa_coeffs = 0;
++ia_pcm_config g_inp_hoa_config[MAX_HOA_IN_FILES];
++WORD8 pb_hoa_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
++WORD8 g_pb_hoa_input_file_names[MAX_HOA_IN_FILES][IA_MAX_CMD_LINE_LENGTH];
++
++// FOr MHA1 or MHM
++int temp_op_fmt;
++
++typedef struct config_params {
++	int bit_rate;
++	int output_format;
++	int cicp_layout_index;
++	int n_channels;
++	int sample_rate;
++	int pcm_sz;
++	char *oam_file;
++	char *hoa_file;
++} config_params;
++
++typedef struct IA_MPEGH_Context {
++
++	const AVClass *class;
++	void *pv_ia_process_api_obj;
++	pWORD8 pb_inp_buf;
++	pWORD8 pb_out_buf;
++	pWORD8 pb_inp_hoa_buf;
++	pWORD8 temp_buf;
++	int LEN;
++	// For OAM
++	FILE * g_oam_inp;
++	pWORD8 pb_oam_buf;
++	WORD32 num_channels_to_encode;
++	// For HOA
++
++	config_params params;
++	AudioFrameQueue afq;
++
++} IA_MPEGH_Context;
++
++static const AVOption ia_mpegh_enc_options[] = {
++	{"ia_bit_rate","Stream Bit Rate",offsetof(IA_MPEGH_Context,params.bit_rate),AV_OPT_TYPE_INT,{.i64 = 64000},32000,512000,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_op_fmt","Output Format",offsetof(IA_MPEGH_Context,params.output_format),AV_OPT_TYPE_INT,{.i64 = 1},1,3,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_cicp","CICP Layout Index",offsetof(IA_MPEGH_Context,params.cicp_layout_index),AV_OPT_TYPE_INT,{.i64 = 1},1,20,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_chans","No of Channels",offsetof(IA_MPEGH_Context,params.n_channels),AV_OPT_TYPE_INT,{.i64 = 1},1,24,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_sample_rate","Sample Rate",offsetof(IA_MPEGH_Context,params.sample_rate),AV_OPT_TYPE_INT,{.i64 = 48000},14700,48000,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_pcm_sz","PCM Word Size",offsetof(IA_MPEGH_Context,params.pcm_sz),AV_OPT_TYPE_INT,{.i64 = 16},16,32,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_oam_file","OAM File Name",offsetof(IA_MPEGH_Context,params.oam_file),AV_OPT_TYPE_STRING,{.str = NULL},0,0,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{"ia_hoa_file","First HOA File Name that ends with 00+.wav",offsetof(IA_MPEGH_Context,params.hoa_file),AV_OPT_TYPE_STRING,{.str = NULL},0,0,AV_OPT_FLAG_AUDIO_PARAM | AV_OPT_FLAG_ENCODING_PARAM},
++	{NULL}
++};
++
++static const AVClass ia_mpegh_enc_class = {
++	.class_name = "ia_mpeghe",
++	.item_name = av_default_item_name,
++	.option = ia_mpegh_enc_options,
++	.version = LIBAVUTIL_VERSION_INT,
++};
++
++//
++extern VOID impeghe_error_handler_init();
++extern VOID impeghe_testbench_error_handler_init();
++
++extern ia_error_info_struct ia_testbench_error_info;
++extern ia_error_info_struct ia_mpeghe_error_info;
++
++IA_ERRORCODE ia_mpegh_encode_set_default_param(ia_input_config *pstr_input_config);
++IA_ERRORCODE ia_mpegh_encode_set_config_param(ia_input_config *pstr_input_config,IA_MPEGH_Context *ctx);
++pVOID malloc_global(UWORD32 size, UWORD32 alignment);
++void ia_reconfigure_mhaC_tag_data(pWORD8 pb_out_buf,int profile_info,AVCodecContext *avctx);
++WORD32 impeghe_fread(VOID *buf, WORD32 size, WORD32 bytes, FILE *fp);
++static WORD32 impeghe_read_oam_data(VOID *hndl, UWORD8 *buff, WORD32 bytes_to_read);
++static WORD32 impeghe_skip_oam_data(VOID *hndl, WORD32 bytes_to_skip);
++static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr_in_cfg,WORD32 *num_channels_to_encode);
++IA_ERRORCODE impeghe_wav_header_decode(FILE *in_file, pVOID ptr_pcm_cfg);
++WORD32 open_in_files(WORD8 *first_hoa_file_name, WORD32 *hoa_order, WORD32 *num_hoa_coeffs);
++void ia_mpegh_handle_oam(ia_input_config *pstr_input_config,IA_MPEGH_Context *ctx);
++void ia_mpegh_handle_hoa(ia_input_config *pstr_input_config,IA_MPEGH_Context *ctx);
++
++//
++IA_ERRORCODE ia_mpegh_encode_set_default_param(ia_input_config *pstr_input_config)
++{
++	LOOPIDX idx;
++	pstr_input_config->aud_ch_pcm_cfg.pcm_sz = 16;
++	pstr_input_config->aud_ch_pcm_cfg.sample_rate = 44100;
++
++	pstr_input_config->aud_obj_pcm_cfg.pcm_sz = 16;
++	pstr_input_config->aud_obj_pcm_cfg.sample_rate = 44100;
++
++	pstr_input_config->hoa_pcm_cfg.pcm_sz = 16;
++	pstr_input_config->hoa_pcm_cfg.sample_rate = 44100;
++
++	pstr_input_config->codec_mode = USAC_ONLY_FD;
++	pstr_input_config->bitrate = 32000;
++	pstr_input_config->fdp_enable = 0;
++	pstr_input_config->noise_filling = 0;
++	pstr_input_config->enhanced_noise_filling = 1;
++	pstr_input_config->igf_after_tns_synth = 1;
++	pstr_input_config->tns_enable = 1;
++	pstr_input_config->cplx_pred = 0;
++	pstr_input_config->fill_elem = 1;
++	pstr_input_config->prof_level = PROFILE_LC_LVL1;
++	pstr_input_config->mhas_pkt = 1;
++	pstr_input_config->crc16 = 0;
++	pstr_input_config->crc32 = 0;
++	pstr_input_config->global_crc16 = 0;
++	pstr_input_config->global_crc32 = 0;
++	pstr_input_config->mct_mode = -1;
++	// OAM Params
++	pstr_input_config->use_oam_element = 0;
++	pstr_input_config->use_drc_element = 0;
++	pstr_input_config->use_hoa_element = 0;
++	pstr_input_config->oam_high_rate = 1;
++	pstr_input_config->oam_replace_radius = 0;
++	for (idx = 0; idx < 6; idx++)
++	{
++		pstr_input_config->oam_fixed_values[idx] = 0;
++	}
++	pstr_input_config->oam_has_core_length = 0;
++	pstr_input_config->oam_has_scrn_rel_objs = 0;
++	for (idx = 0; idx < OAM_MAX_NUM_OBJECTS; idx++)
++	{
++		pstr_input_config->oam_is_scrn_rel_obj[idx] = 0;
++	}
++	pstr_input_config->oam_data_hndl = 0;
++	pstr_input_config->oam_read_data = 0;
++	pstr_input_config->oam_skip_data = 0;
++	pstr_input_config->kernel = 0;
++	return IA_NO_ERROR;
++}
++
++IA_ERRORCODE ia_mpegh_encode_set_config_param(ia_input_config *pstr_input_config,IA_MPEGH_Context *ctx)
++{
++
++	pstr_input_config->bitrate = ctx->params.bit_rate;
++	pstr_input_config->out_fmt = ctx->params.output_format;
++	pstr_input_config->cicp_index = ctx->params.cicp_layout_index;
++	pstr_input_config->aud_ch_pcm_cfg.n_channels = ctx->params.n_channels;
++	pstr_input_config->aud_ch_pcm_cfg.sample_rate = ctx->params.sample_rate;
++	pstr_input_config->aud_ch_pcm_cfg.pcm_sz = ctx->params.pcm_sz;
++	pstr_input_config->mct_mode = -1;
++	pstr_input_config->use_vec_est = -1;
++
++	temp_op_fmt = ctx->params.output_format;
++
++	if(ctx->params.oam_file != NULL)
++	{
++		ia_mpegh_handle_oam(pstr_input_config,ctx);
++	}
++	if(ctx->params.hoa_file != NULL)
++	{
++		ia_mpegh_handle_hoa(pstr_input_config,ctx);
++	}
++	// 1 - RAW_MHAS, 2 - MP4_MHA1 and 3 - MP4_MHM1
++	if(pstr_input_config->out_fmt == 2)
++	{
++		pstr_input_config->mhas_pkt = 0;
++	}
++	else
++	{
++		pstr_input_config->mhas_pkt = 1;
++	}
++	return IA_NO_ERROR;
++}
++
++pVOID malloc_global(UWORD32 size, UWORD32 alignment)
++{
++	return malloc(size + alignment);
++}
++
++void ia_reconfigure_mhaC_tag_data(pWORD8 pb_out_buf,int profile_info,AVCodecContext *avctx)
++{
++	// Config version = 1
++	WORD8 *word8_ptr;
++	WORD16 *word16_ptr;
++	WORD32 byte_align4=0;
++
++	word8_ptr = (WORD8 *)avctx->extradata;
++	*word8_ptr++ = 0x01;
++
++	// mpegh3daProfileLevelIndication
++	*word8_ptr++ = profile_info;
++
++	// referenceChannelLayout
++	*word8_ptr++ = 0x02;
++
++	word16_ptr = (WORD16 *)word8_ptr;
++	// length
++	// BYTE_SWAP_UINT16
++	*word16_ptr++ = ((avctx->extradata_size >> 8) | (avctx->extradata_size << 8));
++
++	word8_ptr = (WORD8 *)word16_ptr;
++
++	// mpegh3daConfig
++	memcpy(word8_ptr,pb_out_buf,avctx->extradata_size);
++
++	word8_ptr+=avctx->extradata_size;
++
++	// dummy to make 4 byte aligned
++	byte_align4 = (4-((avctx->extradata_size + IA_MHAC_CONFIG_VERSION + IA_MHAC_PROFILE_LEVEL_INDICATION + IA_MHAC_REFRENCE_CHANNEL_LAYOUT + IA_MHAC_LENGTH)%4));
++	for(int i=0;i<byte_align4;++i)
++	{
++		*word8_ptr++ = 0;
++	}
++	avctx->extradata_size += byte_align4;
++	avctx->extradata_size += IA_MHAC_CONFIG_VERSION;
++	avctx->extradata_size += IA_MHAC_PROFILE_LEVEL_INDICATION;
++	avctx->extradata_size += IA_MHAC_REFRENCE_CHANNEL_LAYOUT;
++	avctx->extradata_size += IA_MHAC_LENGTH;
++	avctx->extradata_size += IA_OUTPUT_FMT;
++}
++
++WORD32 impeghe_fread(VOID *buf, WORD32 size, WORD32 bytes, FILE *fp)
++{
++	return (WORD32)fread(buf, size, bytes, fp);
++}
++
++static WORD32 impeghe_read_oam_data(VOID *hndl, UWORD8 *buff, WORD32 bytes_to_read)
++{
++	if (!hndl || !buff || 0 >= bytes_to_read)
++	{
++		return 0;
++	}
++
++	return impeghe_fread(buff, 1, bytes_to_read, (FILE *)hndl);
++}
++
++static WORD32 impeghe_skip_oam_data(VOID *hndl, WORD32 bytes_to_skip)
++{
++	if (!hndl)
++	{
++		return -1;
++	}
++
++	fseek((FILE *)hndl, bytes_to_skip, SEEK_CUR);
++
++	return 0;
++}
++
++static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *pstr_input_config,WORD32 *num_channels_to_encode)
++{
++	WORD32 idx;
++	WORD32 bytes_read;
++	UWORD8 temp_buff[OAM_CH_FILE_NAME_SIZE_BYTES];
++	UWORD16 *ptr_16_temp_buff;
++	WORD16 *ptr_16_word_temp_buff;
++	const char object_idx[32][8] = {
++		"000.wav", "001.wav", "002.wav", "003.wav", "004.wav", "005.wav", "006.wav", "007.wav",
++		"008.wav", "009.wav", "010.wav", "011.wav", "012.wav", "013.wav", "014.wav", "015.wav",
++		"016.wav", "017.wav", "018.wav", "019.wav", "020.wav", "021.wav", "022.wav", "023.wav",
++		"024.wav", "025.wav", "026.wav", "027.wav", "028.wav", "029.wav", "030.wav"};
++
++	bytes_read = impeghe_fread(temp_buff, 1, OAM_HEADER_SIZE_BYTES + OAM_VERSION_SIZE_BYTES, oam_file);
++	if (bytes_read != OAM_HEADER_SIZE_BYTES + OAM_VERSION_SIZE_BYTES)
++	{
++		return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++	}
++	/* OAM Header: id */
++	temp_buff[OAM_HEADER_SIZE_BYTES - 1] = '\0';
++	if (strncmp((const char *)temp_buff, "OAM", OAM_HEADER_SIZE_BYTES) != 0)
++	{
++		/* Invalid OAM header */
++		return IMPEGHE_CONFIG_FATAL_OAM_INVALID_HEADER;
++	}
++
++	/* OAM Header: version */
++	ptr_16_word_temp_buff = ((WORD16 *)&temp_buff[OAM_HEADER_SIZE_BYTES]);
++	pstr_input_config->oam_version = *ptr_16_word_temp_buff;
++	if (pstr_input_config->oam_version > 4)
++	{
++		/* Invalid OAM header */
++		return IMPEGHE_CONFIG_FATAL_OAM_INVALID_HEADER;
++	}
++
++	if (pstr_input_config->oam_version > 2)
++	{
++		bytes_read = impeghe_fread(&pstr_input_config->has_dyn_obj_priority, 1, 2, oam_file);
++		if (bytes_read != 2)
++		{
++		/* Invalid OAM header */
++			return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++		}
++
++		if (pstr_input_config->has_dyn_obj_priority)
++		{
++			pstr_input_config->has_dyn_obj_priority = 1;
++		}
++	}
++
++	if (pstr_input_config->oam_version > 3)
++	{
++		bytes_read = impeghe_fread(&pstr_input_config->has_uniform_spread, 1, 2, oam_file);
++		if (bytes_read != 2)
++		{
++		/* Invalid OAM header */
++			return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++		}
++
++		if (pstr_input_config->has_uniform_spread)
++		{
++			pstr_input_config->has_uniform_spread = 1;
++		}
++	}
++	else
++	{
++		pstr_input_config->has_uniform_spread = 1;
++	}
++
++	/* OAM Header: num_channels and num_objects */
++	bytes_read = impeghe_fread(temp_buff, 1, 4, oam_file);
++	if (bytes_read != 4)
++	{
++		/* Invalid OAM header */
++		return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++	}
++
++	ptr_16_temp_buff = ((UWORD16 *)temp_buff);
++	pstr_input_config->num_channels = *ptr_16_temp_buff;
++	ptr_16_temp_buff = ((UWORD16 *)(temp_buff + 2));
++	pstr_input_config->num_objects = *ptr_16_temp_buff;
++
++	if (pstr_input_config->num_objects > 24)
++	{
++		pstr_input_config->extra_objects = pstr_input_config->num_objects - 24;
++		pstr_input_config->num_objects = 24;
++		pstr_input_config->err_code = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
++	}
++
++	if ((pstr_input_config->num_objects + pstr_input_config->num_channels) > 24)
++	{
++		pstr_input_config->extra_objects = pstr_input_config->num_objects + pstr_input_config->num_channels - 24;
++		pstr_input_config->num_objects = 24 - pstr_input_config->num_channels;
++		pstr_input_config->err_code = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
++	}
++
++	/* OAM Header: description */
++	bytes_read = impeghe_fread((pWORD8 *)temp_buff, 1, OAM_DESCRIPTION_SIZE_BYTES, oam_file);
++	if (bytes_read != OAM_DESCRIPTION_SIZE_BYTES)
++	{
++		/* Invalid OAM header */
++		return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++	}
++
++	/* OAM Header: channel filenames */
++	for (idx = 0; idx < pstr_input_config->num_channels; idx++)
++	{
++		UWORD8 item_name_buf[64] = {0};
++		UWORD8 oam_file_path[300] = {0};
++		bytes_read = impeghe_fread(temp_buff, 1, OAM_CH_FILE_NAME_SIZE_BYTES, oam_file);
++		if (bytes_read != OAM_CH_FILE_NAME_SIZE_BYTES)
++		{
++			/* Invalid OAM header */
++			return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++		}
++		memcpy(oam_file_path, pb_oam_file_path, strlen((const char *)pb_oam_file_path));
++		memcpy(item_name_buf, pstr_input_config->item_prefix, 6);
++		strcat((char *)item_name_buf, (const char *)temp_buff);
++		strncat((char *)oam_file_path, (char *)item_name_buf,strnlen((const char *)item_name_buf, 64));
++		g_pf_inps[idx] = fopen((const char *)oam_file_path, "rb");
++		if (NULL == g_pf_inps[idx])
++		{
++			printf("channel input file open failed\n");
++			return -1;
++		}
++	}
++
++	/* OAM Header: object describtions */
++	for (idx = 0; idx < pstr_input_config->num_objects; idx++)
++	{
++		UWORD8 item_name_buf[64] = {0};
++		UWORD8 oam_file_path[300] = {0};
++		bytes_read = impeghe_fread(temp_buff, 1, OAM_OBJ_DESCRIPTION_SIZE_BYTES, oam_file);
++		if (bytes_read != OAM_CH_FILE_NAME_SIZE_BYTES)
++		{
++			/* Invalid OAM header */
++			return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++		}
++		memcpy(oam_file_path, pb_oam_file_path, strlen((const char *)pb_oam_file_path));
++		memcpy(item_name_buf, pstr_input_config->item_prefix,strlen((const char *)pstr_input_config->item_prefix) - 4);
++		strncat((char *)item_name_buf, "_", 1);
++		strncat((char *)item_name_buf, object_idx[idx], 7);
++		strncat((char *)oam_file_path, (char *)item_name_buf,strnlen((const char *)item_name_buf, 64));
++		g_pf_inps[pstr_input_config->num_channels + idx] = fopen((const char *)oam_file_path, "rb");
++		if (NULL == g_pf_inps[pstr_input_config->num_channels + idx])
++		{
++			fseek(oam_file, -OAM_OBJ_DESCRIPTION_SIZE_BYTES, SEEK_CUR);
++			pstr_input_config->extra_objects += pstr_input_config->num_objects - idx;
++			pstr_input_config->num_objects = idx > 24 ? 24 : idx;
++			pstr_input_config->err_code = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
++		}
++	}
++
++	for (idx = 0; idx < pstr_input_config->extra_objects; idx++)
++	{
++		bytes_read = impeghe_fread(temp_buff, 1, OAM_OBJ_DESCRIPTION_SIZE_BYTES, oam_file);
++		if (bytes_read != OAM_CH_FILE_NAME_SIZE_BYTES)
++		{
++			/* Invalid OAM header */
++			return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
++		}
++	}
++
++	*num_channels_to_encode = pstr_input_config->num_channels + pstr_input_config->num_objects;
++
++	return 0;
++
++}
++
++IA_ERRORCODE impeghe_wav_header_decode(FILE *in_file, pVOID ptr_pcm_cfg)
++{
++	ia_pcm_config *pstr_pcm_cfg = (ia_pcm_config *)ptr_pcm_cfg;
++	WORD8 wav_hdr[40 + 36];
++	WORD8 data_start[4];
++	WORD16 num_ch;
++	UWORD32 f_samp;
++	WORD16 output_format;
++	WORD32 check, count = 0;
++	FLAG wav_format_pcm = 0, wav_format_extensible = 0;
++	UWORD16 cbSize = 0;
++	WORD8 type;
++	UWORD8 offset;
++	UWORD8 fmt_tag_found = 0;
++	UWORD16 data_offset = 0;
++
++	pstr_pcm_cfg->i_channel_mask = 0;
++
++	fseek(in_file, 0, SEEK_SET);
++
++	if (fread(wav_hdr, 1, 76, in_file) != 76)
++		return 1;
++
++	if (wav_hdr[0] != 'R' && wav_hdr[1] != 'I' && wav_hdr[2] != 'F' && wav_hdr[3] != 'F')
++	{
++		return 1;
++	}
++
++	/* Search for "fmt" tag as rest of config needs to be read after this tag */
++	offset = 4;
++	while (((offset + 4) < 76))
++	{
++		type = wav_hdr[offset];
++		(offset)++;
++		if (type == 'f')
++		{
++		if (wav_hdr[offset] == 'm')
++		{
++			(offset)++;
++			if (wav_hdr[offset] == 't')
++			{
++			offset += 2; /* Last byte in 'fmt' is invalid (1) */
++			fmt_tag_found = 1;
++			offset += 4; /* size of fmt subchunk size */
++			break;
++			}
++		}
++		}
++	}
++
++	if (fmt_tag_found != 1)
++		return 1;
++
++	if (wav_hdr[offset] == 01 && wav_hdr[offset + 1] == 00)
++	{
++		wav_format_pcm = 1;
++	}
++	else if (wav_hdr[offset] == ((WORD8)0xFE) && wav_hdr[offset + 1] == ((WORD8)0xFF))
++	{
++		wav_format_extensible = 1;
++	}
++	else if (wav_hdr[offset] == ((WORD8)0x03) && wav_hdr[offset + 1] == ((WORD8)0x00))
++	{
++		wav_format_extensible = 2;
++	}
++	else
++	{
++		return 1;
++	}
++
++	num_ch = (WORD16)((UWORD8)wav_hdr[offset + 3] * 256 + (UWORD8)wav_hdr[offset + 2]);
++	f_samp = ((UWORD8)wav_hdr[offset + 7] * 256 * 256 * 256);
++	f_samp += ((UWORD8)wav_hdr[offset + 6] * 256 * 256);
++	f_samp += ((UWORD8)wav_hdr[offset + 5] * 256);
++	f_samp += ((UWORD8)wav_hdr[offset + 4]);
++
++	output_format = ((UWORD8)wav_hdr[offset + 15] * 256);
++	output_format += ((UWORD8)wav_hdr[offset + 14]);
++
++	pstr_pcm_cfg->n_channels = num_ch;
++	pstr_pcm_cfg->sample_rate = f_samp;
++	pstr_pcm_cfg->pcm_sz = output_format;
++
++	if ((wav_format_pcm) || (2 == wav_format_extensible))
++	{
++		data_start[0] = wav_hdr[offset + 16];
++		data_start[1] = wav_hdr[offset + 17];
++		data_start[2] = wav_hdr[offset + 18];
++		data_start[3] = wav_hdr[offset + 19];
++		data_offset = offset + 20;
++	}
++	else if (1 == wav_format_extensible)
++	{
++		cbSize |= ((UWORD8)wav_hdr[offset + 17] << 8);
++		cbSize |= ((UWORD8)wav_hdr[offset + 16]);
++
++		pstr_pcm_cfg->i_channel_mask = 0;
++		pstr_pcm_cfg->i_channel_mask |= (UWORD8)wav_hdr[offset + 23] << 24;
++		pstr_pcm_cfg->i_channel_mask |= (UWORD8)wav_hdr[offset + 22] << 16;
++		pstr_pcm_cfg->i_channel_mask |= (UWORD8)wav_hdr[offset + 21] << 8;
++		pstr_pcm_cfg->i_channel_mask |= (UWORD8)wav_hdr[offset + 20];
++
++		data_start[0] = wav_hdr[offset + 20 + cbSize - 2 + 0];
++		data_start[1] = wav_hdr[offset + 20 + cbSize - 2 + 1];
++		data_start[2] = wav_hdr[offset + 20 + cbSize - 2 + 2];
++		data_start[3] = wav_hdr[offset + 20 + cbSize - 2 + 3];
++		data_offset = offset + 20 + cbSize - 2 + 4;
++	}
++
++	check = 1;
++	fseek(in_file, data_offset, SEEK_SET);
++	while (check)
++	{
++		if (data_start[0] == 'd' && data_start[1] == 'a' && data_start[2] == 't' &&
++			data_start[3] == 'a')
++		{
++			check = impeghe_fread(&pstr_pcm_cfg->length, 1, 4, in_file);
++			check = 0;
++		}
++		else
++		{
++			data_start[0] = data_start[1];
++			data_start[1] = data_start[2];
++			data_start[2] = data_start[3];
++			check = impeghe_fread(&data_start[3], 1, 1, in_file);
++		}
++		count++;
++		if (1 == wav_format_extensible)
++		{
++			if (count > 40)
++			{
++				pstr_pcm_cfg->length = 0xffffffff;
++				return (1);
++			}
++		}
++		else if (2 == wav_format_extensible)
++		{
++			if (count > 64)
++			{
++				pstr_pcm_cfg->length = 0xffffffff;
++				return (1);
++			}
++		}
++	}
++	return IA_NO_ERROR;
++}
++
++WORD32 open_in_files(WORD8 *first_hoa_file_name, WORD32 *hoa_order, WORD32 *num_hoa_coeffs)
++{
++	// hoa_input_file_names
++	CHAR8 prefix[256] = {0};
++	WORD8 char_hoa_order[2];
++	pCHAR8 in_file = (pCHAR8)first_hoa_file_name;
++	WORD32 idx = (WORD32)(strnlen(in_file, IA_MAX_CMD_LINE_LENGTH) - 8);
++	//"_00+.wav" is 8 characters
++	WORD32 ret = strncmp(in_file + idx, "_00+.wav", 8);
++	if (0 != ret)
++	{
++		printf("ERROR:For HOA, the input file name should end with _00+.wav\n");
++		return -1;
++	}
++	if ((idx >= 0) && (idx < 256))
++	{
++		strncpy(prefix, in_file, idx);
++		prefix[idx] = '\0';
++	}
++	strncpy((pCHAR8)char_hoa_order, (pCHAR8)(in_file + idx - 1), 1);
++	char_hoa_order[1] = '\0';
++	*hoa_order = atoi((pCHAR8)char_hoa_order);
++	printf("\nHOA_ORDER : %d\n",*hoa_order);
++
++	g_pf_hoa_input[0] = NULL;
++	g_pf_hoa_input[0] = fopen((pCHAR8)first_hoa_file_name, "rb");
++	if (NULL == g_pf_hoa_input[0])
++	{
++		printf("Error opening %s\n", first_hoa_file_name);
++		return -1;
++	}
++	// Set file to data section
++	if (impeghe_wav_header_decode(g_pf_hoa_input[0], &g_inp_hoa_config[0]))
++	{
++		printf("Failed to parse input file WAV header\n");
++		return -1;
++	}
++
++	WORD32 in_file_cnt = 1;
++	for (WORD32 order = 1; order <= (WORD32)*hoa_order; order++)
++	{
++		for (WORD32 m = -order; m < 0; m++)
++		{
++			pCHAR8 file_name = (pCHAR8)g_pb_hoa_input_file_names[in_file_cnt];
++			strcpy(file_name, (pCHAR8)prefix);
++			strcat(file_name, "_");
++			/* max irder will fit in a byte */
++			CHAR8 c[2];
++			c[0] = (CHAR8)(order + '0');
++			c[1] = '\0';
++			strncat(file_name, c, 2);
++			c[0] = (CHAR8)(-m + '0');
++			strncat(file_name, c, 2);
++			strcat(file_name, "-.wav");
++			printf("\nfile_name - %s\n",file_name);
++
++			g_pf_hoa_input[in_file_cnt] = fopen(file_name, "rb");
++			if (NULL == g_pf_hoa_input[in_file_cnt])
++			{
++				printf("Error opening %s, order is %d, idx is %d\n", file_name, *hoa_order, order);
++				return -1;
++			}
++
++			// Parse WAV header
++			if (impeghe_wav_header_decode(g_pf_hoa_input[in_file_cnt], &g_inp_hoa_config[in_file_cnt]))
++			{
++				printf("Failed to parse input file WAV header\n");
++				return -1;
++			}
++			else
++			{
++				if (g_inp_hoa_config[in_file_cnt].n_channels != g_inp_hoa_config[0].n_channels)
++				{
++				printf("Number of channels in input file does not match for %s\n", file_name);
++				return -1;
++				}
++
++				if (g_inp_hoa_config[in_file_cnt].sample_rate != g_inp_hoa_config[0].sample_rate)
++				{
++				printf("Sampling rate in input file does not match for %s\n", file_name);
++				return -1;
++				}
++
++				if (g_inp_hoa_config[in_file_cnt].pcm_sz != g_inp_hoa_config[0].pcm_sz)
++				{
++				printf("Bits per sample in input file does not match for %s\n", file_name);
++				return -1;
++				}
++
++				if (g_inp_hoa_config[in_file_cnt].length != g_inp_hoa_config[0].length)
++				{
++				printf("Sizes of input file does not match for %s\n", file_name);
++				return -1;
++				}
++			}
++			in_file_cnt++;
++		}
++		for (WORD32 m = 0; m <= order; m++)
++		{
++			pCHAR8 file_name = (pCHAR8)g_pb_hoa_input_file_names[in_file_cnt];
++			strcpy(file_name, prefix);
++			strcat(file_name, "_");
++			/* max order will fit in a byte */
++			CHAR8 c[2];
++			c[0] = (WORD8)(order + '0');
++			c[1] = '\0';
++			strncat(file_name, c, 2);
++			c[0] = (WORD8)(m + '0');
++			strncat(file_name, c, 2);
++			strcat(file_name, "+.wav");
++			printf("\nfile_name - %s\n",file_name);
++
++			g_pf_hoa_input[in_file_cnt] = fopen(file_name, "rb");
++			if (NULL == g_pf_hoa_input[in_file_cnt])
++			{
++				printf("Error opening %s, order is %d, idx is %d\n", file_name, *hoa_order, order);
++				return -1;
++			}
++			// Parse WAV header
++			if (impeghe_wav_header_decode(g_pf_hoa_input[in_file_cnt], &g_inp_hoa_config[in_file_cnt]))
++			{
++				printf("Failed to parse input file WAV header\n");
++				return -1;
++			}
++			else
++			{
++				if (g_inp_hoa_config[in_file_cnt].n_channels != g_inp_hoa_config[0].n_channels)
++				{
++				printf("Number of channels in input file does not match for %s\n", file_name);
++				return -1;
++				}
++
++				if (g_inp_hoa_config[in_file_cnt].sample_rate != g_inp_hoa_config[0].sample_rate)
++				{
++				printf("Sampling rate in input file does not match for %s\n", file_name);
++				return -1;
++				}
++
++				if (g_inp_hoa_config[in_file_cnt].pcm_sz != g_inp_hoa_config[0].pcm_sz)
++				{
++				printf("Bits per sample in input file does not match for %s\n", file_name);
++				return -1;
++				}
++
++				if (g_inp_hoa_config[in_file_cnt].length != g_inp_hoa_config[0].length)
++				{
++				printf("Sizes of input file does not match for %s\n", file_name);
++				return -1;
++				}
++			}
++			in_file_cnt++;
++		}
++	}
++	g_num_hoa_coeffs = in_file_cnt--;
++	*num_hoa_coeffs = g_num_hoa_coeffs;
++
++	return 0;
++}
++
++void ia_mpegh_handle_oam(ia_input_config *pstr_input_config,IA_MPEGH_Context *ctx)
++{
++	const char temp1 = '\\';
++	const char temp2 = '/';
++	ctx->num_channels_to_encode = 0;
++
++	for (WORD32 i = (WORD32)strlen((char *)ctx->params.oam_file) - 1; i >= 0; i--)
++	{
++		if ((!strncmp((const char *)&ctx->params.oam_file[i], (const char *)&temp1, 1)) ||
++			(!strncmp((const char *)&ctx->params.oam_file[i], (const char *)&temp2, 1)))
++		{
++			memcpy(pb_oam_file_path, ctx->params.oam_file, i + 1);
++			memcpy(pb_oam_file_name, ctx->params.oam_file + i + 1, strlen((char *)ctx->params.oam_file) - i - 1);
++			break;
++		}
++	}
++
++	ctx->g_oam_inp = fopen(ctx->params.oam_file,"rb");
++
++	if(ctx->g_oam_inp != NULL)
++	{
++		pstr_input_config->oam_read_data = impeghe_read_oam_data;
++		pstr_input_config->oam_skip_data = impeghe_skip_oam_data;
++		pstr_input_config->oam_data_hndl = (VOID *)ctx->g_oam_inp;
++
++		pstr_input_config->oam_high_rate = 1;
++		pstr_input_config->oam_replace_radius = 0;
++		memcpy(pstr_input_config->item_prefix,pb_oam_file_name,64);
++		for(int idx = 0;idx < 6; idx++)
++		{
++			pstr_input_config->oam_fixed_values[idx] = 0;
++		}
++		pstr_input_config->oam_has_core_length = 0;
++		pstr_input_config->oam_has_scrn_rel_objs = 0;
++
++		for(int idx = 0;idx < OAM_MAX_NUM_OBJECTS; idx++)
++		{
++			pstr_input_config->oam_is_scrn_rel_obj[idx] = 0;
++		}
++		pstr_input_config->use_oam_element = 1;
++
++		// To read OAM Header Data
++		// Do Error handling as well
++		impeghe_read_oam_header(ctx->g_oam_inp, pstr_input_config, &ctx->num_channels_to_encode);
++		for(int i=0;i<ctx->num_channels_to_encode;++i)
++		{
++			if (impeghe_wav_header_decode(g_pf_inps[i], &pstr_input_config->aud_obj_pcm_cfg) == 1)
++			{
++				fprintf(stdout, "Unable to Read Input WAV File\n");
++				return;
++			}
++		}
++		pstr_input_config->num_oam_ch = ctx->num_channels_to_encode;
++		pstr_input_config->aud_obj_pcm_cfg.length *= ctx->num_channels_to_encode;
++		pstr_input_config->aud_ch_pcm_cfg.n_channels = 0;
++		pstr_input_config->aud_ch_pcm_cfg.length = pstr_input_config->aud_obj_pcm_cfg.length;
++		pstr_input_config->aud_ch_pcm_cfg.sample_rate = pstr_input_config->aud_obj_pcm_cfg.sample_rate;
++	}
++}
++
++void ia_mpegh_handle_hoa(ia_input_config *pstr_input_config,IA_MPEGH_Context *ctx)
++{
++	const char temp1 = '\\';
++	const char temp2 = '/';
++
++	for (WORD32 i = (WORD32)strlen((char *)ctx->params.hoa_file) - 1; i >= 0; i--)
++	{
++		if ((!strncmp((const char *)&ctx->params.hoa_file[i], (const char *)&temp1, 1)) ||
++			(!strncmp((const char *)&ctx->params.hoa_file[i], (const char *)&temp2, 1)))
++		{
++			memcpy(pb_hoa_file_path, ctx->params.hoa_file, i + 1);
++			break;
++		}
++	}
++	strcpy((char *)g_pb_hoa_input_file_names[0],ctx->params.hoa_file);
++
++	g_is_hoa_input = 1;
++	if(open_in_files(g_pb_hoa_input_file_names[0], &(pv_input->hoa_order),&(pv_input->num_hoa_coeffs)))
++	{
++		printf("Failed to open all HOA input files\n");
++		return;
++	}
++	pstr_input_config->use_hoa_element = 1;
++	// Default to use direction estimation
++	if (-1 == pstr_input_config->use_vec_est)
++		pstr_input_config->use_vec_est = 0;
++	/* HAM data parsing */
++	if (g_pf_inp_ham)
++	{
++		/* Parsing HOA info */
++		CHAR8 tmp_buffer[50];
++		if (NULL != fgets(tmp_buffer, 50, g_pf_inp_ham))
++		{
++			if (0 == strncmp(tmp_buffer, "NFCflag=", 8))
++			{
++				char c[2];
++				strncpy(c, tmp_buffer + 8, 1);
++				c[1] = '\0';
++
++				pv_input->uses_nfc = (atoi(c) == 1);
++			}
++			else if (0 == strncmp(tmp_buffer, "NFCflag = ", 10))
++			{
++				char c[2];
++				strncpy(c, tmp_buffer + 10, 1);
++				c[1] = '\0';
++
++				pv_input->uses_nfc = (atoi(c) == 1);
++			}
++		}
++
++		if (pv_input->uses_nfc)
++		{
++			if (NULL != fgets(tmp_buffer, 50, g_pf_inp_ham))
++			{
++				if (0 == strncmp(tmp_buffer, "NFCrefDist=", 11))
++				{
++					pv_input->nfc_distance = (FLOAT32)atof(tmp_buffer + 11);
++				}
++				else if (0 == strncmp(tmp_buffer, "NFCrefDist = ", 13))
++				{
++					pv_input->nfc_distance = (FLOAT32)atof(tmp_buffer + 13);
++				}
++				else
++				{
++					pv_input->nfc_distance = 0;
++				}
++			}
++		}
++	}
++	/* HOA renderer matrix parsing */
++	if (g_pf_inp_hoa_mtx)
++	{
++		int k;
++		/* Syntax of HOA matrix file */
++		/* Number of HOA rendering Matrix */
++		/* Then for each matrix:         */
++		/* Renderer ID */
++		/* Output CICP */
++		/* Number of Rendered channels */
++		/* Number of HOA coefficients */
++		/* HOA matrix */
++		if (fscanf(g_pf_inp_hoa_mtx, "%d", &pv_input->num_hoa_matrix))
++		{
++			int ret = 0;
++			if (pv_input->num_hoa_matrix > HOA_MAX_MATRIX)
++			{
++				pv_input->num_hoa_matrix = HOA_MAX_MATRIX;
++				printf("Number of HOA matrices is high. Will restrict to first %d\n", HOA_MAX_MATRIX);
++			}
++			for (k = 0; k < pv_input->num_hoa_matrix; k++)
++			{
++				ret = fscanf(g_pf_inp_hoa_mtx, "%d", &pv_input->hoa_rend_id[k]);
++				if (!ret)
++					break;
++				ret = fscanf(g_pf_inp_hoa_mtx, "%d", &pv_input->hoa_cicp[k]);
++				if (!ret)
++					break;
++				ret = fscanf(g_pf_inp_hoa_mtx, "%d", &pv_input->hoa_matrix_out_dim[k]);
++				if (!ret)
++					break;
++				ret = fscanf(g_pf_inp_hoa_mtx, "%d", &pv_input->hoa_matrix_in_dim[k]);
++				if (!ret)
++					break;
++
++				if ((pv_input->hoa_matrix_in_dim[k] > HOA_MAX_COEFFS) ||
++						(pv_input->hoa_matrix_out_dim[k] > MAX_NUM_OF_SPEAKERS))
++				{
++					printf("Incorrect HOA matrix dimension. Not sending any HOA matrix\n");
++					ret = 0;
++					break;
++				}
++
++				for (WORD32 i = 0; i < pv_input->hoa_matrix_in_dim[k]; ++i)
++				{
++					for (WORD32 j = 0; j < pv_input->hoa_matrix_out_dim[k]; ++j)
++					{
++						ret = fscanf(
++								g_pf_inp_hoa_mtx, " %lf",
++								&(pv_input->hoa_matrix[k]
++																	[i * pv_input->hoa_matrix_out_dim[k] + j]));
++						if (!ret)
++							break;
++					}
++				}
++				if (!ret)
++					break;
++			}
++			if ((pv_input->num_hoa_matrix > 0) && (ret))
++			{
++				pv_input->use_hoa_matrix = 1;
++			}
++			else
++			{
++				printf("Error in HOA matrix file. Not sending HOA matrix file\n");
++			}
++		}
++	}
++	if (pv_input->use_hoa_element)
++	{
++		if (impeghe_wav_header_decode(g_pf_hoa_input[0], &pv_input->hoa_pcm_cfg) ==
++			1)
++		{
++		fprintf(stdout, "Unable to Read Input WAV File\n");
++		return;
++		}
++	}
++	pstr_input_config->aud_ch_pcm_cfg.n_channels = 0;
++	pstr_input_config->aud_ch_pcm_cfg.length = g_inp_hoa_config[0].length;
++	pstr_input_config->aud_ch_pcm_cfg.sample_rate = g_inp_hoa_config[0].sample_rate;
++}
++//
++static av_cold ia_mpegh_encode_init(AVCodecContext *avctx)
++{
++	IA_MPEGH_Context *ctx = avctx->priv_data;
++
++	// Error Code
++	IA_ERRORCODE err_code = IA_NO_ERROR;
++
++	pv_input = (ia_input_config *)malloc(sizeof(ia_input_config));
++	pv_output = (ia_output_config *)malloc(sizeof(ia_output_config));
++
++	//
++	ia_mpegh_encode_set_default_param(pv_input);
++	//
++	ia_mpegh_encode_set_config_param(pv_input,ctx);
++
++	//
++	pv_output->malloc_count = 0;
++	pv_output->malloc_xaac = &malloc_global;
++	//
++	err_code = impeghe_create((pVOID)pv_input, (pVOID)pv_output);
++	p_ia_mpeghe_obj = pv_output->pv_ia_process_api_obj;
++
++	ctx->pb_inp_buf = (pWORD8)pv_output->mem_info_table[IA_MEMTYPE_INPUT].mem_ptr;
++	ctx->pb_out_buf = (pWORD8)pv_output->mem_info_table[IA_MEMTYPE_OUTPUT].mem_ptr;
++
++	if (pv_input->use_hoa_element)
++	{
++		ctx->pb_inp_hoa_buf = (pWORD8)pv_output->mem_info_table[IA_MEMTYPE_INPUT_HOA].mem_ptr;
++	}
++
++	// Initialize the API
++	// impeghe_init function call
++	impeghe_init(p_ia_mpeghe_obj, (pVOID)pv_input, (pVOID)pv_output);
++
++  if ((pv_input->use_hoa_element) && (pv_input->use_hoa_matrix))
++  {
++    if (pv_output->hoa_mtx_status)
++    {
++      printf("Not sending HOA matrix due to incorrect input/config \n");
++    }
++  }
++
++	// declare frame size
++	avctx->frame_size = 1024;
++
++	// Pass handle to avctx (AVCodecContext)
++	ctx->pv_ia_process_api_obj = p_ia_mpeghe_obj;
++
++	// Initialize AudioFrameQueue
++	ff_af_queue_init(avctx, &ctx->afq);
++
++	ctx->LEN = pv_output->i_dec_len;
++
++	// Flag = 0 if output format is MHAS
++	// 1 - RAW_MHAS, 2 - MP4_MHA1 and 3 - MP4_MHM1
++	if(ctx->params.output_format == 1)
++	{
++		ctx->temp_buf = (pWORD8)malloc(pv_output->i_dec_len);
++		memcpy(ctx->temp_buf, ctx->pb_out_buf, pv_output->i_dec_len);
++	}
++	else if(ctx->params.output_format == 2)
++	{
++		flag = 0;
++		avctx->extradata_size = pv_output->i_dec_len;
++		avctx->extradata = av_mallocz( avctx->extradata_size +  IA_MHAC_CONFIG_VERSION + IA_MHAC_PROFILE_LEVEL_INDICATION + IA_MHAC_REFRENCE_CHANNEL_LAYOUT + IA_MHAC_LENGTH + 4 + IA_OUTPUT_FMT);
++		ia_reconfigure_mhaC_tag_data(ctx->pb_out_buf,pv_output->profile_info, avctx);
++		(avctx->extradata)[avctx->extradata_size -1] = temp_op_fmt;
++
++	}
++	else
++	{
++		ctx->temp_buf = (pWORD8)malloc(pv_output->i_dec_len);
++		memcpy(ctx->temp_buf, ctx->pb_out_buf, pv_output->i_dec_len);
++		avctx->extradata_size = pv_output->i_dec_len;
++		avctx->extradata = av_mallocz( avctx->extradata_size +  IA_MHAC_CONFIG_VERSION + IA_MHAC_PROFILE_LEVEL_INDICATION + IA_MHAC_REFRENCE_CHANNEL_LAYOUT + IA_MHAC_LENGTH + 4 + IA_OUTPUT_FMT);
++		ia_reconfigure_mhaC_tag_data(ctx->pb_out_buf,pv_output->profile_info, avctx);
++		(avctx->extradata)[avctx->extradata_size -1] = temp_op_fmt;
++	}
++
++	return err_code;
++}
++
++static av_cold ia_mpegh_encode_close(AVCodecContext *avctx)
++{
++	IA_MPEGH_Context *ctx = avctx->priv_data;
++
++	// Calling delete of MPEGH Enc
++	impeghe_delete(pv_output);
++
++	// For OAM
++	if (pv_input->use_oam_element == 1)
++	{
++		for (int i = 0; i < ctx->num_channels_to_encode; i++)
++		{
++			if (g_pf_inps[i])
++			{
++				fclose(g_pf_inps[i]);
++				g_pf_inps[i] = NULL;
++			}
++		}
++	}
++
++	if (g_pf_inp_ham)
++	{
++		fclose(g_pf_inp_ham);
++		g_pf_inp_ham = NULL;
++	}
++	if (g_pf_inp_hoa_mtx)
++	{
++		fclose(g_pf_inp_hoa_mtx);
++		g_pf_inp_hoa_mtx = NULL;
++	}
++	for (int i = 0; i < g_num_hoa_coeffs; i++)
++	{
++		if (g_pf_hoa_input[i])
++		{
++			fclose(g_pf_hoa_input[i]);
++			g_pf_hoa_input[i] = NULL;
++		}
++	}
++
++	// Free all allocated memory
++	free(pv_input);
++	free(pv_output);
++	free(ctx->temp_buf);
++
++	// Close AudioFrameQueue.
++	ff_af_queue_close(&ctx->afq);
++	return 0;
++}
++
++static int ia_mpegh_encode_frame(AVCodecContext *avctx, AVPacket *avpkt,
++	const AVFrame *frame, int *got_packet_ptr)
++{
++	// Process each frame
++	IA_MPEGH_Context *ctx = avctx->priv_data;
++	int ret;
++	WORD32 i_out_bytes = 0;
++	if (!frame)
++		return 0;
++
++	if ((ret = ff_af_queue_add(&ctx->afq, frame)) < 0)
++		return ret;
++	// allocating output pkt
++	if ((ret = ff_alloc_packet(avctx, avpkt, 8096)) < 0)
++		return ret;
++
++	if (flag)
++	{
++		memcpy(avpkt->data, ctx->temp_buf, ctx->LEN);
++	}
++
++	// If OAM is present
++	if(pv_input->use_oam_element == 1)
++	{
++		WORD32 idx = 0;
++		WORD32 i_bytes_read = 0;
++		for (WORD32 i = 0; i < 1024; i++)
++		{
++			for (WORD32 j = 0; j < ctx->num_channels_to_encode; j++)
++			{
++				i_bytes_read += impeghe_fread((pVOID)&ctx->pb_inp_buf[idx], sizeof(WORD8),
++											(pv_input->aud_obj_pcm_cfg.pcm_sz >> 3), g_pf_inps[j]);
++				idx += (pv_input->aud_obj_pcm_cfg.pcm_sz >> 3);
++			}
++		}
++	}
++	// If HOA is Present
++	else if (g_is_hoa_input)
++	{
++		WORD32 bytes_read;
++		WORD32 hoa_bytes_read = 0;
++		WORD32 input_hoa_size = avctx->frame_size * g_inp_hoa_config[0].pcm_sz >> 3;
++		for (WORD32 i = 0; i < g_num_hoa_coeffs; i++)
++		{
++			bytes_read = impeghe_fread(((UWORD8 *)ctx->pb_inp_hoa_buf) + hoa_bytes_read,
++									sizeof(WORD8), input_hoa_size, g_pf_hoa_input[i]);
++			hoa_bytes_read += input_hoa_size;
++		}
++	}
++	// If no OAM or no HOA are present
++	else
++	{
++		// copy one frame from frame->data[0] to ctx->pb_inp_buf
++		memcpy(ctx->pb_inp_buf, frame->data[0], avctx->frame_size * (ctx->params.n_channels) * (ctx->params.pcm_sz/8));
++	}
++
++	if (((frame->nb_samples)*(ctx->params.n_channels)*(ctx->params.pcm_sz/8) != avctx->frame_size*(ctx->params.n_channels) * (ctx->params.pcm_sz/8)) && (!g_is_hoa_input) && (pv_input->use_oam_element != 1))
++	{
++		memset((ctx->pb_inp_buf + ((frame->nb_samples)*(ctx->params.n_channels) * (ctx->params.pcm_sz/8))), 0, (avctx->frame_size*(ctx->params.n_channels) * (ctx->params.pcm_sz/8) - (frame->nb_samples)*(ctx->params.n_channels) * (ctx->params.pcm_sz/8)));
++	}
++
++	// Encode Frame
++	impeghe_execute(p_ia_mpeghe_obj, pv_input, pv_output);
++
++	// Get the output bytes
++	i_out_bytes = pv_output->i_out_bytes;
++
++	// Copy i_out_bytes to avpkt->data
++	if (flag)
++	{
++		memcpy(avpkt->data+ctx->LEN, ctx->pb_out_buf, i_out_bytes);
++	}
++	else
++	{
++		memcpy(avpkt->data, ctx->pb_out_buf, i_out_bytes);
++	}
++	// Get the next frame pts and duration
++	ff_af_queue_remove(&ctx->afq, avctx->frame_size, &avpkt->pts,
++		&avpkt->duration);
++	if(flag)
++	{
++		avpkt->size = i_out_bytes + ctx->LEN;
++		flag = 0;
++	}
++	else
++	{
++		avpkt->size = i_out_bytes;
++	}
++
++	*got_packet_ptr = 1;
++
++	return 0;
++}
++
++FFCodec ff_ia_mpegh_encoder = {
++	.p.name = "ia_mpeghe",
++	.p.long_name = NULL_IF_CONFIG_SMALL("Ittiam MPEGH Encoder"),
++	.p.type = AVMEDIA_TYPE_AUDIO,
++	.p.id	= AV_CODEC_ID_MPEGH_3D_AUDIO,
++	.priv_data_size = sizeof(IA_MPEGH_Context),
++	.init = ia_mpegh_encode_init,
++	FF_CODEC_ENCODE_CB(ia_mpegh_encode_frame),
++	.close = ia_mpegh_encode_close,
++	.p.sample_fmts = (const enum AVSampleFormat[]) {
++ AV_SAMPLE_FMT_S16,AV_SAMPLE_FMT_S32,
++AV_SAMPLE_FMT_NONE
++},
++.p.capabilities = AV_CODEC_CAP_SMALL_LAST_FRAME | AV_CODEC_CAP_DELAY,
++.p.priv_class = &ia_mpegh_enc_class,
++};
+\ No newline at end of file
+diff --git a/libavcodec/impeghe_api.h b/libavcodec/impeghe_api.h
+new file mode 100644
+index 0000000000..7945f7ea41
+--- /dev/null
++++ b/libavcodec/impeghe_api.h
+@@ -0,0 +1,44 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_API_H
++#define IMPEGHE_API_H
++
++VOID impeghe_get_lib_id_strings(pVOID pv_output);
++IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output);
++IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output);
++IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output);
++VOID impeghe_delete(pVOID pv_output);
++
++#endif /* IMPEGHE_API_H */
+diff --git a/libavcodec/impeghe_apicmd_standards.h b/libavcodec/impeghe_apicmd_standards.h
+new file mode 100644
+index 0000000000..3bd2dc3007
+--- /dev/null
++++ b/libavcodec/impeghe_apicmd_standards.h
+@@ -0,0 +1,46 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_APICMD_STANDARDS_H
++#define IMPEGHE_APICMD_STANDARDS_H
++
++/*****************************************************************************/
++/* Ittiam standard API commands                                              */
++/*****************************************************************************/
++
++#define IA_API_CMD_GET_MEM_INFO_SIZE 0x0001
++#define IA_API_CMD_GET_MEM_INFO_ALIGNMENT 0x0002
++#define IA_API_CMD_GET_MEM_INFO_TYPE 0x0003
++
++#endif /* IMPEGHE_APICMD_STANDARDS_H */
+diff --git a/libavcodec/impeghe_block_switch_const.h b/libavcodec/impeghe_block_switch_const.h
+new file mode 100644
+index 0000000000..fc30855ed5
+--- /dev/null
++++ b/libavcodec/impeghe_block_switch_const.h
+@@ -0,0 +1,50 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_BLOCK_SWITCH_CONST_H
++#define IMPEGHE_BLOCK_SWITCH_CONST_H
++
++#define TRUE 1
++#define FALSE 0
++
++#define BLK_SWITCH_FILT_LEN 2
++#define MAX_NUM_WIN_GROUPS 4
++
++#define ACC_WINDOW_NRG_FAC 0.3f
++#define ONE_MINUS_ACC_WINDOW_NRG_FAC 0.7f
++#define INV_ATTACK_RATIO_HIGH_BR 0.1f
++#define INV_ATTACK_RATIO_LOW_BR 0.056f
++#define MIN_ATTACK_NRG 1e+6
++
++#endif /* IMPEGHE_BLOCK_SWITCH_CONST_H */
+diff --git a/libavcodec/impeghe_dmx_cicp2geometry.h b/libavcodec/impeghe_dmx_cicp2geometry.h
+new file mode 100644
+index 0000000000..b93aa6171f
+--- /dev/null
++++ b/libavcodec/impeghe_dmx_cicp2geometry.h
+@@ -0,0 +1,76 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_DMX_CICP2GEOMETRY_H
++#define IMPEGHE_DMX_CICP2GEOMETRY_H
++
++#define CICP2GEOMETRY_MAX_LOUDSPEAKERS (32)
++
++// CICP index
++#define CICP2GEOMETRY_CICP_FROM_FILE (-1)
++#define CICP2GEOMETRY_CICP_1_0_0 (1)
++#define CICP2GEOMETRY_CICP_2_0_0 (2)
++#define CICP2GEOMETRY_CICP_3_0_0 (3)
++#define CICP2GEOMETRY_CICP_3_1_0 (4)
++#define CICP2GEOMETRY_CICP_3_2_0 (5)
++#define CICP2GEOMETRY_CICP_3_2_1 (6)
++#define CICP2GEOMETRY_CICP_5_2_1 (7)
++#define CICP2GEOMETRY_CICP_1_1 (8)
++#define CICP2GEOMETRY_CICP_2_1_0 (9)
++#define CICP2GEOMETRY_CICP_2_2_0 (10)
++#define CICP2GEOMETRY_CICP_3_3_1 (11)
++#define CICP2GEOMETRY_CICP_3_4_1 (12)
++#define CICP2GEOMETRY_CICP_11_11_2 (13)
++#define CICP2GEOMETRY_CICP_5_2_1_ELEVATION (14)
++#define CICP2GEOMETRY_CICP_5_5_2 (15)
++#define CICP2GEOMETRY_CICP_5_4_1 (16)
++#define CICP2GEOMETRY_CICP_6_5_1 (17)
++#define CICP2GEOMETRY_CICP_6_7_1 (18)
++#define CICP2GEOMETRY_CICP_7_4_1 (19)
++#define CICP2GEOMETRY_CICP_9_4_1 (20)
++#define CICP2GEOMETRY_CICP_INVALID (-1000)
++
++typedef struct
++{
++  WORD16 elevation;
++  WORD16 azimuth;
++  WORD16 is_lfe;
++} ia_dmx_channel_geometry_struct;
++
++IA_ERRORCODE impeghe_dmx_get_geometry_from_cicp(
++    WORD32 cicp_index,
++    ia_dmx_channel_geometry_struct channel_geometry[CICP2GEOMETRY_MAX_LOUDSPEAKERS],
++    WORD32 *ptr_num_channels, WORD32 *ptr_num_lfe);
++
++#endif /* IMPEGHE_DMX_CICP2GEOMETRY_H */
+diff --git a/libavcodec/impeghe_dmx_matrix_common.h b/libavcodec/impeghe_dmx_matrix_common.h
+new file mode 100644
+index 0000000000..e308174f40
+--- /dev/null
++++ b/libavcodec/impeghe_dmx_matrix_common.h
+@@ -0,0 +1,138 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_DMX_MATRIX_COMMON_H
++#define IMPEGHE_DMX_MATRIX_COMMON_H
++
++#ifndef MIN
++#define MIN(a, b) (((a) < (b)) ? (a) : (b))
++#endif
++#ifndef MAX
++#define MAX(a, b) (((a) > (b)) ? (a) : (b))
++#endif
++
++#define IMPEGHE_DMX_MAX_NUM_EQ_PARAM (32)
++#define IMPEGHE_MAX_NUM_PEAK_FILTER (32)
++
++#define SP_PAIR_CENTER (0)
++#define SP_PAIR_SYMMETRIC (1)
++#define SP_PAIR_SINGLE (2)
++#define SP_PAIR_NONE (3)
++
++#define IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT (32)
++#define IMPEGHE_DMX_MATRIX_GAIN_ZERO (-256.0f)
++#define IMPEGHE_DMX_MATRIX_CODER_STATE_COUNT_MAX (512)
++#define IMPEGHE_DMX_MATRIX_GAIN_TABLE_SIZE_MAX ((22 - (-46)) * (1 << 2) + 2)
++
++typedef struct ia_dmx_speaker_information_str
++{
++  WORD16 elevation;
++  WORD16 azimuth;
++  WORD16 is_lfe;
++
++  WORD16 original_position;
++  WORD16 is_already_used;
++  struct ia_dmx_speaker_information_str *pstr_symmetric_pair;
++  WORD32 pair_type;
++} ia_dmx_speaker_information_struct;
++
++typedef struct
++{
++  WORD32 min_gain;
++  WORD32 max_gain;
++  WORD32 precision_level;
++  WORD32 raw_coding_nonzeros;
++  WORD32 gain_l_g_r_param;
++  FLOAT32 history[IMPEGHE_DMX_MATRIX_CODER_STATE_COUNT_MAX];
++  WORD32 history_count;
++  FLOAT32 gain_table[IMPEGHE_DMX_MATRIX_GAIN_TABLE_SIZE_MAX];
++  WORD32 gain_table_size;
++} ia_dmx_mtx_coder_state_struct;
++
++typedef struct
++{
++  FLOAT32 peak_freq_hz;
++  FLOAT32 peak_q_factor;
++  FLOAT32 peak_gain_db;
++} ia_dmx_pk_filter_params_struct;
++
++typedef struct
++{
++  WORD32 num_pk_filter;
++  FLOAT32 global_gain_db;
++  ia_dmx_pk_filter_params_struct pk_filter_params[IMPEGHE_MAX_NUM_PEAK_FILTER];
++} ia_dmx_eq_params_struct;
++
++typedef struct
++{
++  WORD32 num_eq;
++  ia_dmx_eq_params_struct eq_params[IMPEGHE_DMX_MAX_NUM_EQ_PARAM];
++  WORD32 eq_map[IMPEGHE_DMX_MAX_NUM_EQ_PARAM];
++} ia_dmx_eq_config_struct;
++
++typedef struct
++{
++  /*scratch*/
++  ia_dmx_speaker_information_struct input_config[IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT];
++  ia_dmx_speaker_information_struct output_config[IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT];
++  ia_dmx_channel_geometry_struct input_geometry[CICP2GEOMETRY_MAX_LOUDSPEAKERS];
++  ia_dmx_channel_geometry_struct output_geometry[CICP2GEOMETRY_MAX_LOUDSPEAKERS];
++  WORD8 compact_downmix_matrix[IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT]
++                              [IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT];
++  WORD8 compact_template_buffer[IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT *
++                                IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT];
++} ia_dmx_sratch;
++
++typedef struct
++{
++  WORD32 output_config_index;
++  WORD32 input_config_index;
++  FLOAT32 flat_downmix_matrix[IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT *
++                              IMPEGHE_DMX_MATRIX_MAX_SPEAKER_COUNT];
++  ia_dmx_eq_config_struct pstr_eq_config;
++
++} ia_dmx_matrix_enc_cfg_struct;
++
++IA_ERRORCODE
++impeghe_dmx_coder_state_generate_gain_table(ia_dmx_mtx_coder_state_struct *coder_state);
++
++VOID impeghe_dmx_convert_to_compact_config(
++    WORD32 input_count, ia_dmx_speaker_information_struct *pstr_input_config,
++    WORD32 *ptr_compact_input_count,
++    ia_dmx_speaker_information_struct *pstr_compact_input_config[]);
++
++pWORD8 impeghe_dmx_find_compact_template(WORD32 input_index, WORD32 output_index,
++                                         WORD32 *err_code);
++
++#endif /* IMPEGHE_DMX_MATRIX_COMMON_H */
+diff --git a/libavcodec/impeghe_drc_api.h b/libavcodec/impeghe_drc_api.h
+new file mode 100644
+index 0000000000..3775dbd38c
+--- /dev/null
++++ b/libavcodec/impeghe_drc_api.h
+@@ -0,0 +1,62 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_DRC_API_H
++#define IMPEGHE_DRC_API_H
++typedef struct
++{
++  WORD32 frame_size;
++  WORD32 sample_rate;
++  WORD32 delay_mode;
++  WORD32 domain;
++  WORD32 parametric_drc_only;
++  WORD32 frame_count;
++  WORD32 gain_sequence_present;
++} ia_drc_enc_params_struct;
++
++typedef struct
++{
++  ia_drc_enc_params_struct str_enc_params;
++  ia_drc_uni_drc_config_struct str_uni_drc_config;
++  ia_drc_loudness_info_set_struct str_enc_loudness_info_set;
++  ia_drc_uni_drc_gain_ext_struct str_enc_gain_extension;
++} ia_drc_input_config;
++
++IA_ERRORCODE impeghe_drc_enc_init(VOID *pstr_drc_state, VOID *ptr_drc_scratch,
++                                  ia_drc_input_config *pstr_inp_config);
++
++VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_offset,
++                     WORD32 *ptr_bits_written, VOID *pstr_scratch);
++
++#endif /*IMPEGHE_DRC_API_H*/
+diff --git a/libavcodec/impeghe_drc_common.h b/libavcodec/impeghe_drc_common.h
+new file mode 100644
+index 0000000000..81d8c0d40d
+--- /dev/null
++++ b/libavcodec/impeghe_drc_common.h
+@@ -0,0 +1,101 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_DRC_COMMON_H
++#define IMPEGHE_DRC_COMMON_H
++
++#define MAX_DRC_PAYLOAD_BYTES (2048)
++#define MAX_SPEAKER_POS_COUNT (128)
++#define MAX_DOWNMIX_COEFF_COUNT (32 * 32)
++#define MAX_CHANNEL_COUNT (128)
++#define MAX_BAND_COUNT (8)
++#define MAX_SEQUENCE_COUNT (8)
++#define MAX_MEASUREMENT_COUNT (16)
++#define MAX_DOWNMIX_INSTRUCTION_COUNT (16)
++#define MAX_DRC_COEFF_COUNT (8)
++#define MAX_DRC_INSTRUCTIONS_COUNT (MAX_DOWNMIX_INSTRUCTION_COUNT + 16)
++#define MAX_LOUDNESS_INFO_COUNT (MAX_DOWNMIX_INSTRUCTION_COUNT + 16)
++#define MAX_AUDIO_CODEC_FRAME_SIZE (2048)
++#define MAX_DRC_CODEC_FRAME_SIZE (MAX_AUDIO_CODEC_FRAME_SIZE / 8)
++#define MAX_NODE_COUNT (MAX_DRC_CODEC_FRAME_SIZE)
++#define MAX_CHANNEL_GROUP_COUNT (MAX_SEQUENCE_COUNT)
++#define MAX_ADDITIONAL_DOWNMIX_ID (8)
++#define DELAY_MODE_REGULAR_DELAY (0)
++#define DELAY_MODE_LOW_DELAY (1)
++#define DELAY_MODE_DEFAULT (DELAY_MODE_REGULAR_DELAY)
++#define MAX_EXT_COUNT (2)
++
++#define UNIDRC_GAIN_EXT_TERM (0x0)
++#define UNIDRC_LOUD_EXT_TERM (0x0)
++#define UNIDRC_CONF_EXT_TERM (0x0)
++#define UNIDRC_CONF_EXT_PARAM_DRC (0x1)
++#define UNIDRC_CONF_EXT_V1 (0x2)
++#define UNIDRC_LOUD_EXT_EQ (0x1)
++
++#define MAX_PARAM_DRC_INSTRUCTIONS_COUNT (8)
++
++#define PARAM_DRC_TYPE_FF (0x0)
++#define MAX_PARAM_DRC_TYPE_FF_NODE_COUNT (9)
++
++#define PARAM_DRC_TYPE_LIM (0x1)
++#define PARAM_DRC_TYPE_LIM_THRESHOLD_DEFAULT (-1.f)
++#define PARAM_DRC_TYPE_LIM_ATTACK_DEFAULT (5)
++#define PARAM_DRC_TYPE_LIM_RELEASE_DEFAULT (50)
++
++#define SUBBAND_DOMAIN_MODE_OFF (0)
++#define SUBBAND_DOMAIN_MODE_QMF64 (1)
++#define SUBBAND_DOMAIN_MODE_QMF71 (2)
++#define SUBBAND_DOMAIN_MODE_STFT256 (3)
++
++#define QMF64_AUDIO_CODEC_SUBBAND_COUNT (64)
++#define QMF64_AUDIO_CODEC_SUBBAND_DOWNSAMPLING_FACTOR (64)
++
++#define QMF71_AUDIO_CODEC_SUBBAND_COUNT (71)
++#define QMF71_AUDIO_CODEC_SUBBAND_DOWNSAMPLING_FACTOR (64)
++
++#define STFT256_AUDIO_CODEC_SUBBAND_COUNT (256)
++#define STFT256_AUDIO_CODEC_SUBBAND_DOWNSAMPLING_FACTOR (256)
++
++#define TIME_DOMAIN (1)
++#define SUBBAND_DOMAIN (2)
++#define SLOPE_FACTOR_DB_TO_LINEAR (0.1151f) /* ln(10) / 20 */
++
++#ifndef MIN
++#define MIN(a, b) ((a) < (b) ? (a) : (b))
++#endif
++#ifndef MAX
++#define MAX(a, b) ((a) > (b) ? (a) : (b))
++#endif
++
++#endif /*IMPEGHE_DRC_COMMON_H*/
+diff --git a/libavcodec/impeghe_drc_uni_drc.h b/libavcodec/impeghe_drc_uni_drc.h
+new file mode 100644
+index 0000000000..0429c7fd5b
+--- /dev/null
++++ b/libavcodec/impeghe_drc_uni_drc.h
+@@ -0,0 +1,695 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_DRC_UNI_DRC_H
++#define IMPEGHE_DRC_UNI_DRC_H
++
++/* Defines for bitstream payload */
++#define METHOD_DEFINITION_UNKNOWN_OTHER 0
++#define METHOD_DEFINITION_PROGRAM_LOUDNESS 1
++#define METHOD_DEFINITION_ANCHOR_LOUDNESS 2
++#define METHOD_DEFINITION_MAX_OF_LOUDNESS_RANGE 3
++#define METHOD_DEFINITION_MOMENTARY_LOUDNESS_MAX 4
++#define METHOD_DEFINITION_SHORT_TERM_LOUDNESS_MAX 5
++#define METHOD_DEFINITION_LOUDNESS_RANGE 6
++#define METHOD_DEFINITION_MIXING_LEVEL 7
++#define METHOD_DEFINITION_ROOM_TYPE 8
++#define METHOD_DEFINITION_SHORT_TERM_LOUDNESS 9
++
++#define MEASUREMENT_SYSTEM_UNKNOWN_OTHER 0
++#define MEASUREMENT_SYSTEM_EBU_R_128 1
++#define MEASUREMENT_SYSTEM_BS_1770_3 2
++#define MEASUREMENT_SYSTEM_BS_1770_3_PRE_PROCESSING 3
++#define MEASUREMENT_SYSTEM_USER 4
++#define MEASUREMENT_SYSTEM_EXPERT_PANEL 5
++#define MEASUREMENT_SYSTEM_BS_1771_1 6
++#define MEASUREMENT_SYSTEM_RESERVED_A 7
++#define MEASUREMENT_SYSTEM_RESERVED_B 8
++#define MEASUREMENT_SYSTEM_RESERVED_C 9
++#define MEASUREMENT_SYSTEM_RESERVED_D 10
++#define MEASUREMENT_SYSTEM_RESERVED_E 11
++
++#define RELIABILITY_UKNOWN 0
++#define RELIABILITY_UNVERIFIED 1
++#define RELIABILITY_CEILING 2
++#define RELIABILITY_ACCURATE 3
++
++#define EFFECT_BIT_COUNT 12
++
++#define EFFECT_BIT_NONE (-1) /* this effect bit is virtual */
++#define EFFECT_BIT_NIGHT 0x0001
++#define EFFECT_BIT_NOISY 0x0002
++#define EFFECT_BIT_LIMITED 0x0004
++#define EFFECT_BIT_LOWLEVEL 0x0008
++#define EFFECT_BIT_DIALOG 0x0010
++#define EFFECT_BIT_GENERAL_COMPR 0x0020
++#define EFFECT_BIT_EXPAND 0x0040
++#define EFFECT_BIT_ARTISTIC 0x0080
++#define EFFECT_BIT_CLIPPING 0x0100
++#define EFFECT_BIT_FADE 0x0200
++#define EFFECT_BIT_DUCK_OTHER 0x0400
++#define EFFECT_BIT_DUCK_SELF 0x0800
++
++#define GAIN_CODING_PROFILE_REGULAR 0
++#define GAIN_CODING_PROFILE_FADING 1
++#define GAIN_CODING_PROFILE_CLIPPING 2
++#define GAIN_CODING_PROFILE_CONSTANT 3
++#define GAIN_CODING_PROFILE_DUCKING GAIN_CODING_PROFILE_CLIPPING
++
++#define GAIN_INTERPOLATION_TYPE_SPLINE 0
++#define GAIN_INTERPOLATION_TYPE_LINEAR 1
++
++#define LOUDNESS_DEVIATION_MAX_DEFAULT 63
++#define LOUDNESS_NORMALIZATION_GAIN_MAX_DEFAULT 1000 /* infinity as default */
++#define GAIN_SET_COUNT_MAX 8                         /* reduced size */
++
++#define LEFT_SIDE 0
++#define RIGHT_SIDE 1
++#define SPLIT_CHARACTERISTIC_COUNT_MAX 8
++#define SPLIT_CHARACTERISTIC_MAX_NODE_COUNT 4 /* one side of characteristic */
++
++#define GAINFORMAT_QMF32 0x1
++#define GAINFORMAT_QMFHYBRID39 0x2
++#define GAINFORMAT_QMF64 0x3
++#define GAINFORMAT_QMFHYBRID71 0x4
++#define GAINFORMAT_QMF128 0x5
++#define GAINFORMAT_QMFHYBRID135 0x6
++#define GAINFORMAT_UNIFORM 0x7
++
++#define EQ_PURPOSE_GENERIC 1
++#define EQ_PURPOSE_LARGE_ROOM 2
++#define EQ_PURPOSE_SMALL_SPACE 3
++
++#define DRC_INPUT_LOUDNESS_TARGET (-31.0f) /* dB */
++
++#define SHAPE_FILTER_COUNT_MAX 8
++
++#define SHAPE_FILTER_TYPE_OFF 0
++#define SHAPE_FILTER_TYPE_LF_CUT 1
++#define SHAPE_FILTER_TYPE_LF_BOOST 2
++#define SHAPE_FILTER_TYPE_HF_CUT 3
++#define SHAPE_FILTER_TYPE_HF_BOOST 4
++
++#define SHAPE_FILTER_DRC_GAIN_MAX_MINUS_ONE 1583.8931924611f /* 10^3.2 - 1 */
++
++#define DOWNMIX_INSTRUCTIONS_COUNT_MAX 8       /* reduced size */
++#define DRC_COEFFICIENTS_UNIDRC_V1_COUNT_MAX 2 /* reduced size */
++#define DRC_INSTRUCTIONS_UNIDRC_V1_COUNT_MAX 8 /* reduced size */
++#define DRC_MAX_BAND_COUNT MAX_BAND_COUNT
++#define SPLIT_CHARACTERISTIC_COUNT_MAX 8 /* reduced size */
++#define SHAPE_FILTER_COUNT_MAX 8         /* reduced size */
++#define ADDITIONAL_DOWNMIX_ID_COUNT_MAX MAX_ADDITIONAL_DOWNMIX_ID
++#define ADDITIONAL_DRC_SET_ID_COUNT_MAX 16
++#define ADDITIONAL_EQ_SET_ID_COUNT_MAX 8
++#define LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT 4
++#define FILTER_ELEMENT_COUNT_MAX 16 /* reduced size */
++#define REAL_ZERO_RADIUS_ONE_COUNT_MAX 14
++#define REAL_ZERO_COUNT_MAX 64
++#define COMPLEX_ZERO_COUNT_MAX 64
++#define REAL_POLE_COUNT_MAX 16
++#define COMPLEX_POLE_COUNT_MAX 16
++#define FIR_ORDER_MAX 128
++#define EQ_MAX_NODE_COUNT 33
++#define EQ_SUBBAND_GAIN_COUNT_MAX 135
++#define UNIQUE_SUBBAND_GAIN_COUNT_MAX 16 /* reduced size */
++#define FILTER_BLOCK_COUNT_MAX 16
++#define FILTER_ELEMENT_COUNT_MAX 16      /* reduced size */
++#define UNIQUE_SUBBAND_GAINS_COUNT_MAX 8 /* reduced size */
++#define EQ_MAX_CHANNEL_GROUP_COUNT 4     /* reduced size */
++#define EQ_FILTER_BLOCK_COUNT_MAX 4      /* reduced size */
++#define LOUD_EQ_INSTRUCTIONS_COUNT_MAX 8 /* reduced size */
++#define EQ_INSTRUCTIONS_COUNT_MAX 8
++
++#define DRC_COMPLEXITY_LEVEL_MAX 15
++#define EQ_COMPLEXITY_LEVEL_MAX 15
++#define COMPLEXITY_W_SUBBAND_EQ 2.5f
++#define COMPLEXITY_W_FIR 0.4f
++#define COMPLEXITY_W_IIR 5.0f
++#define COMPLEXITY_W_MOD_TIME 1.0f
++#define COMPLEXITY_W_MOD_SUBBAND 2.0f
++#define COMPLEXITY_W_LAP 2.0f
++#define COMPLEXITY_W_SHAPE 6.0f
++#define COMPLEXITY_W_SPLINE 5.0f
++#define COMPLEXITY_W_LINEAR 2.5f
++#define COMPLEXITY_W_PARAM_DRC_FILT 5.0f
++#define COMPLEXITY_W_PARAM_DRC_SUBBAND 5.0f
++#define COMPLEXITY_W_PARAM_LIM_FILT 4.5f
++#define COMPLEXITY_W_PARAM_DRC_ATTACK 136.0f
++
++typedef struct
++{
++  WORD32 level_estim_k_weighting_type;
++  WORD32 level_estim_integration_time_present;
++  WORD32 level_estim_integration_time;
++  WORD32 drc_curve_definition_type;
++  WORD32 drc_characteristic;
++  WORD32 node_count;
++  WORD32 node_level[MAX_PARAM_DRC_TYPE_FF_NODE_COUNT];
++  WORD32 node_gain[MAX_PARAM_DRC_TYPE_FF_NODE_COUNT];
++  WORD32 drc_gain_smooth_parameters_present;
++  WORD32 gain_smooth_attack_time_slow;
++  WORD32 gain_smooth_release_time_slow;
++  WORD32 gain_smooth_time_fast_present;
++  WORD32 gain_smooth_attack_time_fast;
++  WORD32 gain_smooth_release_time_fast;
++  WORD32 gain_smooth_threshold_present;
++  WORD32 gain_smooth_attack_threshold;
++  WORD32 gain_smooth_release_threshold;
++  WORD32 gain_smooth_hold_off_count_present;
++  WORD32 gain_smooth_hold_off;
++  WORD32 disable_paramtric_drc;
++} ia_drc_parametric_drc_type_feed_forward_struct;
++
++typedef struct
++{
++  WORD32 parametric_lim_threshold_present;
++  FLOAT32 parametric_lim_threshold;
++  WORD32 parametric_lim_attack;
++  WORD32 parametric_lim_release_present;
++  WORD32 parametric_lim_release;
++  WORD32 drc_characteristic;
++  WORD32 disable_paramtric_drc;
++} ia_drc_parametric_drc_type_lim_struct;
++
++typedef struct
++{
++  WORD32 parametric_drc_id;
++  WORD32 parametric_drc_look_ahead_present;
++  WORD32 parametric_drc_look_ahead;
++  WORD32 parametric_drc_preset_id_present;
++  WORD32 parametric_drc_preset_id;
++  WORD32 parametric_drc_type;
++  WORD32 len_bit_size;
++  ia_drc_parametric_drc_type_feed_forward_struct str_parametric_drc_type_feed_forward;
++  ia_drc_parametric_drc_type_lim_struct str_parametric_drc_type_lim;
++  WORD32 disable_paramtric_drc;
++} ia_drc_parametric_drc_instructions_struct;
++
++typedef struct
++{
++  WORD32 parametric_drc_id;
++  WORD32 side_chain_config_type;
++  WORD32 downmix_id;
++  WORD32 level_estim_channel_weight_format;
++  FLOAT32 level_estim_channel_weight[MAX_CHANNEL_COUNT];
++  WORD32 drc_input_loudness_present;
++  FLOAT32 drc_input_loudness;
++
++  /* derived data */
++  WORD32 channel_count_drom_downmix_id;
++} ia_drc_parametric_drc_gain_set_params_struct;
++
++typedef struct
++{
++  WORD32 drc_location;
++  WORD32 parametric_drc_frame_size_format;
++  WORD32 parametric_drc_frame_size;
++  WORD32 parametric_drc_delay_max_present;
++  WORD32 parametric_drc_delay_max;
++  WORD32 reset_parametric_drc;
++  WORD32 parametric_drc_gain_set_count;
++  ia_drc_parametric_drc_gain_set_params_struct parametric_drc_gain_set_params[MAX_SEQUENCE_COUNT];
++} ia_drc_coeff_parametric_drc_struct;
++
++typedef struct
++{
++  WORD32 base_ch_count;
++  WORD32 layout_signaling_present;
++  WORD32 defined_layout;
++  WORD32 speaker_position[MAX_SPEAKER_POS_COUNT];
++} ia_drc_channel_layout_struct;
++
++typedef struct
++{
++  WORD32 downmix_id;
++  WORD32 target_ch_count;
++  WORD32 target_layout;
++  WORD32 downmix_coefficients_present;
++  FLOAT32 downmix_coeff[MAX_DOWNMIX_COEFF_COUNT];
++} ia_drc_downmix_instructions_struct;
++
++typedef struct
++{
++  FLOAT32 x;
++  FLOAT32 y;
++} ia_drc_gain_points_struct;
++
++typedef struct
++{
++  WORD32 gain_sequence_index;
++  WORD32 drc_characteristic_present;
++  WORD32 drc_characteristic_format_is_cicp;
++  WORD32 drc_characteristic;
++  WORD32 drc_characteristic_left_index;
++  WORD32 drc_characteristic_right_index;
++  WORD32 crossover_freq_index;
++  WORD32 start_sub_band_index;
++  WORD32 nb_points;
++  FLOAT32 width;
++  FLOAT32 attack;
++  FLOAT32 decay;
++  ia_drc_gain_points_struct gain_points[512];
++} ia_drc_gain_params_struct;
++
++typedef struct
++{
++  WORD32 ducking_scaling_present;
++  FLOAT32 ducking_scaling;
++  FLOAT32 ducking_scaling_quantized;
++} ia_drc_ducking_modifiers_struct;
++
++typedef struct
++{
++  WORD32 target_characteristic_left_present[MAX_BAND_COUNT];
++  WORD32 target_characteristic_left_index[MAX_BAND_COUNT];
++  WORD32 target_characteristic_right_present[MAX_BAND_COUNT];
++  WORD32 target_characteristic_right_index[MAX_BAND_COUNT];
++  WORD32 shape_filter_present;
++  WORD32 shape_filter_index;
++
++  WORD32 gain_scaling_present[MAX_BAND_COUNT];
++  FLOAT32 attenuation_scaling[MAX_BAND_COUNT];
++  FLOAT32 amplification_scaling[MAX_BAND_COUNT];
++  WORD32 gain_offset_present[MAX_BAND_COUNT];
++  FLOAT32 gain_offset[MAX_BAND_COUNT];
++
++} ia_drc_gain_modifiers_struct;
++
++typedef struct
++{
++  WORD32 gain_coding_profile;
++  WORD32 gain_interpolation_type;
++  WORD32 full_frame;
++  WORD32 time_alignment;
++  WORD32 time_delta_min_present;
++  WORD32 delta_tmin;
++  WORD32 band_count;
++  WORD32 drc_band_type;
++  ia_drc_gain_params_struct gain_params[MAX_BAND_COUNT];
++} ia_drc_gain_set_params_struct;
++
++typedef struct
++{
++  WORD32 characteristic_format;
++  WORD32 bs_gain;
++  WORD32 bs_io_ratio;
++  WORD32 bs_exp;
++  WORD32 flip_sign;
++  WORD32 characteristic_node_count;
++  FLOAT32 node_level[SPLIT_CHARACTERISTIC_MAX_NODE_COUNT + 1];
++  FLOAT32 node_gain[SPLIT_CHARACTERISTIC_MAX_NODE_COUNT + 1];
++} ia_drc_split_drc_characteristic_struct;
++
++typedef struct
++{
++  WORD32 corner_freq_index;
++  WORD32 filter_strength_index;
++} ia_drc_shape_filter_params_struct;
++
++typedef struct
++{
++  WORD32 lf_cut_filter_present;
++  ia_drc_shape_filter_params_struct str_lf_cut_params;
++  WORD32 lf_boost_filter_present;
++  ia_drc_shape_filter_params_struct str_lf_boost_params;
++  WORD32 hf_cut_filter_present;
++  ia_drc_shape_filter_params_struct str_hf_cut_params;
++  WORD32 hf_boost_filter_present;
++  ia_drc_shape_filter_params_struct str_hf_boost_params;
++} ia_drc_shape_filter_block_params_struct;
++
++typedef struct
++{
++  WORD32 drc_location;
++  WORD32 drc_characteristic;
++} ia_drc_coefficients_basic_struct;
++
++typedef struct
++{
++  WORD32 drc_location;
++  WORD32 drc_frame_size_present;
++  WORD32 drc_frame_size;
++  WORD32 drc_characteristic_left_present;
++  WORD32 characteristic_left_count;
++  ia_drc_split_drc_characteristic_struct
++      str_split_characteristic_left[SPLIT_CHARACTERISTIC_COUNT_MAX + 1];
++  WORD32 drc_characteristic_right_present;
++  WORD32 characteristic_right_count;
++  ia_drc_split_drc_characteristic_struct
++      str_split_characteristic_right[SPLIT_CHARACTERISTIC_COUNT_MAX];
++  WORD32 shape_filters_present;
++  WORD32 shape_filter_count;
++  ia_drc_shape_filter_block_params_struct
++      str_shape_filter_block_params[SHAPE_FILTER_COUNT_MAX + 1];
++  WORD32 gain_sequence_count;
++  WORD32 gain_set_count;
++  ia_drc_gain_set_params_struct str_gain_set_params[GAIN_SET_COUNT_MAX];
++} ia_drc_coefficients_uni_drc_struct;
++
++typedef struct
++{
++  WORD32 drc_set_id;
++  WORD32 drc_location;
++  WORD32 downmix_id;
++  WORD32 additional_downmix_id_present;
++  WORD32 additional_downmix_id_count;
++  WORD32 additional_downmix_id[MAX_ADDITIONAL_DOWNMIX_ID];
++  WORD32 drc_set_effect;
++  WORD32 limiter_peak_target_present;
++  FLOAT32 limiter_peak_target;
++  WORD32 drc_set_target_loudness_present;
++  WORD32 drc_set_target_loudness_value_upper;
++  WORD32 drc_set_target_loudness_value_lower_present;
++  WORD32 drc_set_target_loudness_value_lower;
++} ia_drc_instructions_basic_struct;
++
++typedef struct
++{
++  WORD32 drc_set_id;
++  WORD32 drc_set_complexity_level;
++  WORD32 drc_apply_to_downmix;
++  WORD32 requires_eq;
++  WORD32 downmix_id_present;
++  WORD32 drc_location;
++  WORD32 downmix_id;
++  WORD32 additional_downmix_id_present;
++  WORD32 additional_downmix_id_count;
++  WORD32 additional_downmix_id[MAX_ADDITIONAL_DOWNMIX_ID];
++  WORD32 depends_on_drc_set_present;
++  WORD32 depends_on_drc_set;
++  WORD32 no_independent_use;
++  WORD32 drc_set_effect;
++  WORD32 gain_set_index[MAX_CHANNEL_COUNT];
++  ia_drc_gain_modifiers_struct str_gain_modifiers[MAX_CHANNEL_GROUP_COUNT];
++  ia_drc_ducking_modifiers_struct str_ducking_modifiers_for_channel[MAX_CHANNEL_COUNT];
++  WORD32 limiter_peak_target_present;
++  FLOAT32 limiter_peak_target;
++  WORD32 drc_set_target_loudness_present;
++  WORD32 drc_set_target_loudness_value_upper;
++  WORD32 drc_set_target_loudness_value_lower_present;
++  WORD32 drc_set_target_loudness_value_lower;
++  WORD32 drc_instructions_type;
++  WORD32 mae_group_id;
++  WORD32 mae_group_preset_id;
++
++  WORD32 drc_channel_count;
++  WORD32 num_drc_channel_groups;
++  WORD32 gain_set_index_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 band_count_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 gain_coding_profile_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 gain_interpolation_type_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 time_delta_min_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 time_alignment_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  ia_drc_ducking_modifiers_struct
++      str_ducking_modifiers_for_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 channel_group_for_channel[MAX_CHANNEL_COUNT];
++  WORD32 num_channels_per_channel_group[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 gain_element_count;
++  WORD32 multiband_audio_signal_count;
++  WORD32 channel_group_is_parametric_drc[MAX_CHANNEL_GROUP_COUNT];
++  WORD32 gain_set_idx_for_ch_group_parametric_drc[MAX_CHANNEL_GROUP_COUNT];
++} ia_drc_instructions_uni_drc;
++
++typedef struct
++{
++  WORD32 method_definition;
++  FLOAT32 method_value;
++  WORD32 measurement_system;
++  WORD32 reliability;
++} ia_drc_loudness_measure_struct;
++
++typedef struct
++{
++  WORD32 drc_set_id;
++  WORD32 eq_set_id;
++  WORD32 downmix_id;
++  WORD32 sample_peak_level_present;
++  FLOAT32 sample_peak_level;
++  WORD32 true_peak_level_present;
++  FLOAT32 true_peak_level;
++  WORD32 true_peak_level_measurement_system;
++  WORD32 true_peak_level_reliability;
++  WORD32 measurement_count;
++  ia_drc_loudness_measure_struct str_loudness_measure[MAX_MEASUREMENT_COUNT];
++  WORD32 loudness_info_type;
++  WORD32 mae_group_id;
++  WORD32 mae_group_preset_id;
++} ia_drc_loudness_info_struct;
++
++typedef struct
++{
++  WORD32 loud_eq_set_id;
++  WORD32 drc_location;
++  WORD32 downmix_id_present;
++  WORD32 downmix_id;
++  WORD32 additional_downmix_id_present;
++  WORD32 additional_downmix_id_count;
++  WORD32 additional_downmix_id[ADDITIONAL_DOWNMIX_ID_COUNT_MAX];
++  WORD32 drc_set_id_present;
++  WORD32 drc_set_id;
++  WORD32 additional_drc_set_id_present;
++  WORD32 additional_drc_set_id_count;
++  WORD32 additional_drc_set_id[ADDITIONAL_DRC_SET_ID_COUNT_MAX];
++  WORD32 eq_set_id_present;
++  WORD32 eq_set_id;
++  WORD32 additional_eq_set_id_present;
++  WORD32 additional_eq_set_id_count;
++  WORD32 additional_eq_set_id[ADDITIONAL_EQ_SET_ID_COUNT_MAX];
++  WORD32 loudness_after_drc;
++  WORD32 loudness_after_eq;
++  WORD32 loud_eq_gain_sequence_count;
++  WORD32 gain_sequence_index[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  WORD32 drc_characteristic_format_is_cicp[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  WORD32 drc_characteristic[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  WORD32 drc_characteristic_left_index[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  WORD32 drc_characteristic_right_index[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  WORD32 frequency_range_index[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  FLOAT32 loud_eq_scaling[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++  FLOAT32 loud_eq_offset[LOUD_EQ_GAIN_MAX_SEQUENCE_COUNT];
++} ia_drc_loud_eq_instructions_struct;
++
++typedef struct
++{
++  WORD32 filter_element_index;
++  WORD32 filter_element_gain_present;
++  FLOAT32 filter_element_gain;
++} ia_drc_filter_element_struct;
++
++typedef struct
++{
++  WORD32 filter_element_count;
++  ia_drc_filter_element_struct filter_element[FILTER_ELEMENT_COUNT_MAX];
++} ia_drc_filter_block_struct;
++
++typedef struct
++{
++  WORD32 eq_filter_format;
++  WORD32 real_zero_radius_one_count;
++  WORD32 real_zero_count;
++  WORD32 generic_zero_count;
++  WORD32 real_pole_count;
++  WORD32 complex_pole_count;
++  FLOAT32 zero_sign[REAL_ZERO_RADIUS_ONE_COUNT_MAX];
++  FLOAT32 real_zero_radius[REAL_ZERO_COUNT_MAX];
++  FLOAT32 generic_zero_radius[COMPLEX_ZERO_COUNT_MAX];
++  FLOAT32 generic_zero_angle[COMPLEX_ZERO_COUNT_MAX];
++  FLOAT32 real_pole_radius[REAL_POLE_COUNT_MAX];
++  FLOAT32 complex_pole_radius[COMPLEX_POLE_COUNT_MAX];
++  FLOAT32 complex_pole_angle[COMPLEX_POLE_COUNT_MAX];
++  WORD32 fir_filter_order;
++  WORD32 fir_symmetry;
++  FLOAT32 fir_coefficient[FIR_ORDER_MAX / 2];
++} ia_drc_unique_td_filter_element_struct;
++
++typedef struct
++{
++  WORD32 n_eq_nodes;
++  FLOAT32 eq_slope[EQ_MAX_NODE_COUNT];
++  WORD32 eq_freq_delta[EQ_MAX_NODE_COUNT];
++  FLOAT32 eq_gain_initial;
++  FLOAT32 eq_gain_delta[EQ_MAX_NODE_COUNT];
++} ia_drc_eq_subband_gain_spline_struct;
++
++typedef struct
++{
++  WORD32 eq_subband_gain[EQ_SUBBAND_GAIN_COUNT_MAX];
++} ia_drc_eq_subband_gain_vector_struct;
++
++typedef struct
++{
++  WORD32 eq_delay_max_present;
++  WORD32 eq_delay_max;
++  WORD32 unique_filter_block_count;
++  ia_drc_filter_block_struct str_filter_block[FILTER_BLOCK_COUNT_MAX];
++  WORD32 unique_td_filter_element_count;
++  ia_drc_unique_td_filter_element_struct str_unique_td_filter_element[FILTER_ELEMENT_COUNT_MAX];
++  WORD32 unique_eq_subband_gains_count;
++  WORD32 eq_subband_gain_representation;
++  WORD32 eq_subband_gain_format;
++  WORD32 eq_subband_gain_count;
++  ia_drc_eq_subband_gain_spline_struct str_eq_subband_gain_spline[UNIQUE_SUBBAND_GAIN_COUNT_MAX];
++  ia_drc_eq_subband_gain_vector_struct str_eq_subband_gain_vector[UNIQUE_SUBBAND_GAIN_COUNT_MAX];
++} ia_drc_eq_coefficients_struct;
++
++typedef struct
++{
++  WORD32 filter_block_count;
++  WORD32 filter_block_index[EQ_FILTER_BLOCK_COUNT_MAX];
++} ia_drc_filter_block_refs_struct;
++
++typedef struct
++{
++  WORD32 eq_cascade_gain_present[EQ_MAX_CHANNEL_GROUP_COUNT];
++  WORD32 eq_cascade_gain[EQ_MAX_CHANNEL_GROUP_COUNT];
++  ia_drc_filter_block_refs_struct str_filter_block_refs[EQ_MAX_CHANNEL_GROUP_COUNT];
++  WORD32 eq_phase_alignment_present;
++  WORD32 eq_phase_alignment[EQ_MAX_CHANNEL_GROUP_COUNT][EQ_MAX_CHANNEL_GROUP_COUNT];
++} ia_drc_td_filter_cascade_struct;
++
++typedef struct
++{
++  WORD32 eq_set_id;
++  WORD32 eq_set_complexity_level;
++  WORD32 downmix_id_present;
++  WORD32 downmix_id;
++  WORD32 eq_apply_to_downmix;
++  WORD32 additional_downmix_id_present;
++  WORD32 additional_downmix_id_count;
++  WORD32 additional_downmix_id[ADDITIONAL_DOWNMIX_ID_COUNT_MAX];
++  WORD32 drc_set_id;
++  WORD32 additional_drc_set_id_present;
++  WORD32 additional_drc_set_id_count;
++  WORD32 additional_drc_set_id[ADDITIONAL_DRC_SET_ID_COUNT_MAX];
++  WORD32 eq_set_purpose;
++  WORD32 depends_on_eq_set_present;
++  WORD32 depends_on_eq_set;
++  WORD32 no_independent_eq_use;
++  WORD32 eq_channel_count;
++  WORD32 eq_channel_group_count;
++  WORD32 eq_channel_group_for_channel[MAX_CHANNEL_COUNT];
++  WORD32 td_filter_cascade_present;
++  ia_drc_td_filter_cascade_struct str_td_filter_cascade;
++  WORD32 subband_gains_present;
++  WORD32 subband_gains_index[EQ_MAX_CHANNEL_GROUP_COUNT];
++  WORD32 eq_transition_duration_present;
++  FLOAT32 eq_transition_duration;
++} ia_drc_eq_instructions_struct;
++
++typedef struct
++{
++  WORD32 uni_drc_config_ext_type[MAX_EXT_COUNT];
++  WORD32 ext_bit_size[MAX_EXT_COUNT - 1];
++  /* UNIDRC_CONF_EXT_PARAM_DRC */
++  WORD32 parametric_drc_present;
++  ia_drc_coeff_parametric_drc_struct str_drc_coeff_parametric_drc;
++  WORD32 parametric_drc_instructions_count;
++  ia_drc_parametric_drc_instructions_struct
++      str_parametric_drc_instructions[MAX_PARAM_DRC_INSTRUCTIONS_COUNT];
++
++  /* UNIDRC_CONF_EXT_V1 */
++  WORD32 drc_extension_v1_present;
++  WORD32 downmix_instructions_v1_present;
++  WORD32 downmix_instructions_v1_count;
++  ia_drc_downmix_instructions_struct str_downmix_instructions_v1[DOWNMIX_INSTRUCTIONS_COUNT_MAX];
++  WORD32 drc_coeffs_and_instructions_uni_drc_v1_present;
++  WORD32 drc_coefficients_uni_drc_v1_count;
++  ia_drc_coefficients_uni_drc_struct
++      str_drc_coefficients_uni_drc_v1[DRC_COEFFICIENTS_UNIDRC_V1_COUNT_MAX];
++  WORD32 drc_instructions_uni_drc_v1_count;
++  ia_drc_instructions_uni_drc
++      str_drc_instructions_uni_drc_v1[DRC_INSTRUCTIONS_UNIDRC_V1_COUNT_MAX];
++  WORD32 loud_eq_instructions_present;
++  WORD32 loud_eq_instructions_count;
++  ia_drc_loud_eq_instructions_struct str_loud_eq_instructions[LOUD_EQ_INSTRUCTIONS_COUNT_MAX];
++  WORD32 eq_present;
++  ia_drc_eq_coefficients_struct str_eq_coefficients;
++  WORD32 eq_instructions_count;
++  ia_drc_eq_instructions_struct str_eq_instructions[EQ_INSTRUCTIONS_COUNT_MAX];
++} ia_drc_uni_drc_config_ext_struct;
++
++typedef struct
++{
++  WORD32 sample_rate_present;
++  WORD32 sample_rate;
++  WORD32 downmix_instructions_count;
++  WORD32 drc_coefficients_uni_drc_count;
++  WORD32 drc_instructions_uni_drc_count;
++  WORD32 drc_instructions_count_plus;
++  WORD32 drc_description_basic_present;
++  WORD32 drc_coefficients_basic_count;
++  WORD32 drc_instructions_basic_count;
++  WORD32 uni_drc_config_ext_present;
++  ia_drc_uni_drc_config_ext_struct str_uni_drc_config_ext;
++  ia_drc_coefficients_basic_struct str_drc_coefficients_basic[MAX_DRC_COEFF_COUNT];
++  ia_drc_instructions_basic_struct str_drc_instructions_basic[MAX_DRC_INSTRUCTIONS_COUNT];
++  ia_drc_coefficients_uni_drc_struct str_drc_coefficients_uni_drc[MAX_DRC_COEFF_COUNT];
++  ia_drc_instructions_uni_drc str_drc_instructions_uni_drc[MAX_DRC_INSTRUCTIONS_COUNT];
++  ia_drc_channel_layout_struct str_channel_layout;
++  ia_drc_downmix_instructions_struct str_downmix_instructions[MAX_DOWNMIX_INSTRUCTION_COUNT];
++  WORD32 loudness_info_set_present;
++} ia_drc_uni_drc_config_struct;
++
++typedef struct
++{
++  WORD32 loudness_info_v1_album_count;
++  WORD32 loudness_info_v1_count;
++  ia_drc_loudness_info_struct str_loudness_info_v1_album[MAX_LOUDNESS_INFO_COUNT];
++  ia_drc_loudness_info_struct str_loudness_info_v1[MAX_LOUDNESS_INFO_COUNT];
++} ia_drc_loudness_info_set_ext_eq_struct;
++
++typedef struct
++{
++  WORD32 loudness_info_set_ext_type[MAX_EXT_COUNT];
++  WORD32 ext_bit_size[MAX_EXT_COUNT - 1];
++  ia_drc_loudness_info_set_ext_eq_struct str_loudness_info_set_ext_eq;
++} ia_drc_loudness_info_set_extension_struct;
++
++typedef struct
++{
++  WORD32 loudness_info_album_count;
++  WORD32 loudness_info_count;
++  WORD32 loudness_info_set_ext_present;
++  ia_drc_loudness_info_struct str_loudness_info_album[MAX_LOUDNESS_INFO_COUNT];
++  ia_drc_loudness_info_struct str_loudness_info[MAX_LOUDNESS_INFO_COUNT];
++  ia_drc_loudness_info_set_extension_struct str_loudness_info_set_extension;
++} ia_drc_loudness_info_set_struct;
++
++typedef struct
++{
++  WORD32 uni_drc_gain_ext_present;
++  WORD32 uni_drc_gain_ext_type[MAX_EXT_COUNT];
++  WORD32 ext_bit_size[MAX_EXT_COUNT - 1];
++} ia_drc_uni_drc_gain_ext_struct;
++
++#endif /*IMPEGHE_DRC_UNI_DRC_H*/
+diff --git a/libavcodec/impeghe_drc_user_config.h b/libavcodec/impeghe_drc_user_config.h
+new file mode 100644
+index 0000000000..c9ff912994
+--- /dev/null
++++ b/libavcodec/impeghe_drc_user_config.h
+@@ -0,0 +1,45 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_DRC_ENC_USER_CONFIG_H
++#define IMPEGHE_DRC_ENC_USER_CONFIG_H
++
++VOID impeghe_read_drc_config_params(
++    FILE *fp, ia_drc_enc_params_struct *pstr_enc_params,
++    ia_drc_uni_drc_config_struct *pstr_uni_drc_config,
++    ia_drc_loudness_info_set_struct *pstr_enc_loudness_info_set,
++    ia_drc_uni_drc_gain_ext_struct *pstr_enc_gain_extension,
++    ia_mpeghe_ext_cfg_downmix_input_struct *pstr_ext_cfg_downmix_input);
++
++#endif /* IMPEGHE_DRC_ENC_USER_CONFIG_H */
+diff --git a/libavcodec/impeghe_error.c b/libavcodec/impeghe_error.c
+new file mode 100644
+index 0000000000..c1be773705
+--- /dev/null
++++ b/libavcodec/impeghe_error.c
+@@ -0,0 +1,275 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++/*****************************************************************************/
++/* File includes                                                             */
++/*****************************************************************************/
++#include <stdio.h>
++#include "impeghe_type_def.h"
++#include "impeghe_error_standards.h"
++#include "impeghe_error_handler.h"
++
++/*****************************************************************************/
++/* Global memory constants                                                   */
++/*****************************************************************************/
++/*****************************************************************************/
++/* Ittiam mpeghe ErrorCode Definitions                             */
++/*****************************************************************************/
++/*****************************************************************************/
++/* Class 0: API Errors                                                       */
++/*****************************************************************************/
++/* Non Fatal Errors */
++pWORD8 ppb_ia_mpeghe_api_non_fatal[] = {
++    (pWORD8) "",
++};
++/* Fatal Errors */
++pWORD8 ppb_ia_mpeghe_api_fatal[] = {
++    (pWORD8) "NULL Pointer: Memory Allocation Error",
++    (pWORD8) "Invalid Config Param",
++};
++/*****************************************************************************/
++/* Class 1: Configuration Errors                                             */
++/*****************************************************************************/
++/* Non Fatal Errors */
++pWORD8 ppb_ia_mpeghe_config_non_fatal[] = {
++    (pWORD8) "OAM out of range value",
++    (pWORD8) "OAM not available",
++    (pWORD8) "OAM number of objects unsupported, restricting to 24 objects or the number of "
++             "object files present",
++    (pWORD8) "HOA input data seems to be corrupted",
++    (pWORD8) "Invalid HOA matrix input",
++    (pWORD8) "Missing Config for DRC",
++    (pWORD8) "Invalid downmix config",
++};
++/* Fatal Errors */
++pWORD8 ppb_ia_mpeghe_config_fatal[] = {
++    (pWORD8) "Invalid Sampling Frequency", (pWORD8) "Invalid Stream bit rate",
++    (pWORD8) "Invalid Codec mode",         (pWORD8) "Invalid PCM size",
++    (pWORD8) "Invalid OAM config",         (pWORD8) "OAM file read failed",
++    (pWORD8) "OAM header invalid",         (pWORD8) "OAM frame invalid",
++    (pWORD8) "Invalid ASI config",         (pWORD8) "Invalid DRC config",
++    (pWORD8) "Unsupported DRC config",     (pWORD8) "DRC parameter out of range",
++    (pWORD8) "DRC gain calculation error",
++};
++
++/*****************************************************************************/
++/* Class 2: Initialization Errors                                             */
++/*****************************************************************************/
++/* Non Fatal Errors */
++pWORD8 ppb_ia_mpeghe_init_non_fatal[] = {
++    (pWORD8) "",
++};
++/* Fatal Errors */
++pWORD8 ppb_ia_mpeghe_init_fatal[] = {
++    (pWORD8) "Insufficient write buffer size",
++    (pWORD8) "Insufficient OAM buffer size",
++    (pWORD8) "Insufficient DRC buffer size",
++    (pWORD8) "Invalid HOA order",
++    (pWORD8) "Invalid HOA quantization",
++    (pWORD8) "Invalid HOA interpolation sample size",
++    (pWORD8) "Invalid HOA ambient component initialization",
++    (pWORD8) "Invalid HOA mode matrix",
++    (pWORD8) "Invalid HOA vector size",
++};
++
++/*****************************************************************************/
++/* Class 3: Execution Errors                                             */
++/*****************************************************************************/
++/* Non Fatal Errors */
++pWORD8 ppb_ia_mpeghe_exe_non_fatal[] = {
++    (pWORD8) "Insufficient write buffer size",
++    (pWORD8) "Insufficient MCT buffer size",
++    (pWORD8) "HOA vector estimation error",
++};
++/* Fatal Errors */
++pWORD8 ppb_ia_mpeghe_exe_fatal[] = {
++    (pWORD8) "Invalid fac len",
++};
++
++/*****************************************************************************/
++/* Class 4: Multiplexer Errors                                             */
++/*****************************************************************************/
++/* Non Fatal Errors */
++pWORD8 ppb_ia_mpeghe_mux_non_fatal[] = {
++    (pWORD8) "Invalid bit position",     (pWORD8) "Sampling rate not supported",
++    (pWORD8) "Sync word mismatch",       (pWORD8) "Header length too large",
++    (pWORD8) "Insufficient input bytes", (pWORD8) "Invalid ASI configuration value"};
++/* Fatal Errors */
++pWORD8 ppb_ia_mpeghe_mux_fatal[] = {
++    (pWORD8) "",
++};
++
++/*****************************************************************************/
++/* error info structure                                                      */
++/*****************************************************************************/
++/* The Module's Error Info Structure */
++ia_error_info_struct ia_mpeghe_error_info = {
++    /* The Module Name	*/
++    (pWORD8) "Ittiam mpegh enc",
++    {/* The Class Names	*/
++     (pWORD8) "API", (pWORD8) "Configuration", (pWORD8) "Initialization", (pWORD8) "Execution",
++     (pWORD8) "Multiplexer ", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "",
++     (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) ""},
++    {/* The Message Pointers	*/
++     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
++      NULL},
++     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
++      NULL}}};
++
++
++VOID impeghe_error_handler_init(VOID);
++VOID impeghe_testbench_error_handler_init(VOID);
++
++/**
++ *  impeghe_error_handler_init
++ *
++ *  \brief Brief description
++ *
++ *  \return VOID
++ *
++ */
++VOID impeghe_error_handler_init(VOID)
++{
++  /* The Message Pointers	*/
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[0][0] = ppb_ia_mpeghe_api_non_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[1][0] = ppb_ia_mpeghe_api_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[0][1] = ppb_ia_mpeghe_config_non_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[1][1] = ppb_ia_mpeghe_config_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[0][2] = ppb_ia_mpeghe_init_non_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[1][2] = ppb_ia_mpeghe_init_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[0][3] = ppb_ia_mpeghe_exe_non_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[1][3] = ppb_ia_mpeghe_exe_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[0][4] = ppb_ia_mpeghe_mux_non_fatal;
++  ia_mpeghe_error_info.ppppb_error_msg_pointers[1][4] = ppb_ia_mpeghe_mux_fatal;
++}
++
++/**
++ *  impeghe_error_handler
++ *
++ *  \brief Brief description
++ *
++ *  \param p_mod_err_info
++ *  \param pb_context
++ *  \param code
++ *
++ *  \return IA_ERRORCODE
++ *
++ */
++IA_ERRORCODE impeghe_error_handler(ia_error_info_struct *p_mod_err_info, WORD8 *pb_context,
++                                   IA_ERRORCODE code)
++{
++  if (code == IA_NO_ERROR)
++  {
++    return IA_NO_ERROR;
++  }
++  {
++    WORD32 is_fatal = (((UWORD32)code & 0x8000) >> 15);
++    WORD32 err_class = (((UWORD32)code & 0x7800) >> 11);
++    WORD32 err_sub_code = (((UWORD32)code & 0x07FF));
++
++    printf("\n");
++    if (!is_fatal)
++    {
++      printf("non ");
++    }
++    printf("fatal error: ");
++
++    if (p_mod_err_info->pb_module_name != NULL)
++    {
++      printf("%s: ", p_mod_err_info->pb_module_name);
++    }
++    if (p_mod_err_info->ppb_class_names[err_class] != NULL)
++    {
++      printf("%s: ", p_mod_err_info->ppb_class_names[err_class]);
++    }
++    if (pb_context != NULL)
++    {
++      printf("%s: ", pb_context);
++    }
++
++    if (err_sub_code >= IA_MAX_ERROR_SUB_CODE ||
++        p_mod_err_info->ppppb_error_msg_pointers[is_fatal][err_class][err_sub_code] == NULL)
++    {
++      printf("error unlisted");
++    }
++    else
++    {
++      printf("%s\n", p_mod_err_info->ppppb_error_msg_pointers[is_fatal][err_class][err_sub_code]);
++    }
++  }
++  return IA_NO_ERROR;
++}
++
++/*****************************************************************************/
++/* ia_testbench ErrorCode Definitions                                        */
++/*****************************************************************************/
++/*****************************************************************************/
++/* Class 0: Memory & File Manager Errors                                     */
++/*****************************************************************************/
++/* Non Fatal Errors */
++/* Fatal Errors */
++pWORD8 ppb_ia_testbench_mem_file_man_fatal[] = {(pWORD8) "Memory Allocation Error",
++                                                (pWORD8) "File Open Failed"};
++
++/*****************************************************************************/
++/* error info structure                                                      */
++/*****************************************************************************/
++/* The Module's Error Info Structure */
++ia_error_info_struct ia_testbench_error_info = {
++    /* The Module Name	*/
++    (pWORD8) "ia_testbench",
++    {/* The Class Names	*/
++     (pWORD8) "Memory & File Manager", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "",
++     (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) "",
++     (pWORD8) "", (pWORD8) "", (pWORD8) "", (pWORD8) ""},
++    {/* The Message Pointers	*/
++     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
++      NULL},
++     {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
++      NULL}}};
++
++/**
++ *  impeghe_testbench_error_handler_init
++ *
++ *  \brief Brief description
++ *
++ *
++ *  \return VOID
++ *
++ */
++VOID impeghe_testbench_error_handler_init(VOID)
++{
++  /* The Message Pointers	*/
++  ia_testbench_error_info.ppppb_error_msg_pointers[1][0] = ppb_ia_testbench_mem_file_man_fatal;
++}
+diff --git a/libavcodec/impeghe_error_codes.h b/libavcodec/impeghe_error_codes.h
+new file mode 100644
+index 0000000000..0fc010cb13
+--- /dev/null
++++ b/libavcodec/impeghe_error_codes.h
+@@ -0,0 +1,123 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_ERROR_CODES_H
++#define IMPEGHE_ERROR_CODES_H
++
++/*****************************************************************************/
++/* Constant hashdefines                                                      */
++/*****************************************************************************/
++
++/*****************************************************************************/
++/* Ittiam MPEGH-LC encoder error code Definitions                             */
++/*****************************************************************************/
++
++/*****************************************************************************/
++/* Class 0: API Errors                                                       */
++/*****************************************************************************/
++/* Fatal Errors */
++#define IMPEGHE_API_FATAL_MEM_ALLOC 0xFFFF8001
++#define IMPEGHE_API_FATAL_INVALID_CMD 0xFFFF8002
++
++/*****************************************************************************/
++/* Class 1: Configuration Errors                                             */
++/*****************************************************************************/
++/* Non Fatal Errors */
++
++// OAM Related
++#define IMPEGHE_CONFIG_NONFATAL_OAM_OUT_OF_RANGE_VALUE (0x00000800)
++#define IMPEGHE_CONFIG_NONFATAL_OAM_NOT_AVAILABLE (0x00000801)
++#define IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED (0x00000802)
++
++// HOA Related
++#define IMPEGHE_CONFIG_NONFATAL_INPUT_OUT_OF_RANGE (0x00000803)
++#define IMPEGHE_CONFIG_NONFATAL_HOA_MATRIX_INVALID_INPUT (0x00000804)
++
++// DRC Related
++#define IMPEGHE_CONFIG_NONFATAL_DRC_MISSING_CONFIG (0x00000805)
++
++// Downmix Related
++#define IMPEGHE_CONFIG_NONFATAL_DMX_INVALID_CONFIG (0x00000806)
++
++/* Fatal Errors */
++#define IMPEGHE_CONFIG_FATAL_SAMP_FREQ 0xFFFF8800
++#define IMPEGHE_CONFIG_FATAL_BITRATE 0xFFFF8801
++#define IMPEGHE_CONFIG_FATAL_CODEC_MODE 0xFFFF8802
++#define IMPEGHE_CONFIG_FATAL_PCM_SIZE 0xFFFF8803
++
++// OAM Related
++#define IMPEGHE_CONFIG_FATAL_OAM_INVALID_CONFIG (0xFFFF8804)
++#define IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED (0xFFFF8805)
++#define IMPEGHE_CONFIG_FATAL_OAM_INVALID_HEADER (0xFFFF8806)
++#define IMPEGHE_CONFIG_FATAL_OAM_INVALID_FRAME (0xFFFF8807)
++#define IMPEGHE_CONFIG_FATAL_ASI_INVALID_CONFIG (0xFFFF8808)
++
++// DRC Related
++#define IMPEGHE_CONFIG_FATAL_DRC_INVALID_CONFIG (0xFFFF8809)
++#define IMPEGHE_CONFIG_FATAL_DRC_UNSUPPORTED_CONFIG (0xFFFF880A)
++#define IMPEGHE_CONFIG_FATAL_DRC_PARAM_OUT_OF_RANGE (0xFFFF880B)
++#define IMPEGHE_CONFIG_FATAL_DRC_COMPAND_FAIL (0xFFFF880C)
++
++/*****************************************************************************/
++/* Class 2: Initialization Errors                                             */
++/*****************************************************************************/
++/* Non Fatal Errors */
++
++/* Fatal Errors */
++#define IMPEGHE_INIT_FATAL_INSUFFICIENT_WRITE_BUFFER_SIZE 0xFFFF9000
++#define IMPEGHE_INIT_FATAL_INSUFFICIENT_OAM_WRITE_BUFFER_SIZE 0xFFFF9001
++#define IMPEGHE_INIT_FATAL_INSUFFICIENT_DRC_WRITE_BUFFER_SIZE 0xFFFF9002
++
++// HOA Related
++#define IMPEGHE_INIT_FATAL_INVALID_HOA_ORDER (0xFFFF9003)
++#define IMPEGHE_INIT_FATAL_INVALID_QUANT (0xFFFF9004)
++#define IMPEGHE_INIT_FATAL_INVALID_INTERP_SAMPLE_SIZE (0xFFFF9005)
++#define IMPEGHE_INIT_FATAL_INVALID_AMB_INIT (0xFFFF9006)
++#define IMPEGHE_INIT_FATAL_INVALID_MATRIX (0xFFFF9007)
++#define IMPEGHE_INIT_FATAL_INVALID_VEC_ELE (0xFFFF9008)
++
++/*****************************************************************************/
++/* Class 3: Execution Errors                                                 */
++/*****************************************************************************/
++/* Non Fatal Errors */
++#define IMPEGHE_EXE_NONFATAL_INSUFFICIENT_WRITE_BUFFER_SIZE 0x00001800
++#define IMPEGHE_EXE_NONFATAL_INSUFFICIENT_MCT_WRITE_BUFFER_SIZE 0x00001801
++
++// HOA Related
++#define IMPEGHE_EXE_NONFATAL_HOA_VEC_EST_ERROR (0x00001802)
++
++/* Fatal Errors */
++#define IMPEGHE_EXE_FATAL_INVALID_FAC_LEN 0xFFFF9800
++
++#endif /* IMPEGHE_ERROR_CODES_H */
+diff --git a/libavcodec/impeghe_error_handler.h b/libavcodec/impeghe_error_handler.h
+new file mode 100644
+index 0000000000..7d85ea7f8c
+--- /dev/null
++++ b/libavcodec/impeghe_error_handler.h
+@@ -0,0 +1,78 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_ERROR_HANDLER_H
++#define IMPEGHE_ERROR_HANDLER_H
++
++#define IA_ERROR_NON_FATAL_IDX 0x0
++#define IA_ERROR_FATAL_IDX 0x1
++
++#define IA_ERROR_CLASS_0 0x0
++#define IA_ERROR_CLASS_1 0x1
++#define IA_ERROR_CLASS_2 0x2
++#define IA_ERROR_CLASS_3 0x3
++#define IA_ERROR_CLASS_4 0x4
++#define IA_ERROR_CLASS_5 0x5
++#define IA_ERROR_CLASS_6 0x6
++#define IA_ERROR_CLASS_7 0x7
++#define IA_ERROR_CLASS_8 0x8
++#define IA_ERROR_CLASS_9 0x9
++#define IA_ERROR_CLASS_A 0xA
++#define IA_ERROR_CLASS_B 0xB
++#define IA_ERROR_CLASS_C 0xC
++#define IA_ERROR_CLASS_D 0xD
++#define IA_ERROR_CLASS_E 0xE
++#define IA_ERROR_CLASS_F 0xF
++
++#define IA_MAX_ERROR_SUB_CODE 15
++
++typedef struct
++{
++  pWORD8 pb_module_name;
++  pWORD8 ppb_class_names[16];
++  WORD8 **ppppb_error_msg_pointers[2][16];
++} ia_error_info_struct;
++
++IA_ERRORCODE impeghe_error_handler(ia_error_info_struct *p_mod_err_info, WORD8 *pb_context,
++                                   IA_ERRORCODE code);
++
++#define _IA_HANDLE_ERROR(p_mod_err_info, context, e)                                             \
++  if ((e) != IA_NO_ERROR)                                                                        \
++  {                                                                                              \
++    impeghe_error_handler((p_mod_err_info), (context), (e));                                     \
++    if ((e)&IA_FATAL_ERROR)                                                                      \
++      goto clean_return;                                                                         \
++  }
++
++#endif /* IMPEGHE_ERROR_HANDLER_H */
+diff --git a/libavcodec/impeghe_error_standards.h b/libavcodec/impeghe_error_standards.h
+new file mode 100644
+index 0000000000..4d26b6145b
+--- /dev/null
++++ b/libavcodec/impeghe_error_standards.h
+@@ -0,0 +1,42 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_ERROR_STANDARDS_H
++#define IMPEGHE_ERROR_STANDARDS_H
++
++#define IA_NO_ERROR 0x00000000
++
++#define IA_FATAL_ERROR 0x80000000
++
++#endif /* IMPEGHE_ERROR_STANDARDS_H */
+diff --git a/libavcodec/impeghe_memory_standards.h b/libavcodec/impeghe_memory_standards.h
+new file mode 100644
+index 0000000000..609a622457
+--- /dev/null
++++ b/libavcodec/impeghe_memory_standards.h
+@@ -0,0 +1,418 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_MEMORY_STANDARDS_H
++#define IMPEGHE_MEMORY_STANDARDS_H
++
++/*****************************************************************************/
++/* type definitions                                                          */
++/*****************************************************************************/
++
++#define OAM_MAX_NUM_OBJECTS (24)
++#define HOA_MAX_MATRIX (6)
++#define HOA_MAX_COEFFS (49)
++#define IMPEGHE_NUM_LS_CFGS (20)
++
++#define OAM_HEADER_SIZE_BYTES (4)
++#define OAM_VERSION_SIZE_BYTES (2)
++#define OAM_DESCRIPTION_SIZE_BYTES (32)
++#define OAM_CH_FILE_NAME_SIZE_BYTES (64)
++#define OAM_OBJ_DESCRIPTION_SIZE_BYTES (64)
++
++#define IMPEGHE_MAX_DMX_MATRICES_PER_ID (8)
++#define IMPEGHE_MAX_DMX_MAX_GROUPS_ASSIGNED (16)
++#define IMPEGHE_MAX_DMX_MATRIX_SIZE (256)   /* bytes */
++#define IMPEGHE_MAX_DMX_MATRIX_ELEMENTS (6) /* Max number of downmix matrices one can embed */
++#define MAX_NUM_OF_SPEAKERS (24)
++#define MAX_NUM_ELEMENTS (128)
++#define MAX_NUM_GRPS (16)
++#define MAX_MAE_CONFIG_LINE_LEN (512)
++#ifndef ABS
++#define ABS(A) ((A) < 0 ? (-A) : (A))
++#endif
++/* standard memory table descriptor for libraries */
++typedef struct
++{
++  UWORD32 ui_size;      /* size of the memory in bytes	*/
++  UWORD32 ui_alignment; /* alignment in bytes 			*/
++  UWORD32 ui_type;      /* type of memory 				*/
++  UWORD32 ui_priority;  /* the importance for placement	*/
++  UWORD32 ui_placed[2]; /* the o_red location for placement	*/
++} ia_mem_info_struct;
++
++typedef struct
++{
++  UWORD32 ui_size;
++  UWORD32 ui_alignment;
++  UWORD32 ui_type;
++  pVOID mem_ptr;
++} ia_mem_info_table;
++
++typedef struct
++{
++  WORD32 i_channel_mask;
++  WORD32 length;
++  WORD32 n_channels;
++  WORD32 sample_rate;
++  WORD32 pcm_sz;
++} ia_pcm_config;
++typedef struct
++{
++  WORD8 ec_present;
++  WORD32 ec_start_frame;
++  WORD32 ec_frame_cnt;
++  WORD32 ec_count;
++  WORD32 *ptr_ec_buff;
++  WORD8 ec_active;
++  ia_pcm_config str_pcm_config;
++} ia_ec_info_struct;
++typedef struct
++{
++  WORD32 flex_spk_azi[MAX_NUM_OF_SPEAKERS];
++  WORD32 flex_spk_ele[MAX_NUM_OF_SPEAKERS];
++  WORD8 flex_spk_islfe[MAX_NUM_OF_SPEAKERS];
++  WORD32 num_speaker;
++
++} ia_flexi_spk_config;
++typedef struct
++{
++  WORD32 main_stream_flag;
++  WORD32 mae_id_offset;
++  WORD32 mae_id_max_avail;
++  WORD32 num_data_sets;
++  WORD32 num_groups;
++  WORD32 num_switch_groups;
++  WORD32 num_group_presets;
++  WORD32 grp_def_grp_id[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_allow_on_off[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_default_on_off[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_allow_pos_interact[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_min_az_offset[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_max_az_offset[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_min_el_offset[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_max_el_offset[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_min_dist_factor[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_max_dist_factor[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_allow_gain_interact[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_min_gain[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_max_gain[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_group_num[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_start_id[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_metadata_ele_id[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++
++  WORD32 switch_grp_def_grp_id[MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_def_allow_on_off[MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_def_default_on_off[MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_def_grp_num_member[MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_def_grp_member_id[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_def_default_group_id[MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_grp_id[MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_preset_kind[MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_num_conditions[MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_disable_gain_interact[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_position_interact[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_reference_id[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_gain_flag[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_gain[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_disable_position_interact[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_cond_on_off[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_azimuth_offset[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_elevation_offset[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_preset_def_dist_factor[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++
++  WORD32 group_loudness_present;
++  WORD32 group_loudness[MAX_NUM_ELEMENTS];
++  WORD32 default_params_present;
++  WORD32 default_include_group[MAX_NUM_ELEMENTS];
++  WORD32 default_min_max_gain_present;
++  WORD32 default_min_gain;
++  WORD32 default_max_gain;
++  WORD32 preset_params_present[MAX_NUM_ELEMENTS];
++  WORD32 preset_include_group[MAX_NUM_ELEMENTS][MAX_NUM_ELEMENTS];
++  WORD32 preset_min_max_gain_present[MAX_NUM_ELEMENTS];
++  WORD32 preset_min_gain[MAX_NUM_ELEMENTS];
++  WORD32 preset_max_gain[MAX_NUM_ELEMENTS];
++  WORD32 num_grp_def_decription_blocks;
++  WORD32 grp_def_decription_grp_id[MAX_NUM_ELEMENTS];
++  WORD32 num_grp_def_decription_languages[MAX_NUM_ELEMENTS];
++  WORD32 grp_def_decription_languages[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_def_decription_data_length[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 grp_def_decription_data[MAX_NUM_GRPS][MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 num_switch_grp_decription_blocks;
++  WORD32 switch_grp_decription_grp_id[MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_num_decription_languages[MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_decription_languages[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_decription_data_length[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 switch_grp_decription_data[MAX_NUM_GRPS][MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 num_preset_decription_blocks;
++  WORD32 preset_decription_grp_id[MAX_NUM_ELEMENTS];
++  WORD32 preset_num_decription_languages[MAX_NUM_ELEMENTS];
++  WORD32 preset_decription_languages[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 preset_decription_data_length[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 preset_decription_data[MAX_NUM_GRPS][MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
++  WORD32 data_type[MAX_NUM_ELEMENTS];
++  WORD32 decription_data[MAX_NUM_ELEMENTS];
++  WORD32 num_content_data_blocks;
++  WORD32 content_group_id[MAX_NUM_ELEMENTS];
++  WORD32 content_kind[MAX_NUM_ELEMENTS];
++  WORD32 has_content_language[MAX_NUM_ELEMENTS];
++  WORD32 has_conjunct_members[MAX_NUM_ELEMENTS];
++  WORD32 content_language[MAX_NUM_ELEMENTS];
++  WORD32 num_comp_pairs;
++  WORD32 element_id[MAX_NUM_ELEMENTS];
++  WORD32 has_non_std_screen_size[MAX_NUM_ELEMENTS];
++  WORD32 screen_size_az;
++  WORD32 screen_size_el;
++  WORD32 screen_size_bot_el[MAX_NUM_ELEMENTS];
++  WORD32 default_screen_sz_left_az;
++  WORD32 default_screen_sz_right_az;
++  WORD32 num_preset_prod_screens;
++  WORD32 screen_grp_preset_id[MAX_NUM_ELEMENTS];
++  WORD32 centered_in_az[MAX_NUM_ELEMENTS];
++  WORD32 screen_sz_left_az[MAX_NUM_ELEMENTS];
++  WORD32 screen_sz_right_az[MAX_NUM_ELEMENTS];
++  WORD32 screen_sz_top_el[MAX_NUM_ELEMENTS];
++  WORD32 overwrite_prod_screen_size_data;
++
++  WORD8 asi_enable;
++} ia_asi_config;
++typedef struct
++{
++  WORD32 dmx_id;
++  WORD32 dmx_type;
++  WORD32 cicp_spk_layout_idx;
++  WORD32 downmix_mtx_count;
++  WORD32 num_assigned_group_ids[IMPEGHE_MAX_DMX_MATRICES_PER_ID];
++  WORD32 signal_group_id[IMPEGHE_MAX_DMX_MATRICES_PER_ID][IMPEGHE_MAX_DMX_MAX_GROUPS_ASSIGNED];
++  ia_dmx_matrix_enc_cfg_struct str_dmx_mtx_cfg;
++} ia_mpeghe_ext_cfg_dmx_mtx_input_struct;
++
++typedef struct
++{
++  UWORD32 dmx_config_type;
++  UWORD32 passive_dmx_flag;
++  UWORD32 phase_align_strength;
++  UWORD32 immersive_downmix_flag;
++  UWORD32 downmix_id_count;
++  ia_mpeghe_ext_cfg_dmx_mtx_input_struct str_dmx_matrix[IMPEGHE_MAX_DMX_MATRIX_ELEMENTS];
++} ia_mpeghe_ext_cfg_downmix_input_struct;
++
++typedef struct
++{
++  WORD32 cplx_pred;
++  WORD32 coding_mode;
++  WORD32 fill_elem;
++  WORD32 iframe_interval;
++  WORD32 sample_rate;
++  ia_pcm_config aud_ch_pcm_cfg;
++  ia_pcm_config aud_obj_pcm_cfg;
++  ia_pcm_config hoa_pcm_cfg;
++  WORD32 num_trans_ch;
++  WORD32 num_oam_ch;
++  WORD32 codec_mode;
++  WORD32 out_fmt;
++  WORD32 mhas_pkt;
++  WORD32 crc16;
++  WORD32 crc32;
++  WORD32 global_crc16;
++  WORD32 global_crc32;
++  WORD32 bitrate;
++  WORD32 ltpf_enable;
++  WORD32 num_ch_sig_groups;
++  WORD32 num_ch_per_sig_grp[16];
++  WORD32 num_ch_idx_per_grp[56];
++  WORD32 num_obj_sig_groups;
++  WORD32 num_objs_per_sig_grp[16];
++  WORD32 num_hoa_sig_groups;
++  WORD32 num_hoas_per_sig_grp[16];
++  WORD32 enhanced_noise_filling;
++  WORD32 igf_start_freq;
++  WORD32 igf_stop_freq;
++  WORD32 igf_start_freq_flag;
++  WORD32 igf_stop_freq_flag;
++  WORD32 igf_after_tns_synth;
++  WORD32 fdp_enable;
++  WORD32 noise_filling;
++  WORD32 tns_enable;
++  WORD32 prof_level;
++  WORD32 prof_level_flag;
++  WORD32 kernel;
++  WORD32 prev_aliasing_symmetry;
++  WORD32 curr_aliasing_symmetry;
++  WORD32 full_band_lpd;
++  WORD32 stereo_lpd;
++  WORD32 mct_mode;
++  UWORD16 num_objects;
++  UWORD16 extra_objects;
++  UWORD16 num_channels;
++  WORD16 oam_version;
++  WORD16 has_dyn_obj_priority;
++  WORD16 has_uniform_spread;
++  WORD32 use_oam_element;
++  WORD32 user_specified_sig_grp;
++  FLAG oam_high_rate;
++  WORD32 cicp_index;
++  WORD32 oam_replace_radius;
++  FLAG oam_fixed_values[6];
++  FLAG oam_has_core_length;
++  FLAG oam_has_scrn_rel_objs;
++  FLAG oam_is_scrn_rel_obj[OAM_MAX_NUM_OBJECTS];
++  VOID *oam_data_hndl;
++  WORD32 (*oam_read_data)(VOID *oam_data_hndl, UWORD8 *buff, WORD32 bytes_to_read);
++  WORD32 (*oam_skip_data)(VOID *oam_data_hndl, WORD32 bytes_to_skip);
++  WORD8 item_prefix[64];
++  IA_ERRORCODE err_code;
++
++  WORD8 asi_enable;
++  ia_asi_config str_asi_config;
++  WORD8 flexi_spk_enable;
++  ia_flexi_spk_config str_flexi_spk_config;
++  WORD32 use_hoa_element;
++  WORD32 hoa_order;
++  WORD32 uses_nfc;
++  FLOAT32 nfc_distance;
++  WORD32 num_hoa_coeffs;
++  UWORD32 use_vec_est;
++  // HOA matrix related
++  WORD32 use_hoa_matrix;
++  WORD32 num_hoa_matrix;
++  WORD32 hoa_rend_id[HOA_MAX_MATRIX];
++  WORD32 hoa_cicp[HOA_MAX_MATRIX];
++  WORD32 hoa_matrix_in_dim[HOA_MAX_MATRIX];
++  WORD32 hoa_matrix_out_dim[HOA_MAX_MATRIX];
++  FLOAT64 hoa_matrix[HOA_MAX_MATRIX][HOA_MAX_COEFFS * MAX_NUM_OF_SPEAKERS];
++  FLAG use_drc_element;
++  ia_drc_input_config str_drc_cfg;
++  FLAG use_downmix_ext_config;
++  ia_mpeghe_ext_cfg_downmix_input_struct str_ext_cfg_downmix_input;
++  ia_ec_info_struct str_ec_info_struct;
++} ia_input_config;
++
++typedef struct
++{
++  WORD32 i_samp_freq;
++  WORD32 i_num_chan;
++  WORD32 i_pcm_wd_sz;
++  WORD32 i_channel_mask;
++  UWORD32 ui_init_done;
++  WORD32 num_out_bytes;
++  WORD32 i_bytes_consumed;
++  UWORD32 ui_inp_buf_size;
++  UWORD32 malloc_count;
++  UWORD32 ui_rem;
++  UWORD32 ui_proc_mem_tabs_size;
++
++  pVOID pv_ia_process_api_obj;
++  pVOID arr_alloc_memory[100];
++
++  WORD8 *p_lib_name;
++  WORD8 *p_version_num;
++
++  pVOID (*malloc_xaac)(UWORD32, UWORD32);
++  pVOID (*de_malloc_xc)(pVOID);
++
++  ia_mem_info_table mem_info_table[5];
++  WORD32 i_dec_len;
++  WORD32 i_total_length;
++  WORD32 start_offset_samples;
++  WORD32 input_size;
++  WORD32 i_out_bytes;
++  UWORD32 profile_info;
++  WORD32 in_frame_length;
++  WORD32 hoa_mtx_status;
++} ia_output_config;
++
++typedef struct
++{
++  ia_input_config input_config;
++  ia_output_config output_config;
++} ia_mpeghe_config_struct;
++
++/*****************************************************************************/
++/* Constant hash defines                                                     */
++/*****************************************************************************/
++/* when you don't need alignment, pass this to memory library */
++#define IA_MEM_NO_ALIGN 0x01
++
++/* ittiam standard memory types */
++/* to be used inter frames */
++#define IA_MEMTYPE_PERSIST 0x00
++/* read write, to be used intra frames */
++#define IA_MEMTYPE_SCRATCH 0x01
++/* read only memory, intra frame */
++#define IA_MEMTYPE_INPUT 0x02
++/* read-write memory, for usable output, intra frame */
++#define IA_MEMTYPE_OUTPUT 0x03
++/* input buffer for HOA data */
++#define IA_MEMTYPE_INPUT_HOA 0x04
++/* readonly memory, inter frame */
++#define IA_MEMTYPE_TABLE 0x05
++/* input buffer before mem tabs allocation */
++#define IA_MEMTYPE_PRE_FRAME_INPUT 0x06
++/* input buffer before mem tabs allocation */
++#define IA_MEMTYPE_PRE_FRAME_SCRATCH 0x07
++/* for local variables */
++#define IA_MEMTYPE_AUTO_VAR 0x80
++
++/* ittiam standard memory priorities */
++#define IA_MEMPRIORITY_ANYWHERE 0x00
++#define IA_MEMPRIORITY_LOWEST 0x01
++#define IA_MEMPRIORITY_LOW 0x02
++#define IA_MEMPRIORITY_NORM 0x03
++#define IA_MEMPRIORITY_ABOVE_NORM 0x04
++#define IA_MEMPRIORITY_HIGH 0x05
++#define IA_MEMPRIORITY_HIGHER 0x06
++#define IA_MEMPRIORITY_CRITICAL 0x07
++
++#define USAC_SWITCHED (0)
++#define USAC_ONLY_FD (1)
++#define USAC_ONLY_TD (2)
++
++#define PROFILE_LC_LVL1 (0)
++#define PROFILE_LC_LVL2 (1)
++#define PROFILE_LC_LVL3 (2)
++#define PROFILE_LC_LVL4 (3)
++#define PROFILE_BL_LVL1 (4)
++#define PROFILE_BL_LVL2 (5)
++#define PROFILE_BL_LVL3 (6)
++
++#define CONFIG_PROFILE_LC_LVL1 (0x0B)
++#define CONFIG_PROFILE_LC_LVL2 (0x0C)
++#define CONFIG_PROFILE_LC_LVL3 (0x0D)
++#define CONFIG_PROFILE_LC_LVL4 (0x0E)
++#define CONFIG_PROFILE_BL_LVL1 (0x10)
++#define CONFIG_PROFILE_BL_LVL2 (0x11)
++#define CONFIG_PROFILE_BL_LVL3 (0x12)
++
++#endif /* IMPEGHE_MEMORY_STANDARDS_H */
+diff --git a/libavcodec/impeghe_mp4_writer.h b/libavcodec/impeghe_mp4_writer.h
+new file mode 100644
+index 0000000000..07f2a5533c
+--- /dev/null
++++ b/libavcodec/impeghe_mp4_writer.h
+@@ -0,0 +1,84 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_MP4_WRITER_H
++#define IMPEGHE_MP4_WRITER_H
++
++#define BYTE_SWAP_UINT16(x) (((x) >> 8) | ((x) << 8))
++#define BYTE_SWAP_UINT32(x)                                                                      \
++  (((x) >> 24) | (((x)&0x00FF0000) >> 8) | (((x)&0x0000FF00) << 8) | (WORD32)(((WORD64)x) << 24))
++
++#define MAX_HDR_LEN 2000
++#define MAX_MOOV_BOX_SIZE 2000
++#define MAX_TRACKS_PER_LAYER 50
++
++typedef struct
++{
++  UWORD32 *ia_mp4_stsz_size;
++  UWORD32 ia_mp4_stsz_entries;
++  UWORD32 fill_once;
++  UWORD32 movie_time_scale;
++  UWORD32 media_time_scale;
++
++  UWORD32 dec_info_init;
++  UWORD32 maeg_length;
++  UWORD32 maes_length;
++  UWORD32 maep_length;
++  UWORD32 mael_length;
++  UWORD32 g_track_count;
++  UWORD32 useEditlist[MAX_TRACKS_PER_LAYER];
++  UWORD32 startOffsetInSamples[MAX_TRACKS_PER_LAYER];
++  UWORD32 playTimeInSamples[MAX_TRACKS_PER_LAYER];
++
++} metadata_info;
++
++typedef struct ia_mp4_writer_struct
++{
++  FILE *fp_mp4;
++  WORD8 ptr_hdr[MAX_HDR_LEN];
++  WORD8 ptr_hdr_maeg[MAX_HDR_LEN];
++  WORD8 ptr_hdr_maes[MAX_HDR_LEN];
++  WORD8 ptr_hdr_maep[MAX_HDR_LEN];
++  WORD8 ptr_hdr_mael[MAX_HDR_LEN];
++  WORD8 *ptr_buffer;
++  WORD64 mdat_size;
++  metadata_info meta_info;
++  WORD32 is_mhm1;
++  WORD32 maei_present;
++  UWORD32 profile_info;
++} ia_mp4_writer_struct;
++
++WORD32 impeghe_mp4_writer(ia_mp4_writer_struct *pstr_mp4_writer_io, WORD32 dummy_write);
++
++#endif /* IMPEGHE_MP4_WRITER_H */
+\ No newline at end of file
+diff --git a/libavcodec/impeghe_type_def.h b/libavcodec/impeghe_type_def.h
+new file mode 100644
+index 0000000000..e732a4ea62
+--- /dev/null
++++ b/libavcodec/impeghe_type_def.h
+@@ -0,0 +1,106 @@
++/* 	Copyright (c) [2022] Ittiam Systems Pvt. Ltd.
++   All rights reserved.
++
++   Redistribution and use in source and binary forms, with or without
++   modification, are permitted (subject to the limitations in the
++   disclaimer below) provided that the following conditions are met:
++   •	Redistributions of source code must retain the above copyright
++   notice, this list of conditions and the following disclaimer.
++   •	Redistributions in binary form must reproduce the above copyright
++   notice, this list of conditions and the following disclaimer in the
++   documentation and/or other materials provided with the distribution.
++   •	Neither the names of Dolby Laboratories, Inc. (or its affiliates),
++   Ittiam Systems Pvt. Ltd. nor the names of its contributors may be used
++   to endorse or promote products derived from this software without
++   specific prior written permission.
++
++   NO EXPRESS OR IMPLIED LICENSES TO ANY PARTY'S PATENT RIGHTS ARE GRANTED
++   BY THIS LICENSE. YOUR USE OF THE SOFTWARE MAY REQUIRE ADDITIONAL PATENT
++   LICENSE(S) BY THIRD PARTIES, INCLUDING, WITHOUT LIMITATION, DOLBY
++   LABORATORIES, INC. OR ANY OF ITS AFFILIATES. THIS SOFTWARE IS PROVIDED
++   BY ITTIAM SYSTEMS LTD. AND ITS CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
++   IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++   OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++   IN NO EVENT SHALL ITTIAM SYSTEMS LTD OR ITS CONTRIBUTORS BE LIABLE FOR
++   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
++   DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
++   OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
++   HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
++   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
++   IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
++   POSSIBILITY OF SUCH DAMAGE.
++---------------------------------------------------------------
++*/
++
++#ifndef IMPEGHE_TYPE_DEF_H
++#define IMPEGHE_TYPE_DEF_H
++
++/****************************************************************************/
++/*     types               type define    prefix		examples
++ * bytes */
++/************************  ***********    ******    ****************  ***** */
++
++#define SIZE_T size_t
++
++typedef char CHAR8;   /* c       CHAR8    c_name     1   */
++typedef char *pCHAR8; /* pc      pCHAR8   pc_nmae    1   */
++
++typedef signed char WORD8;   /* b       WORD8    b_name     1   */
++typedef signed char *pWORD8; /* pb      pWORD8   pb_nmae    1   */
++
++typedef unsigned char UWORD8;   /*	ub		UWORD8	 ub_count	1	*/
++typedef unsigned char *pUWORD8; /*	pub		pUWORD8	 pub_count	1	*/
++
++typedef signed short WORD16;      /* s       WORD16   s_count    2   */
++typedef signed short *pWORD16;    /* ps      pWORD16  ps_count   2   */
++typedef unsigned short UWORD16;   /*	us		UWORD16	 us_count	2	*/
++typedef unsigned short *pUWORD16; /*	pus		pUWORD16 pus_count	2	*/
++
++typedef signed int WORD24;      /* k       WORD24   k_count    3   */
++typedef signed int *pWORD24;    /* pk      pWORD24  pk_count   3   */
++typedef unsigned int UWORD24;   /*	uk		UWORD24	 uk_count	3	*/
++typedef unsigned int *pUWORD24; /*	puk		pUWORD24 puk_count	3	*/
++
++typedef signed int WORD32;      /* i       WORD32   i_count    4   */
++typedef signed int *pWORD32;    /* pi      pWORD32  pi_count   4   */
++typedef unsigned int UWORD32;   /*	ui		UWORD32	 ui_count	4	*/
++typedef unsigned int *pUWORD32; /*	pui		pUWORD32 pui_count	4	*/
++
++typedef signed long long WORD40;      /*	m		WORD40	 m_count	5	*/
++typedef signed long long *pWORD40;    /*	pm		pWORD40	 pm_count	5	*/
++typedef unsigned long long UWORD40;   /*	um		UWORD40	 um_count	5	*/
++typedef unsigned long long *pUWORD40; /*	pum		pUWORD40 pum_count	5	*/
++
++typedef signed long long WORD64;      /*	h		WORD64	 h_count	8	*/
++typedef signed long long *pWORD64;    /*	ph		pWORD64	 ph_count	8	*/
++typedef unsigned long long UWORD64;   /*	uh		UWORD64	 uh_count	8	*/
++typedef unsigned long long *pUWORD64; /*	puh		pUWORD64 puh_count	8	*/
++
++typedef float FLOAT32;    /*	f		FLOAT32	 f_count	4
++                           */
++typedef float *pFLOAT32;  /* pf      pFLOAT32 pf_count   4   */
++typedef double FLOAT64;   /*	d		UFLOAT64 d_count	8
++                           */
++typedef double *pFlOAT64; /* pd      pFLOAT64 pd_count   8   */
++
++typedef void VOID;   /*	v		VOID	 v_flag		4	*/
++typedef void *pVOID; /*	pv		pVOID	 pv_flag	4	*/
++
++/* variable size types: platform optimized implementation */
++typedef signed int BOOL;       /* bool    BOOL     bool_true      */
++typedef unsigned int UBOOL;    /*	ubool	BOOL	 ubool_true		*/
++typedef signed int FLAG;       /* flag    FLAG     flag_false     */
++typedef unsigned int UFLAG;    /* uflag	FLAG	 uflag_false	*/
++typedef signed int LOOPIDX;    /* lp      LOOPIDX  lp_index       */
++typedef unsigned int ULOOPIDX; /*	ulp		SLOOPIDX ulp_index		*/
++typedef signed int WORD;       /* lp      LOOPIDX  lp_index       */
++typedef unsigned int UWORD;    /*	ulp		SLOOPIDX ulp_index		*/
++
++typedef LOOPIDX LOOPINDEX;   /* lp    LOOPIDX  lp_index       */
++typedef ULOOPIDX ULOOPINDEX; /* ulp   SLOOPIDX ulp_index      */
++
++typedef WORD32 IA_ERRORCODE;
++
++#define PLATFORM_INLINE __inline
++
++#endif /* IMPEGHE_TYPE_DEF_H */
+diff --git a/libavformat/isom_tags.c b/libavformat/isom_tags.c
+index c5fd7987f6..b473179d65 100644
+--- a/libavformat/isom_tags.c
++++ b/libavformat/isom_tags.c
+@@ -336,6 +336,7 @@ const AVCodecTag ff_codec_movaudio_tags[] = {
+     { AV_CODEC_ID_TRUEHD,          MKTAG('m', 'l', 'p', 'a') }, /* mp4ra.org */
+     { AV_CODEC_ID_OPUS,            MKTAG('O', 'p', 'u', 's') }, /* mp4ra.org */
+     { AV_CODEC_ID_MPEGH_3D_AUDIO,  MKTAG('m', 'h', 'm', '1') }, /* MPEG-H 3D Audio bitstream */
++    { AV_CODEC_ID_MPEGH_3D_AUDIO,  MKTAG('m', 'h', 'a', '1') },
+     { AV_CODEC_ID_NONE, 0 },
+ };
+ 
+diff --git a/libavformat/movenc.c b/libavformat/movenc.c
+index 5608afde42..0335970540 100644
+--- a/libavformat/movenc.c
++++ b/libavformat/movenc.c
+@@ -1159,7 +1159,16 @@ static int get_samples_per_packet(MOVTrack *track)
+     }
+     return first_duration;
+ }
++static int mov_write_mhac_tag(AVIOContext *pb, MOVTrack *track)
++{
++    // Size of mhaC
++    avio_wb32(pb,track->par->extradata_size + 8 -1);
++    ffio_wfourcc(pb, "mhaC");
++    // Writing the buffer
++    avio_write(pb,track->par->extradata,track->par->extradata_size - 1);
+ 
++    return 1;
++}
+ static int mov_write_btrt_tag(AVIOContext *pb, MOVTrack *track)
+ {
+     int64_t pos = avio_tell(pb);
+@@ -1311,7 +1320,7 @@ static int mov_write_audio_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContex
+         ret = mov_write_dops_tag(s, pb, track);
+     else if (track->par->codec_id == AV_CODEC_ID_TRUEHD)
+         ret = mov_write_dmlp_tag(s, pb, track);
+-    else if (track->vos_len > 0)
++    else if (track->vos_len > 0 && track->par->codec_id != AV_CODEC_ID_MPEGH_3D_AUDIO)
+         ret = mov_write_glbl_tag(pb, track);
+ 
+     if (ret < 0)
+@@ -1331,6 +1340,10 @@ static int mov_write_audio_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContex
+             ((ret = mov_write_btrt_tag(pb, track)) < 0))
+         return ret;
+ 
++    // To write the mhaC tag data for mp4 in case of AV_CODEC_ID_MPEGH_3D_AUDIO
++    if(track->par->codec_id == AV_CODEC_ID_MPEGH_3D_AUDIO) {
++        mov_write_mhac_tag(pb,track);
++    }
+     ret = update_size(pb, pos);
+     return ret;
+ }
+@@ -3645,7 +3658,6 @@ static int mov_write_trak_tag(AVFormatContext *s, AVIOContext *pb, MOVMuxContext
+     int entry_backup = track->entry;
+     int chunk_backup = track->chunkCount;
+     int ret;
+-
+     /* If we want to have an empty moov, but some samples already have been
+      * buffered (delay_moov), pretend that no samples have been written yet. */
+     if (mov->flags & FF_MOV_FLAG_EMPTY_MOOV)
+@@ -7045,7 +7057,25 @@ static int mov_init(AVFormatContext *s)
+         if (track->language < 0)
+             track->language = 32767;  // Unspecified Macintosh language code
+         track->mode = mov->mode;
+-        track->tag  = mov_find_codec_tag(s, track);
++
++		if(track->par->codec_id == AV_CODEC_ID_MPEGH_3D_AUDIO)
++        {
++            // For MHA1
++            if((track->par->extradata)[track->par->extradata_size - 1] == 2)
++            {
++                track->tag = MKTAG('m', 'h', 'a', '1');
++            }
++            // For MHM1
++            else
++            {
++                track->tag = MKTAG('m', 'h', 'm', '1');
++            }
++        }
++        else
++        {
++            track->tag  = mov_find_codec_tag(s, track);
++        }
++
+         if (!track->tag) {
+             av_log(s, AV_LOG_ERROR, "Could not find tag for codec %s in stream #%d, "
+                    "codec not currently supported in container\n",
+@@ -7717,6 +7747,7 @@ static const AVCodecTag codec_mp4_tags[] = {
+     { AV_CODEC_ID_MOV_TEXT,        MKTAG('t', 'x', '3', 'g') },
+     { AV_CODEC_ID_BIN_DATA,        MKTAG('g', 'p', 'm', 'd') },
+     { AV_CODEC_ID_MPEGH_3D_AUDIO,  MKTAG('m', 'h', 'm', '1') },
++    { AV_CODEC_ID_MPEGH_3D_AUDIO,  MKTAG('m', 'h', 'a', '1') },
+     { AV_CODEC_ID_TTML,            MOV_MP4_TTML_TAG          },
+     { AV_CODEC_ID_TTML,            MOV_ISMV_TTML_TAG         },
+     { AV_CODEC_ID_NONE,               0 },

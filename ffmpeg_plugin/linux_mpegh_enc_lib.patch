@@ -1,0 +1,43 @@
+diff --git a/build/makefile/Makefile_lib b/build/makefile/Makefile_lib
+index 127f1c1..0aad198 100644
+--- a/build/makefile/Makefile_lib
++++ b/build/makefile/Makefile_lib
+@@ -35,10 +35,11 @@
+ #This is for including values like architecture, compiler command amd assembler commands etc.
+ include ./Make.defs
+ 
+-CFLAGS 		+= -c -O3 -Wall -Wsequence-point
++CFLAGS 		+= -c -O3 -Wall -Wsequence-point -fPIC
+ 
+ 
+ LIBS		= ../lib/ia_mpegh_enc_lib_$(ARCH).a
++LIB_SHARED	= libia_mpeghe.so
+ 
+ PATH_ENC    = ../../encoder
+ PATH_TEST   = ../../test
+@@ -137,17 +138,21 @@ OBJS_LIBS			= $(SRCS_LIBS:.c=.o)
+ 
+ CFLAGS += $(INCLUDES)
+ 
+-all: $(LIBS)
+-	
++all: $(LIBS) $(LIB_SHARED)
++
+ $(OBJS_LIBS): %.o: %.c
+ 	$(CC) $(CFLAGS) $*.c -o $*.o
+-	
++
+ $(LIBS): $(OBJS_LIBS)
+-	$(AR) -r $(LIBS) $(OBJS_LIBS) 
++	$(AR) -r $(LIBS) $(OBJS_LIBS)
++
++$(LIB_SHARED): $(OBJS_LIBS)
++	$(CC) -shared -o $(LIB_SHARED) $(OBJS_LIBS)
+ 	rm -f $(OBJS_LIBS)
+ 
+ clean: src_clean 		
+ 	rm -f $(LIBS)
++	rm -f $(LIB_SHARED)
+ 
+ src_clean:
+ 	rm -f $(OBJS_LIBS) 
