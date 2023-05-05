@@ -302,3 +302,6 @@ Please refer to the [guildelines](GUIDELINES.md) for the following processes
 - Reporting issues
 - Creating Pull Request
 - Commit message standards
+
+# License
+A BSD 3-Clause-Clear license is applicable. Refer to the [`LICENSE`](LICENSE) file together with the [`LICENSE2`](LICENSE2) file.
