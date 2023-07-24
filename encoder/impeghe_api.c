@@ -302,6 +302,12 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
 
   impeghe_check_config_params(pstr_input_config);
 
+  if((pstr_input_config->aud_ch_pcm_cfg.n_channels > 24) ||
+     (pstr_input_config->aud_ch_pcm_cfg.n_channels < 0))
+  {
+    return IMPEGHE_CONFIG_FATAL_NUM_CHANNELS_UNSUPPORTED;
+  }
+
   if (pstr_input_config->aud_ch_pcm_cfg.n_channels > 0)
   {
     pstr_input_config->sample_rate = pstr_input_config->aud_ch_pcm_cfg.sample_rate;
