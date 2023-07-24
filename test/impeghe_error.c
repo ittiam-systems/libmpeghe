@@ -56,7 +56,6 @@ pWORD8 ppb_ia_mpeghe_api_non_fatal[] = {
 /* Fatal Errors */
 pWORD8 ppb_ia_mpeghe_api_fatal[] = {
     (pWORD8) "NULL Pointer: Memory Allocation Error",
-    (pWORD8) "Invalid Config Param",
 };
 /*****************************************************************************/
 /* Class 1: Configuration Errors                                             */
@@ -76,11 +75,11 @@ pWORD8 ppb_ia_mpeghe_config_non_fatal[] = {
 pWORD8 ppb_ia_mpeghe_config_fatal[] = {
     (pWORD8) "Invalid Sampling Frequency", (pWORD8) "Invalid Stream bit rate",
     (pWORD8) "Invalid Codec mode",         (pWORD8) "Invalid PCM size",
-    (pWORD8) "Invalid OAM config",         (pWORD8) "OAM file read failed",
-    (pWORD8) "OAM header invalid",         (pWORD8) "OAM frame invalid",
-    (pWORD8) "Invalid ASI config",         (pWORD8) "Invalid DRC config",
-    (pWORD8) "Unsupported DRC config",     (pWORD8) "DRC parameter out of range",
-    (pWORD8) "DRC gain calculation error",
+    (pWORD8) "Unsupported No. of channels",(pWORD8) "Invalid OAM config",
+    (pWORD8) "OAM file read failed",       (pWORD8) "OAM header invalid",
+    (pWORD8) "OAM frame invalid",          (pWORD8) "Invalid ASI config",
+    (pWORD8) "Invalid DRC config",         (pWORD8) "Unsupported DRC config",
+    (pWORD8) "DRC parameter out of range", (pWORD8) "DRC gain calculation error",
 };
 
 /*****************************************************************************/
