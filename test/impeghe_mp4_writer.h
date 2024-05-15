@@ -51,11 +51,13 @@ typedef struct
   UWORD32 movie_time_scale;
   UWORD32 media_time_scale;
 
-  UWORD32 dec_info_init;
+  UWORD32 mhac_length;
   UWORD32 maeg_length;
   UWORD32 maes_length;
   UWORD32 maep_length;
   UWORD32 mael_length;
+  UWORD32 mhaD_length;
+  UWORD32 mhaP_length;
   UWORD32 g_track_count;
   UWORD32 useEditlist[MAX_TRACKS_PER_LAYER];
   UWORD32 startOffsetInSamples[MAX_TRACKS_PER_LAYER];
@@ -67,6 +69,8 @@ typedef struct ia_mp4_writer_struct
 {
   FILE *fp_mp4;
   WORD8 ptr_hdr[MAX_HDR_LEN];
+  WORD8 ptr_hdr_mhaD[MAX_HDR_LEN];
+  WORD8 ptr_hdr_mhaP[MAX_HDR_LEN];
   WORD8 ptr_hdr_maeg[MAX_HDR_LEN];
   WORD8 ptr_hdr_maes[MAX_HDR_LEN];
   WORD8 ptr_hdr_maep[MAX_HDR_LEN];
@@ -76,7 +80,14 @@ typedef struct ia_mp4_writer_struct
   metadata_info meta_info;
   WORD32 is_mhm1;
   WORD32 maei_present;
+  WORD8 mhaP_data_present;
+  WORD8 mhaD_data_present;
   UWORD32 profile_info;
+  WORD32 spaker_layout;
+  WORD32 sampling_freq;
+  WORD32 max_frame_data_size;
+  WORD32 total_frame_data_size;
+  WORD32 frame_count;
 } ia_mp4_writer_struct;
 
 WORD32 impeghe_mp4_writer(ia_mp4_writer_struct *pstr_mp4_writer_io, WORD32 dummy_write);

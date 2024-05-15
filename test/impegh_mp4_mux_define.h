@@ -46,7 +46,7 @@ extern ia_error_info_struct ia_mpeghe_error_info;
 #define IA_MAX_CMD_LINE_LENGTH 300
 #define IA_MAX_ARGS 20
 #define IA_SCREEN_WIDTH 80
-#define IN_ARR_SIZE (12500)
+#define IN_ARR_SIZE (142500)
 #define PARAMFILE "paramfilesimple_mux.txt"
 #define MHM1_TYPE 0x6D686D31
 #define MHA1_TYPE 0x6D686131
@@ -58,7 +58,7 @@ typedef enum impeghe_op_fmts
 {
   RAW_MHAS = 1,
   MP4_MHA1,
-  MP4_MHM1
+  MP4_MHM1,
 } impeghe_op_fmts;
 
 /*****************************************************************************/
@@ -69,10 +69,7 @@ FILE *g_pf_out;
 WORD32 *frame_lengths;
 WORD32 *frame_header_lengths;
 WORD32 frame_count = 0;
-packet_info header_info;
-packet_info header_info_sync_cur;
-WORD32 config_frame_length = 0; /* To store length of config frame (bytes) */
-impeghe_op_fmts op_fmt = MP4_MHA1;
+impeghe_op_fmts op_fmt = MP4_MHM1;
 
 VOID impeghe_error_handler_init();
 VOID impeghe_testbench_error_handler_init();
