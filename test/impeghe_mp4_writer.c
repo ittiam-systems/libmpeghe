@@ -939,7 +939,6 @@ static WORD32 impeghe_mp4_write_mhaC(ia_mp4_writer_struct *pstr_mp4_writer_io, W
   word8_ptr = (WORD8 *)word16_ptr;
 
   // mpegh3daConfig
-  // fread(word8_ptr, 1, mpegh3daConfigLength, pstr_mp4_writer_io->fp_raw);
   memcpy(word8_ptr, pstr_mp4_writer_io->ptr_hdr, mpegh3daConfigLength);
   bytes_used += mpegh3daConfigLength;
   word8_ptr += mpegh3daConfigLength;
@@ -1274,7 +1273,13 @@ static WORD32 impeghe_mp4_write_mhm1(ia_mp4_writer_struct *pstr_mp4_writer_io, W
     bytes_used += box_bytes;
   }
 
-
+  /* Box type - 'mhaP' -- optional */
+  if (pstr_mp4_writer_io->mhaP_data_present)
+  {
+    box_bytes = impeghe_mp4_write_mhaP(pstr_mp4_writer_io, word8_ptr);
+    word8_ptr += box_bytes;
+    bytes_used += box_bytes;
+  }
 
   /* Box type - 'mhaD' -- optional */
   if (pstr_mp4_writer_io->mhaD_data_present)
@@ -1294,13 +1299,7 @@ static WORD32 impeghe_mp4_write_mhm1(ia_mp4_writer_struct *pstr_mp4_writer_io, W
   word8_ptr += box_bytes;
   bytes_used += box_bytes;
 
-  /* Box type - 'mhaP' -- optional */
-  if (pstr_mp4_writer_io->mhaP_data_present)
-  {
-    box_bytes = impeghe_mp4_write_mhaP(pstr_mp4_writer_io, word8_ptr);
-    word8_ptr += box_bytes;
-    bytes_used += box_bytes;
-  }
+
   // update box size
   ptr = (WORD32 *)ptr_buf;
   box_type = impeghe_mp4_rev32(bytes_used);

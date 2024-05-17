@@ -87,9 +87,7 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
   fseek(g_pf_inp, 0, SEEK_SET);
   start_offset_samples = 1600;
 
-  i_dec_len = ((header_info->sync_packet_bits + 7) >> 3) +
-    ((header_info->config_packet_bits + 7) >> 3) +
-    ((header_info->other_packet_bits + 7) >> 3); /* Bits to Bytes (Config + Sync)*/
+  i_dec_len = header_info->config_packet_start_position + header_info->mhac_content_size; /* Length till config data ends*/
 
   // copy header bytes
   if (i_dec_len > MAX_HDR_LEN)
@@ -102,11 +100,8 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
     chtemp[i] = fgetc(g_pf_inp);
   }
 
-  skip_bytes = (((header_info->sync_packet_bits + 7) >> 3) +
-    ((header_info->config_packet_bits + 7) >> 3) +
-    ((header_info->other_packet_bits + 7) >> 3)) - header_info->config_packet_length;
-  memcpy(mp4_writer_io->ptr_hdr, chtemp + skip_bytes, header_info->config_packet_length);
-  mp4_writer_io->meta_info.mhac_length = header_info->config_packet_length;
+  memcpy(mp4_writer_io->ptr_hdr, chtemp + header_info->config_packet_start_position, header_info->mhac_content_size);
+  mp4_writer_io->meta_info.mhac_length = header_info->mhac_content_size;
   mp4_writer_io->maei_present = header_info->maei_present;
   mp4_writer_io->mhaP_data_present = header_info->mhaP_data_present;
   mp4_writer_io->mhaD_data_present = header_info->mhaD_data_present;
@@ -171,11 +166,6 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
   // playTimeInSamples
   mp4_writer_io->meta_info.playTimeInSamples[0] = frame_count * 1024;
 
-  if (op_fmt == MP4_MHM1)
-  {
-    frame_lengths[0] += i_dec_len;
-  }
-
   // gen mp4 file
   impeghe_mp4_writer(mp4_writer_io, 1); // mp4 header
 
@@ -196,11 +186,8 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
     UWORD8 cTemp;
     fseek(g_pf_inp, 0, SEEK_SET);
 
-    fseek(g_pf_inp,
-          ((header_info->sync_packet_bits + 7) >> 3) +
-              ((header_info->config_packet_bits + 7) >> 3) +
-              ((header_info->other_packet_bits + 7) >> 3) + frame_header_lengths[i],
-          SEEK_SET);
+    fseek(g_pf_inp,frame_header_lengths[i],
+      SEEK_SET);
 
     // append the mhas file to g_pf_out
     while (fread(&cTemp, 1, 1, g_pf_inp) == 1)
@@ -244,28 +231,7 @@ IA_ERRORCODE impegh_mp4_multiplex()
   jmp_buf mux_jmp_buf;
   ia_bit_buf_struct str_bit_buf;
   ia_mhas_pac_info str_pac_info;
-  packet_info header_info = { 0 };
-  packet_info header_info_sync_cur = { 0 };
-  str_pac_info.packet_lbl = 0;
-  str_pac_info.packet_length = 0;
-  str_pac_info.packet_type = 0;
-
-  header_info.sync_packet_bits = 0;
-  header_info.sync_packet_length = 0;
-  header_info.config_packet_bits = 0;
-  header_info.config_packet_length = 0;
-  header_info.frame_packet_bits = 0;
-  header_info.other_packet_bits = 0;
-  header_info.sampling_freq = 0;
-  header_info.profile_info = 0x0D; // default value for profile_info
-
-  header_info_sync_cur.sync_packet_bits = 0;
-  header_info_sync_cur.sync_packet_length = 0;
-  header_info_sync_cur.config_packet_bits = 0;
-  header_info_sync_cur.config_packet_length = 0;
-  header_info_sync_cur.frame_packet_bits = 0;
-  header_info_sync_cur.sampling_freq = 0;
-  header_info_sync_cur.profile_info = 0x0D; // default value profile_info
+  packet_info header_info;
 
   UWORD8 *arr =
       malloc(sizeof(UWORD8) *
@@ -276,8 +242,6 @@ IA_ERRORCODE impegh_mp4_multiplex()
   memset(&str_pac_info, 0, sizeof(str_pac_info));
   memset(&header_info, 0, sizeof(header_info));
   header_info.profile_info = 0x0D; // default value for profile_info
-  memset(&header_info_sync_cur, 0, sizeof(header_info_sync_cur));
-  header_info_sync_cur.profile_info = 0x0D; // default value profile_info
   error = setjmp(mux_jmp_buf);
   if (error != IA_NO_ERROR)
   {
@@ -323,10 +287,7 @@ IA_ERRORCODE impegh_mp4_multiplex()
       packet_length_cpy += packet_length;
     }
   } while (1); /* Read the entire file to get the number of frames */
-  header_info_sync_cur.other_packet_bits = 0;
-  header_info_sync_cur.config_packet_bits = 0;
-  header_info_sync_cur.sync_packet_bits = 0;
-  header_info_sync_cur.asi_packet_bits = 0;
+
   /* Initialize the memory for frame_lengths and frame_header_lengths based on number of frames */
   frame_lengths = (WORD32 *)malloc(sizeof(frame_lengths[0]) * frame_count);
   frame_header_lengths = (WORD32 *)malloc(sizeof(frame_header_lengths[0]) * frame_count);
@@ -349,100 +310,46 @@ IA_ERRORCODE impegh_mp4_multiplex()
       str_bit_buf.impeghe_jmp_buf = &mux_jmp_buf;
       init = 0;
     }
-    error = impegh_mhas_parse(&str_bit_buf, &str_pac_info, &header_info,
-                              &header_info_sync_cur); /* Main Pasing Function */
+    error = impegh_mhas_parse(&str_bit_buf, &str_pac_info, &header_info); /* Main Pasing Function */
     if (error)
     {
       return error;
     }
 
-    if (str_pac_info.packet_type == 1)
+    if (op_fmt == MP4_MHM1)
     {
-      if (op_fmt == MP4_MHM1)
-      {
-        if (frame_count != 0)
-        {
-          /* Adding sync and cfg packets coming in between mdat to frame_lengths */
-          frame_lengths[frame_count] += (header_info_sync_cur.sync_packet_bits + 7) >> 3;
-          frame_lengths[frame_count] += (header_info_sync_cur.config_packet_bits + 7) >> 3;
-          frame_lengths[frame_count] += ((header_info_sync_cur.other_packet_bits + 7) >> 3);
-          header_info_sync_cur.sync_packet_bits = 0;
-          header_info_sync_cur.other_packet_bits = 0;
-          header_info_sync_cur.config_packet_bits = 0;
-        }
-        else
-        {
-          header_info.other_packet_bits = header_info_sync_cur.other_packet_bits;
-          header_info.asi_packet_bits = header_info_sync_cur.asi_packet_bits;
-          header_info_sync_cur.sync_packet_bits = 0;
-          header_info_sync_cur.other_packet_bits = 0;
-          header_info_sync_cur.config_packet_bits = 0;
-          header_info_sync_cur.asi_packet_bits = 0;
-        }
-      }
-      else
-      {
-        if (frame_count != 0)
-        {
-          frame_header_lengths[frame_count] = ((header_info_sync_cur.sync_packet_bits + 7) >> 3) +
-                                              ((header_info_sync_cur.other_packet_bits + 7) >> 3);
+      frame_lengths[frame_count] += ((header_info.frame_packet_bits + 7) >> 3)
+        + ((header_info.other_packet_bits + 7) >> 3)
+        + ((header_info.asi_packet_bits + 7) >> 3)
+        + ((header_info.sync_packet_bits + 7) >> 3)
+        + ((header_info.config_packet_bits + 7) >> 3);
+      header_info.sync_packet_bits = 0;
+      header_info.config_packet_bits = 0;
+      header_info.other_packet_bits = 0;
+      header_info.asi_packet_bits = 0;
 
-          header_info_sync_cur.sync_packet_bits = 0;
-          header_info_sync_cur.other_packet_bits = 0;
-          header_info_sync_cur.asi_packet_bits = 0;
-        }
-        else
-        {
-          header_info.other_packet_bits = header_info_sync_cur.other_packet_bits;
-          header_info.asi_packet_bits = header_info_sync_cur.asi_packet_bits;
-        }
-      }
     }
-    if (str_pac_info.packet_type == 2)
+    else /* MHA1 condition */
     {
-      if (op_fmt == MP4_MHM1)
-      {
-        frame_lengths[frame_count] += ((header_info.frame_packet_bits + 7) >> 3) +
-                                      ((header_info_sync_cur.other_packet_bits + 7) >> 3);
-        if (frame_count != 0)
-        {
-          /* Adding sync and cfg packets coming in between mdat to frame_lengths */
-          frame_lengths[frame_count] += ((header_info_sync_cur.sync_packet_bits + 7) >> 3);
-          frame_lengths[frame_count] += ((header_info_sync_cur.config_packet_bits + 7) >> 3);
-        }
+      frame_lengths[frame_count] = str_pac_info.packet_length; // frame data
 
-        header_info_sync_cur.sync_packet_bits = 0;
-        header_info_sync_cur.config_packet_bits = 0;
-        header_info_sync_cur.other_packet_bits = 0;
-        header_info_sync_cur.asi_packet_bits = 0;
-      }
-      else /* MHA1 condition */
-      {
-        frame_lengths[frame_count] = str_pac_info.packet_length; // frame data
-        frame_header_lengths[frame_count] +=
-            ((header_info.frame_packet_bits + 7) >> 3) +
-            ((header_info_sync_cur.other_packet_bits + 7) >> 3) -
-            str_pac_info.packet_length; // length in bytes of the Frame packet header
-
-        if (frame_count != 0)
-        {
-          /* Adding sync and cfg packets coming in between mdat to frame_header_lengths for
-           * skipping */
-          frame_header_lengths[frame_count] +=
-              (header_info_sync_cur.sync_packet_bits + 7) >> 3; // sync header+data
-          frame_header_lengths[frame_count] +=
-              (header_info_sync_cur.config_packet_bits + 7) >> 3; // config header +data
-        }
-        header_info_sync_cur.other_packet_bits = 0;
-        header_info_sync_cur.sync_packet_bits = 0;
-        header_info_sync_cur.config_packet_bits = 0;
-        header_info_sync_cur.asi_packet_bits = 0;
-      }
-      header_info.max_frame_data_size = header_info.max_frame_data_size > frame_lengths[frame_count ] ? header_info.max_frame_data_size : frame_lengths[frame_count];
-      header_info.total_frame_data_size = header_info.total_frame_data_size + frame_lengths[frame_count];
-      frame_count++;
-      header_info.frame_count = frame_count;
+      //config packets
+      frame_header_lengths[frame_count] += ((header_info.other_packet_bits + 7) >> 3)
+        + ((header_info.asi_packet_bits + 7) >> 3)
+        + ((header_info.sync_packet_bits + 7) >> 3)
+        + ((header_info.config_packet_bits + 7) >> 3);
+      //frame packet header
+      frame_header_lengths[frame_count] += ((header_info.frame_packet_bits + 7) >> 3) - str_pac_info.packet_length;
+      header_info.other_packet_bits = 0;
+      header_info.sync_packet_bits = 0;
+      header_info.config_packet_bits = 0;
+      header_info.asi_packet_bits = 0;
     }
+
+    header_info.max_frame_data_size = header_info.max_frame_data_size > frame_lengths[frame_count] ? header_info.max_frame_data_size : frame_lengths[frame_count];
+    header_info.total_frame_data_size = header_info.total_frame_data_size + frame_lengths[frame_count];
+    frame_count++;
+    header_info.frame_count = frame_count;
 
     packet_length =
         (((inp_bytes << 3) - str_bit_buf.cnt_bits) >> 3); /* no of bytes processed till now */
@@ -479,6 +386,7 @@ IA_ERRORCODE impegh_mp4_multiplex()
   {
     free(frame_lengths);
   }
+
   if (frame_header_lengths)
   {
     free(frame_header_lengths);

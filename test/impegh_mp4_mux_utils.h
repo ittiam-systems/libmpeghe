@@ -175,6 +175,9 @@ typedef struct packet_info
   WORD32 group_preset_length;
   WORD32 config_packet_bits;
   WORD32 config_packet_length;
+  WORD32 config_packet_found;
+  WORD32 config_packet_start_position;
+  WORD32 mhac_content_size;
   WORD32 other_packet_bits;
   WORD32 other_packet_length;
   WORD32 frame_packet_bits;
@@ -446,8 +449,7 @@ VOID impegh_create_init_bit_buf(ia_bit_buf_struct *it_bit_buff, UWORD8 *ptr_bit_
                                 WORD32 bit_buf_size);
 
 WORD32 impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info *ptr_pac_info,
-                         packet_info *header_info,
-                         packet_info *header_info_sync_cur);
+                         packet_info *header_info);
 
 WORD32 impegh_file_parse(ia_bit_buf_struct *ptr_bit_buf);
 

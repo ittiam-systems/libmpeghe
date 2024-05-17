@@ -1604,8 +1604,7 @@ IA_ERRORCODE impegh_3d_audio_config_data_process(ia_bit_buf_struct *ptr_bit_buf,
  *
  */
 IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info *ptr_pac_info,
-                               packet_info *header_info,
-                               packet_info *header_info_sync_cur)
+                               packet_info *header_info)
 {
   IA_ERRORCODE error = IA_NO_ERROR;
   WORD32 packet_type, packet_lbl, packet_length, tmp;
@@ -1629,7 +1628,10 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
         return IMPEGHE_MUX_NON_FATAL_MHAS_SYNCWORD_MISMATCH;
       }
       header_info->sync_packet_bits = packet_info_bits + (packet_length << 3);
-      header_info_sync_cur->sync_packet_bits = packet_info_bits + (packet_length << 3);
+      if(header_info->config_packet_found == 0)
+      {
+        header_info->config_packet_start_position += ((packet_info_bits + 7) >> 3) + packet_length;
+      }
     }
     else if (MHAS_PAC_TYP_AUDIOSCENEINFO == packet_type)
     {
@@ -1650,8 +1652,11 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
       }
 
       header_info->asi_packet_length = packet_length;
-      header_info_sync_cur->asi_packet_bits = packet_info_bits + (packet_length << 3);
-      header_info_sync_cur->other_packet_bits = packet_info_bits + (packet_length << 3);
+      header_info->asi_packet_bits = packet_info_bits + (packet_length << 3);
+      if (header_info->config_packet_found == 0)
+      {
+        header_info->config_packet_start_position += ((packet_info_bits + 7) >> 3) + packet_length;
+      }
     }
     else if (MHAS_PAC_TYP_MPEGH3DACFG == packet_type)
     {
@@ -1672,9 +1677,15 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
         impegh_read_bits_buf(ptr_bit_buf, ((packet_length << 3) - final_bits)); // just skip  them if bits left out
       }
 
+
       header_info->config_packet_length = packet_length;
       header_info->config_packet_bits = packet_info_bits + (packet_length << 3);
-      header_info_sync_cur->config_packet_bits = packet_info_bits + (packet_length << 3);
+      if (header_info->config_packet_found == 0)
+      {
+        header_info->config_packet_start_position += ((packet_info_bits + 7) >> 3);
+        header_info->mhac_content_size = packet_length;
+      }
+      header_info->config_packet_found = 1;
     }
     else if (MHAS_PAC_TYP_MPEGH3DAFRAME == packet_type)
     {
@@ -1692,10 +1703,13 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
     {
       tmp = packet_length << 3;
       impegh_read_bits_buf(ptr_bit_buf, tmp);
-      header_info_sync_cur->other_packet_bits = packet_info_bits + (packet_length << 3);
+      header_info->other_packet_bits += packet_info_bits + (packet_length << 3);
+      if (header_info->config_packet_found == 0)
+      {
+        header_info->config_packet_start_position += ((packet_info_bits + 7) >> 3) + packet_length;
+      }
     }
-  } while ((MHAS_PAC_TYP_MPEGH3DACFG != packet_type) &&
-           (MHAS_PAC_TYP_MPEGH3DAFRAME != packet_type));
+  } while ((MHAS_PAC_TYP_MPEGH3DAFRAME != packet_type));
 
   ptr_pac_info->packet_type = packet_type;
   ptr_pac_info->packet_lbl = packet_lbl;
