@@ -355,12 +355,171 @@ typedef struct
 
 typedef struct
 {
+  WORD8 drcLocation;
+  WORD8 drcFrameSizePresent;
+  WORD16 bsDrcFrameSize;
+  WORD8 gainSetCount;
+  WORD8 gainSetIndex[64];
+  WORD8 gainCodingProfile[64];
+  WORD8 gainInterpolationType[64];
+  WORD8 fullFrame[64];
+  WORD8 timeAlignment[64];
+  WORD8 timeDeltaMinPresent[64];
+  WORD16 bsTimeDeltaMin[64];
+  WORD8 bandCount[64];
+  WORD8 drcBandType[64];
+  WORD8 drcCharacteristic[64][16];
+  WORD8 crossoverFreqIndex[64][16];
+  WORD8 startSubBandIndex[64][16];
+  WORD32 gainSequenceCount;
+} ia_drcCoefficientsUniDrc;
+
+typedef struct
+{
+  WORD8 drcSetId;
+  WORD8 drcLocation;
+  WORD8 downmixId;
+  WORD8 additionalDownmixIdPresent;
+  WORD8 additionalDownmixIdCount;
+  WORD8 additionalDownmixId[8];
+  WORD32 drcSetEffect;
+  WORD8 limiterPeakTargetPresent;
+  WORD16 bsLimiterPeakTarget;
+  WORD8 drcSetTargetLoudnessPresent;
+  WORD8 bsDrcSetTargetLoudnessValueUpper;
+  WORD8 drcSetTargetLoudnessValueLowerPresent;
+  WORD8 bsDrcSetTargetLoudnessValueLower;
+  WORD8 dependsOnDrcSetPresent;
+  WORD8 dependsOnDrcSet;
+  WORD8 noIndependentUse;
+  WORD8 bsGainSetIndex[128];
+  WORD8 repeatGainSetIndex[128];
+
+  //nDrcChannelGroups
+  WORD8 bsRepeatGainSetIndexCount[128];
+  WORD8 duckingScalingPresent[128];
+  WORD8 bsDuckingScaling[128];
+  WORD8 repeatParameters[128];
+  WORD8 bsRepeatParametersCount[128];
+  WORD8 nDrcChannelGroups[128];
+  WORD8 targetCharacteristicLeftIndex[128];
+  WORD8 targetCharacteristicRightPresent[128];
+  WORD8 targetCharacteristicRightIndex[128];
+  WORD8 gainScalingPresent[128];
+  WORD8 bsAttenuationScaling[128];
+  WORD8 bsAmplificationScaling[128];
+  WORD8 gainOffsetPresent[128];
+  WORD8 bsGainOffset[128];
+  WORD8 shapeFilterPresent[128];
+  WORD8 shapeFilterIndex[128];
+} ia_drcInstructionsUniDrc;
+
+
+
+typedef struct
+{
+  WORD8 uniDrcConfigExtType;
+  WORD8 bitSizeLen;
+  WORD32 bitSize;
+  WORD8 parametricDrcInstructionsCount;
+  WORD8 downmixInstructionsV1Present;
+  WORD8 downmixInstructionsV1Count;
+  WORD8 drcCoeffsAndInstructionsUniDrcV1Present;
+  WORD8 drcCoefficientsUniDrcV1Count;
+  WORD8 drcInstructionsUniDrcV1Count;
+  WORD8 loudEqInstructionsPresent;
+  WORD8 loudEqInstructionsCount;
+  WORD8 eqPresent;
+  WORD8 eqInstructionsCount;
+  WORD8 otherBit[64];
+} ia_uniDrcConfigExtension;
+
+typedef struct
+{
+  WORD8 version;
+  WORD8 drcSetId;
+  WORD8 eqSetId;
+  WORD8 downmixId;
+  WORD8 samplePeakLevelPresent;
+  WORD16 bsSamplePeakLevel;
+  WORD8 truePeakLevelPresent;
+  WORD16 bsTruePeakLevel;
+  WORD8 measurementSystem;
+  WORD8 reliability;
+  WORD8 measurementCount;
+  WORD8 methodDefinition[16];
+  WORD16 methodValue[16];
+  WORD8 measurementSystemArr[16];
+  WORD8 reliabilityArr[16];
+} ia_loudnessInfo;
+
+typedef struct
+{
+  WORD8 loudnessInfoSetExtType;
+  WORD8 bitSizeLen;
+  WORD32 bitSize;
+  WORD8 loudnessInfoV1AlbumCount;
+  ia_loudnessInfo loudnessInfoV1Album[64];
+  WORD8 loudnessInfoV1Count;
+  ia_loudnessInfo loudnessInfoV1[64];
+  WORD8 otherBit[64];
+} ia_loudnessInfoSetExtension;
+
+typedef struct
+{
+  WORD8 loudnessInfoCount;
+  WORD8 loudnessInfoType[64];
+  WORD8 mae_groupID[64];
+  WORD8 mae_groupPresetID[64];
+  ia_loudnessInfo loudnessInfo[64];
+  WORD8 loudnessInfoAlbumPresent;
+  WORD8 loudnessInfoAlbumCount;
+  ia_loudnessInfo loudnessInfoAlbum[64];
+  WORD8 loudnessInfoSetExtensionPresent;
+  ia_loudnessInfoSetExtension loudnessInfoSetExtension;
+} ia_mpegh3daLoudnessInfoSet;
+
+typedef struct
+{
+  WORD8 baseChannelCount;
+} ia_mpegh3daUniDrcChannelLayout;
+
+typedef struct
+{
+  WORD8 downmixId;
+  WORD8 targetChannelCount;
+  WORD8 targetLayout;
+  WORD8 downmixCoefficientsPresent;
+} ia_downmixInstruction;
+
+typedef struct
+{
+  WORD8 drcCoefficientsUniDrcCount;
+  WORD8 drcInstructionsUniDrcCount;
+  WORD8 downmixInstructionsCount;
+  ia_mpegh3daUniDrcChannelLayout mpegh3daUniDrcChannelLayout_data;
+  ia_drcCoefficientsUniDrc drcCoefficientsUniDrc_data[8];
+  ia_downmixInstruction downmixInstructions[32];
+  WORD8 drcInstructionsType[32];
+  WORD8 mae_groupID[32];
+  WORD8 mae_groupPresetID[32];
+  ia_drcInstructionsUniDrc drcInstructionsUniDrc_data[64];
+  WORD8 uniDrcConfigExtPresent;
+  ia_uniDrcConfigExtension  uniDrcConfigExtension_data;
+  WORD8 loudnessInfoSetPresent;
+  ia_mpegh3daLoudnessInfoSet mpegh3daLoudnessInfoSet_data;
+
+} ia_mpegh3daUniDrcConfig;
+
+typedef struct
+{
   WORD32 usacExtElementType;
   WORD8 usacExtElementConfigLength;
   WORD32 usacExtElementDefaultLengthPresent;
   WORD32 usacExtElementDefaultLength;
   WORD8 usacExtElementPayloadFrag;
   ia_EnhancedObjectMetadataConfig EnhancedObjectMetadataConfig_data;
+  ia_mpegh3daUniDrcConfig mpegh3daUniDrcConfig_data;
 
 } ia_mpegh3daExtElementConfig;
 
@@ -397,6 +556,7 @@ typedef struct
   WORD32 numElements;
   WORD8 elementLengthPresent;
   MP4_ELEMENT_ID usacElementType[TP_USAC_MAX_ELEMENTS];
+  WORD8 mpegh3daUniDrcConfigPresent;
   ia_mpegh3daCoreConfig mpegh3daCoreConfig_data[TP_USAC_MAX_ELEMENTS];
 } ia_mpegh3daDecoderConfig;
 
@@ -410,11 +570,32 @@ typedef struct
 
 typedef struct
 {
+  WORD8 downmixIdCount;
+  WORD8 downmixId[32];
+  WORD8 downmixType[32];
+  WORD8 CICPspeakerLayoutIdx[32];
+  WORD8 bsDownmixMatrixCount[32];
+  WORD16 bsNumAssignedGroupIDs[32][16];
+  WORD8 signal_groupID[32][16][512];
+  WORD32 dmxMatrixLenBits[32][16];
+} ia_downmixMatrixSet;
+
+typedef struct
+{
+  WORD8 downmixConfigType;
+  WORD8 passiveDownmixFlag;
+  WORD8 phaseAlignStrength;
+  WORD8 immersiveDownmixFlag;
+  ia_downmixMatrixSet dowmixMatrixSet;
+} ia_downmixConfig;
+
+typedef struct
+{
   WORD32 numConfigExtensions;
   WORD16 usacConfigExtType[256];//recheck max size
   WORD16 usacConfigExtLength[256];//recheck max size
   ia_CompatibleProfileLevelSet CompatibleProfileLevelSet_data;
-
+  ia_downmixConfig downmixConfig;
 } ia_mpegh3daConfigExtension;
 
 

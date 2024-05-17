@@ -912,6 +912,356 @@ static VOID EnhancedObjectMetadataConfig(ia_mpegh3daExtElementConfig *extElement
   }
 }
 
+static VOID drcCoefficientsUniDrc(ia_drcCoefficientsUniDrc *drcCoefficientsUniDrc_data, ia_bit_buf_struct *ptr_bit_buf)
+{
+    drcCoefficientsUniDrc_data->gainSequenceCount = 0;
+    drcCoefficientsUniDrc_data->drcLocation = impegh_read_bits_buf(ptr_bit_buf, 4);
+    drcCoefficientsUniDrc_data->drcFrameSizePresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+    if (drcCoefficientsUniDrc_data->drcFrameSizePresent)
+    {
+        drcCoefficientsUniDrc_data->bsDrcFrameSize = impegh_read_bits_buf(ptr_bit_buf, 15);
+    }
+    drcCoefficientsUniDrc_data->gainSetCount = impegh_read_bits_buf(ptr_bit_buf, 6);
+    for (int i = 0; i < drcCoefficientsUniDrc_data->gainSetCount; i++)
+    {
+        drcCoefficientsUniDrc_data->gainSetIndex[i] = 1;
+        drcCoefficientsUniDrc_data->gainCodingProfile[i] = impegh_read_bits_buf(ptr_bit_buf, 2);
+        drcCoefficientsUniDrc_data->gainInterpolationType[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+        drcCoefficientsUniDrc_data->fullFrame[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+        drcCoefficientsUniDrc_data->timeAlignment[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+        drcCoefficientsUniDrc_data->timeDeltaMinPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+        if (drcCoefficientsUniDrc_data->timeDeltaMinPresent[i] == 1)
+        {
+            drcCoefficientsUniDrc_data->bsTimeDeltaMin[i] = impegh_read_bits_buf(ptr_bit_buf, 11);
+        }
+        if (drcCoefficientsUniDrc_data->gainCodingProfile[i] == 3)
+        {
+            drcCoefficientsUniDrc_data->bandCount[i] = 1;
+        }
+        else
+        {
+            drcCoefficientsUniDrc_data->bandCount[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
+            if (drcCoefficientsUniDrc_data->bandCount[i] > 1)
+            {
+                drcCoefficientsUniDrc_data->drcBandType[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+            }
+            for (int j = 0; j < drcCoefficientsUniDrc_data->bandCount[i]; j++)
+            {
+                drcCoefficientsUniDrc_data->drcCharacteristic[i][j] = impegh_read_bits_buf(ptr_bit_buf, 7);
+            }
+            for (int j = 1; j < drcCoefficientsUniDrc_data->bandCount[i]; j++)
+            {
+                if (drcCoefficientsUniDrc_data->drcBandType[i] == 1)
+                {
+                    drcCoefficientsUniDrc_data->crossoverFreqIndex[i][j] = impegh_read_bits_buf(ptr_bit_buf, 4);
+                }
+                else
+                {
+                    drcCoefficientsUniDrc_data->startSubBandIndex[i][j] = impegh_read_bits_buf(ptr_bit_buf, 10);
+                }
+            }
+        }
+        drcCoefficientsUniDrc_data->gainSequenceCount += drcCoefficientsUniDrc_data->bandCount[i];
+    }
+}
+
+static ia_downmixInstruction* selectDownmixInstructions(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_data, WORD32 dmix_id)
+{
+  for (int i = 0; i < mpegh3daUniDrcConfig_data->downmixInstructionsCount; i++)
+  {
+    if (mpegh3daUniDrcConfig_data->downmixInstructions[i].downmixId == dmix_id)
+    {
+      return &(mpegh3daUniDrcConfig_data->downmixInstructions[i]);
+    }
+  }
+  return NULL;
+}
+
+static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_data, WORD32 idx, ia_bit_buf_struct *ptr_bit_buf, WORD32 baseChannelCount)
+{
+  WORD32 channel_count = 0;
+  ia_drcInstructionsUniDrc *drcInstructionsUniDrc_data = &mpegh3daUniDrcConfig_data->drcInstructionsUniDrc_data[idx];
+  drcInstructionsUniDrc_data->drcSetId = impegh_read_bits_buf(ptr_bit_buf, 6);
+  drcInstructionsUniDrc_data->drcLocation = impegh_read_bits_buf(ptr_bit_buf, 4);
+  drcInstructionsUniDrc_data->downmixId = impegh_read_bits_buf(ptr_bit_buf, 7);
+  drcInstructionsUniDrc_data->additionalDownmixIdPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (drcInstructionsUniDrc_data->additionalDownmixIdPresent == 1)
+  {
+      drcInstructionsUniDrc_data->additionalDownmixIdCount = impegh_read_bits_buf(ptr_bit_buf, 3);
+      for (int j = 0; j < drcInstructionsUniDrc_data->additionalDownmixIdCount; j++)
+      {
+          drcInstructionsUniDrc_data->additionalDownmixId[j] = impegh_read_bits_buf(ptr_bit_buf, 7);
+      }
+  }
+  else
+  {
+      drcInstructionsUniDrc_data->additionalDownmixIdCount = 0;
+  }
+  drcInstructionsUniDrc_data->drcSetEffect = impegh_read_bits_buf(ptr_bit_buf, 16);
+  if ((drcInstructionsUniDrc_data->drcSetEffect & (3 << 10)) == 0)
+  {
+      drcInstructionsUniDrc_data->limiterPeakTargetPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+      if (drcInstructionsUniDrc_data->limiterPeakTargetPresent == 1)
+      {
+          drcInstructionsUniDrc_data->bsLimiterPeakTarget = impegh_read_bits_buf(ptr_bit_buf, 8);
+      }
+  }
+
+  drcInstructionsUniDrc_data->drcSetTargetLoudnessPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (drcInstructionsUniDrc_data->drcSetTargetLoudnessPresent == 1)
+  {
+      drcInstructionsUniDrc_data->bsDrcSetTargetLoudnessValueUpper = impegh_read_bits_buf(ptr_bit_buf, 6);
+      drcInstructionsUniDrc_data->drcSetTargetLoudnessValueLowerPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+      if (drcInstructionsUniDrc_data->drcSetTargetLoudnessValueLowerPresent == 1)
+      {
+          drcInstructionsUniDrc_data->bsDrcSetTargetLoudnessValueLower = impegh_read_bits_buf(ptr_bit_buf, 6);
+      }
+  }
+  drcInstructionsUniDrc_data->dependsOnDrcSetPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (drcInstructionsUniDrc_data->dependsOnDrcSetPresent == 1)
+  {
+      drcInstructionsUniDrc_data->dependsOnDrcSet = impegh_read_bits_buf(ptr_bit_buf, 6);
+  }
+  else
+  {
+      drcInstructionsUniDrc_data->noIndependentUse = impegh_read_bits_buf(ptr_bit_buf, 1);
+  }
+  channel_count = baseChannelCount;
+  if ((drcInstructionsUniDrc_data->drcSetEffect & (3 << 10)) != 0)
+  {
+      for (int i = 0; i < channel_count; i++)
+      {
+          drcInstructionsUniDrc_data->bsGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
+          drcInstructionsUniDrc_data->duckingScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (drcInstructionsUniDrc_data->duckingScalingPresent[i] == 1)
+          {
+              drcInstructionsUniDrc_data->bsDuckingScaling[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
+          }
+          drcInstructionsUniDrc_data->repeatParameters[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (drcInstructionsUniDrc_data->repeatParameters[i])
+          {
+              drcInstructionsUniDrc_data->bsRepeatParametersCount[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
+              i = i + drcInstructionsUniDrc_data->bsRepeatParametersCount[i] + 1;
+          }
+      }
+  }
+  else
+  {
+      WORD32 dmix_id = drcInstructionsUniDrc_data->downmixId;
+      WORD32 additional_dmix_id_cnt = drcInstructionsUniDrc_data->additionalDownmixIdCount;
+      if (dmix_id != 0 && dmix_id != 0x7F && additional_dmix_id_cnt == 0)
+      {
+          ia_downmixInstruction *pDmix = selectDownmixInstructions(mpegh3daUniDrcConfig_data, dmix_id);
+          channel_count = pDmix->targetChannelCount;
+      }
+      else if (dmix_id != 0x7F || additional_dmix_id_cnt != 0)
+      {
+          channel_count = 1;
+      }
+      for (int i = 0; i < channel_count; i++)
+      {
+          drcInstructionsUniDrc_data->bsGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
+          drcInstructionsUniDrc_data->repeatGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (drcInstructionsUniDrc_data->repeatGainSetIndex[i])
+          {
+              drcInstructionsUniDrc_data->bsRepeatGainSetIndexCount[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
+              i = i + drcInstructionsUniDrc_data->bsRepeatGainSetIndexCount[i] + 1;
+          }
+      }
+      WORD32 nDrcChannelGroups = 0;  // calculateNumDrcChannelGroups (Derivation of drcChannelGroups from gainSetIndices)
+      for (int i = 0; i < nDrcChannelGroups; i++)
+      {
+          drcInstructionsUniDrc_data->gainScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (drcInstructionsUniDrc_data->gainScalingPresent[i] == 1)
+          {
+              drcInstructionsUniDrc_data->bsAttenuationScaling[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
+              drcInstructionsUniDrc_data->bsAmplificationScaling[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
+          }
+          drcInstructionsUniDrc_data->gainOffsetPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (drcInstructionsUniDrc_data->gainOffsetPresent[i] == 1)
+          {
+              drcInstructionsUniDrc_data->bsGainOffset[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
+          }
+      }
+  }
+}
+
+static VOID uniDrcConfigExtension(ia_uniDrcConfigExtension *uniDrcConfigExtension_data, ia_bit_buf_struct *ptr_bit_buf)
+{
+  WORD8 extSizeBits;
+  WORD32 extBitSize;
+  uniDrcConfigExtension_data->uniDrcConfigExtType = impegh_read_bits_buf(ptr_bit_buf, 4);
+  while (uniDrcConfigExtension_data->uniDrcConfigExtType != UNIDRCCONFEXT_TERM)
+  {
+    uniDrcConfigExtension_data->bitSizeLen = impegh_read_bits_buf(ptr_bit_buf, 4);
+    extSizeBits = uniDrcConfigExtension_data->bitSizeLen + 4;
+    uniDrcConfigExtension_data->bitSize = impegh_read_bits_buf(ptr_bit_buf, extSizeBits);
+    extBitSize = uniDrcConfigExtension_data->bitSize + 1;
+    switch (uniDrcConfigExtension_data->uniDrcConfigExtType)
+    {
+    /* skipping bits for UNIDRCCONFEXT_PARAM_DRC and UNIDRCCONFEXT_V1*/
+    case UNIDRCCONFEXT_PARAM_DRC:
+    case UNIDRCCONFEXT_V1:
+    default:
+      for (int i = 0; i < extBitSize; i++)
+      {
+        uniDrcConfigExtension_data->otherBit[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+      }
+    }
+    uniDrcConfigExtension_data->uniDrcConfigExtType = impegh_read_bits_buf(ptr_bit_buf, 4);
+  }
+}
+
+static VOID loudnessInfo(ia_bit_buf_struct *ptr_bit_buf, ia_loudnessInfo *loudnessInfo, WORD8 version)
+{
+  loudnessInfo->version = version;
+  loudnessInfo->drcSetId = impegh_read_bits_buf(ptr_bit_buf, 6);
+  if (version == 1)
+  {
+    loudnessInfo->eqSetId = impegh_read_bits_buf(ptr_bit_buf, 6);
+  }
+  loudnessInfo->downmixId = impegh_read_bits_buf(ptr_bit_buf, 7);
+  loudnessInfo->samplePeakLevelPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (loudnessInfo->samplePeakLevelPresent)
+  {
+    loudnessInfo->bsSamplePeakLevel = impegh_read_bits_buf(ptr_bit_buf, 12);
+  }
+  loudnessInfo->truePeakLevelPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (loudnessInfo->truePeakLevelPresent)
+  {
+    loudnessInfo->bsTruePeakLevel = impegh_read_bits_buf(ptr_bit_buf, 12);
+    loudnessInfo->measurementSystem = impegh_read_bits_buf(ptr_bit_buf, 4);
+    loudnessInfo->reliability = impegh_read_bits_buf(ptr_bit_buf, 2);
+  }
+  loudnessInfo->measurementCount = impegh_read_bits_buf(ptr_bit_buf, 4);
+  for (int i = 0; i < loudnessInfo->measurementCount; i++)
+  {
+    WORD32 esc_bits_read;
+    loudnessInfo->methodDefinition[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
+    loudnessInfo->methodValue[i] = impegh_read_escape_value(ptr_bit_buf, 2, 6, 0, &esc_bits_read);
+    loudnessInfo->measurementSystemArr[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
+    loudnessInfo->reliabilityArr[i] = impegh_read_bits_buf(ptr_bit_buf, 2);
+  }
+}
+
+static VOID loudnessInfoSetExtension(ia_bit_buf_struct *ptr_bit_buf, ia_loudnessInfoSetExtension *loudnessInfoSetExtension)
+{
+  WORD8 extSizeBits;
+  WORD32 extBitSize;
+  loudnessInfoSetExtension->loudnessInfoSetExtType = impegh_read_bits_buf(ptr_bit_buf, 4);
+  while (loudnessInfoSetExtension->loudnessInfoSetExtType != UNIDRCLOUDEXT_TERM)
+  {
+    loudnessInfoSetExtension->bitSizeLen = impegh_read_bits_buf(ptr_bit_buf, 4);
+    extSizeBits = loudnessInfoSetExtension->bitSizeLen + 4;
+    loudnessInfoSetExtension->bitSize = impegh_read_bits_buf(ptr_bit_buf, extSizeBits);
+    extBitSize = loudnessInfoSetExtension->bitSize + 1;
+    switch (loudnessInfoSetExtension->loudnessInfoSetExtType)
+    {
+    case UNIDRCLOUDEXT_EQ:
+      loudnessInfoSetExtension->loudnessInfoV1AlbumCount = impegh_read_bits_buf(ptr_bit_buf, 6);
+      loudnessInfoSetExtension->loudnessInfoV1Count = impegh_read_bits_buf(ptr_bit_buf, 6);
+      for (int i = 0; i < loudnessInfoSetExtension->loudnessInfoV1AlbumCount; i++)
+      {
+        loudnessInfo(ptr_bit_buf, &loudnessInfoSetExtension->loudnessInfoV1Album[i], 1);
+      }
+      for (int i = 0; i < loudnessInfoSetExtension->loudnessInfoV1Count; i++)
+      {
+        loudnessInfo(ptr_bit_buf, &loudnessInfoSetExtension->loudnessInfoV1[i], 1);
+      }
+      break;
+    /* add future extensions here */
+    default:
+      for (int i = 0; i < extBitSize; i++)
+      {
+        loudnessInfoSetExtension->otherBit[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+      }
+    }
+    loudnessInfoSetExtension->loudnessInfoSetExtType = impegh_read_bits_buf(ptr_bit_buf, 4);
+  }
+}
+
+static VOID mpegh3daLoudnessInfoSet(ia_mpegh3daLoudnessInfoSet *uniDrcConfigExtension_data, ia_bit_buf_struct *ptr_bit_buf)
+{
+  uniDrcConfigExtension_data->loudnessInfoCount = impegh_read_bits_buf(ptr_bit_buf, 6);
+  for (int i = 0; i < uniDrcConfigExtension_data->loudnessInfoCount; i++)
+  {
+    uniDrcConfigExtension_data->loudnessInfoType[i] = impegh_read_bits_buf(ptr_bit_buf, 2);
+    if (uniDrcConfigExtension_data->loudnessInfoType[i] == 1 || uniDrcConfigExtension_data->loudnessInfoType[i] == 2)
+    {
+      uniDrcConfigExtension_data->mae_groupID[i] = impegh_read_bits_buf(ptr_bit_buf, 7);
+    }
+    else
+    {
+      uniDrcConfigExtension_data->mae_groupPresetID[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
+    }
+    loudnessInfo(ptr_bit_buf, &uniDrcConfigExtension_data->loudnessInfo[i], 0);
+  }
+  uniDrcConfigExtension_data->loudnessInfoAlbumPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (uniDrcConfigExtension_data->loudnessInfoAlbumPresent)
+  {
+    uniDrcConfigExtension_data->loudnessInfoAlbumCount = impegh_read_bits_buf(ptr_bit_buf, 6);
+    for (int i = 0; i < uniDrcConfigExtension_data->loudnessInfoAlbumCount; i++)
+    {
+      uniDrcConfigExtension_data->loudnessInfoType[i] = 0;
+      loudnessInfo(ptr_bit_buf, &uniDrcConfigExtension_data->loudnessInfoAlbum[i], 0);
+    }
+  }
+  uniDrcConfigExtension_data->loudnessInfoSetExtensionPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (uniDrcConfigExtension_data->loudnessInfoSetExtensionPresent)
+  {
+    loudnessInfoSetExtension(ptr_bit_buf, &uniDrcConfigExtension_data->loudnessInfoSetExtension);
+  }
+}
+
+static VOID mpegh3daUniDrcConfig(ia_mpegh3daExtElementConfig *extElementConfig, ia_bit_buf_struct *ptr_bit_buf)
+{
+  ia_mpegh3daUniDrcConfig* mpegh3daUniDrcConfig_data = &extElementConfig->mpegh3daUniDrcConfig_data;
+  WORD32 baseChannelCount;
+  mpegh3daUniDrcConfig_data->drcCoefficientsUniDrcCount = impegh_read_bits_buf(ptr_bit_buf, 3);
+  mpegh3daUniDrcConfig_data->drcInstructionsUniDrcCount = impegh_read_bits_buf(ptr_bit_buf, 6);
+  mpegh3daUniDrcConfig_data->mpegh3daUniDrcChannelLayout_data.baseChannelCount = impegh_read_bits_buf(ptr_bit_buf, 7);
+  baseChannelCount = mpegh3daUniDrcConfig_data->mpegh3daUniDrcChannelLayout_data.baseChannelCount;
+  for (int i = 0; i < mpegh3daUniDrcConfig_data->drcCoefficientsUniDrcCount; i++)
+  {
+      drcCoefficientsUniDrc(&mpegh3daUniDrcConfig_data->drcCoefficientsUniDrc_data[i], ptr_bit_buf);
+  }
+  for (int i = 0; i < mpegh3daUniDrcConfig_data->drcInstructionsUniDrcCount; i++)
+  {
+      mpegh3daUniDrcConfig_data->drcInstructionsType[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+      if (mpegh3daUniDrcConfig_data->drcInstructionsType[i] == 0)
+      {
+          mpegh3daUniDrcConfig_data->mae_groupID[i] = -1;
+          mpegh3daUniDrcConfig_data->mae_groupPresetID[i] = -1;
+      }
+      else
+      {
+          mpegh3daUniDrcConfig_data->drcInstructionsType[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
+          mpegh3daUniDrcConfig_data->drcInstructionsType[i] =
+              mpegh3daUniDrcConfig_data->drcInstructionsType[i] | (1 << 1);
+          if (mpegh3daUniDrcConfig_data->drcInstructionsType[i] == 3)
+          {
+              mpegh3daUniDrcConfig_data->mae_groupPresetID[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
+          }
+          else if (mpegh3daUniDrcConfig_data->drcInstructionsType[i] == 2)
+          {
+              mpegh3daUniDrcConfig_data->mae_groupID[i] = impegh_read_bits_buf(ptr_bit_buf, 7);
+          }
+          drcInstructionsUniDrc(mpegh3daUniDrcConfig_data, i, ptr_bit_buf, baseChannelCount);
+      }
+  }
+  mpegh3daUniDrcConfig_data->uniDrcConfigExtPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (mpegh3daUniDrcConfig_data->uniDrcConfigExtPresent == 1)
+  {
+      uniDrcConfigExtension(&mpegh3daUniDrcConfig_data->uniDrcConfigExtension_data, ptr_bit_buf);
+  }
+  mpegh3daUniDrcConfig_data->loudnessInfoSetPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (mpegh3daUniDrcConfig_data->loudnessInfoSetPresent == 1)
+  {
+      mpegh3daLoudnessInfoSet(&mpegh3daUniDrcConfig_data->mpegh3daLoudnessInfoSet_data, ptr_bit_buf);
+  }
+
+}
+
 /**impegh_create_init_bit_buf
  *
  *  \brief Create bit buffer reading structure.
@@ -1337,7 +1687,7 @@ WORD32 mpegh3daLfeElementConfig(ia_mpegh3daCoreConfig *mpegh3daCoreConfig_data)
   return 0;
 }
 
-WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreConfig *mpegh3daCoreConfig_data, int numAudioObjects)
+WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreConfig *mpegh3daCoreConfig_data, int numAudioObjects, WORD8 *uniDrcConfigPresent)
 {
   ia_mpegh3daExtElementConfig *pstr_mpegh3daExtElementConfig_data;
   WORD32 bits_used;
@@ -1408,6 +1758,12 @@ WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreC
   case ID_EXT_ELE_UNI_DRC: 
   {
     //mhaD box data
+    cnt_bits = ptr_bit_buf->cnt_bits;
+    *uniDrcConfigPresent = 1;
+    mpegh3daUniDrcConfig(pstr_mpegh3daExtElementConfig_data, ptr_bit_buf);
+    cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
+    assert(cnt_bits < temp_bits_to_skip);
+    temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
     impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
     //DRC data
     //Supported
@@ -1425,6 +1781,7 @@ WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreC
 WORD32 mpegh3daDecoderConfig(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *audio_config_data)
 {
   WORD32 bits_used;
+  WORD8 uniDrcConfigPresent = 0;
   ia_mpegh3daDecoderConfig *pstr_mpegh3daDecoderConfig;
   pstr_mpegh3daDecoderConfig = &audio_config_data->mpegh3daDecoderConfig_data;
   pstr_mpegh3daDecoderConfig->numElements = impegh_read_escape_value(ptr_bit_buf, 4, 8, 16, &bits_used) + 1;
@@ -1446,7 +1803,8 @@ WORD32 mpegh3daDecoderConfig(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_da
       mpegh3daLfeElementConfig( &pstr_mpegh3daDecoderConfig->mpegh3daCoreConfig_data[elemIdx]);
       break;
     case ID_USAC_EXT:
-      mpegh3daExtElementConfig(ptr_bit_buf, &pstr_mpegh3daDecoderConfig->mpegh3daCoreConfig_data[elemIdx], audio_config_data->mpegh3daDecoderConfig_data.numAudioObjects);
+      mpegh3daExtElementConfig(ptr_bit_buf, &pstr_mpegh3daDecoderConfig->mpegh3daCoreConfig_data[elemIdx], audio_config_data->mpegh3daDecoderConfig_data.numAudioObjects, &uniDrcConfigPresent);
+      pstr_mpegh3daDecoderConfig->mpegh3daUniDrcConfigPresent = uniDrcConfigPresent;
       break;
     default:
       assert(0);//unknown
@@ -1468,9 +1826,57 @@ WORD32 CompatibleProfileLevelSet(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnf
   }
   return 0;
 }
+
+VOID downmixMatrixSet(ia_bit_buf_struct *ptr_bit_buf, ia_downmixMatrixSet *downmixMatrixSet)
+{
+  downmixMatrixSet->downmixIdCount = impegh_read_bits_buf(ptr_bit_buf, 5);
+  for (int k = 0; k < downmixMatrixSet->downmixIdCount; k++)
+  {
+    downmixMatrixSet->downmixId[k] = impegh_read_bits_buf(ptr_bit_buf, 7);
+    downmixMatrixSet->downmixType[k] = impegh_read_bits_buf(ptr_bit_buf, 2);
+    if (downmixMatrixSet->downmixType[k] == 0)
+    {
+      downmixMatrixSet->CICPspeakerLayoutIdx[k] = impegh_read_bits_buf(ptr_bit_buf, 6);
+    }
+    else if (downmixMatrixSet->downmixType[k] == 1)
+    {
+      WORD32 esc_bits_read;
+      downmixMatrixSet->CICPspeakerLayoutIdx[k] = impegh_read_bits_buf(ptr_bit_buf, 6);
+      downmixMatrixSet->bsDownmixMatrixCount[k] = impegh_read_escape_value(ptr_bit_buf, 1, 3, 0, &esc_bits_read);
+      for (int l = 0; l < downmixMatrixSet->bsDownmixMatrixCount[k]; l++)
+      {
+        downmixMatrixSet->bsNumAssignedGroupIDs[k][l] = impegh_read_escape_value(ptr_bit_buf, 1, 4, 4, &esc_bits_read);
+        for (int m = 0; m < downmixMatrixSet->bsNumAssignedGroupIDs[k][l] + 1; m++) {
+          downmixMatrixSet->signal_groupID[k][l][m] = impegh_read_bits_buf(ptr_bit_buf, 5);
+        }
+        downmixMatrixSet->dmxMatrixLenBits[k][l] = impegh_read_escape_value(ptr_bit_buf, 8, 8, 12, &esc_bits_read);
+        // downmixMatrix(ptr_bit_buf);
+        impegh_read_bits_buf(ptr_bit_buf, downmixMatrixSet->dmxMatrixLenBits[k][l]);  // skip bits for DownmixMatrix subroutine
+      }
+    }
+  }
+}
+
+VOID downmixConfig(ia_bit_buf_struct *ptr_bit_buf, ia_downmixConfig *downmixConfig)
+{
+  downmixConfig->downmixConfigType = impegh_read_bits_buf(ptr_bit_buf, 2);
+  if (downmixConfig->downmixConfigType == 0 || downmixConfig->downmixConfigType == 2)
+  {
+    downmixConfig->passiveDownmixFlag = impegh_read_bits_buf(ptr_bit_buf, 1);
+    if (downmixConfig->passiveDownmixFlag == 0)
+    {
+      downmixConfig->phaseAlignStrength = impegh_read_bits_buf(ptr_bit_buf, 3);
+    }
+  }
+  if (downmixConfig->downmixConfigType == 1 || downmixConfig->downmixConfigType == 2)
+  {
+    downmixMatrixSet(ptr_bit_buf, &downmixConfig->dowmixMatrixSet);
+  }
+}
+
 WORD32 mpegh3daConfigExtension(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *audio_config_data)
 {
-  WORD32 bits_used;
+  WORD32 bits_used, cnt_bits;
   WORD32 temp_bits_to_skip;
   ia_mpegh3daConfigExtension *pstr_mpegh3daConfigExtension_data = &audio_config_data->mpegh3daConfigExtension_data;
   pstr_mpegh3daConfigExtension_data->numConfigExtensions = impegh_read_escape_value(ptr_bit_buf, 2, 4, 8, &bits_used) +1 ;
@@ -1485,6 +1891,11 @@ WORD32 mpegh3daConfigExtension(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_
       impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
       break;
     case ID_CONFIG_EXT_DOWNMIX:
+      cnt_bits = ptr_bit_buf->cnt_bits;
+      downmixConfig(ptr_bit_buf, &pstr_mpegh3daConfigExtension_data->downmixConfig);
+      cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
+      assert(cnt_bits < temp_bits_to_skip);
+      temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
       impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
       break;
     case ID_CONFIG_EXT_LOUDNESS_INFO:
@@ -1522,48 +1933,183 @@ VOID ia_write_mhaP_dat(ia_bit_buf_struct *ptr_bit_buf, ia_CompatibleProfileLevel
     impegh_write_bits_buf(ptr_bit_buf, pstr_CompatibleProfileLevelSet_data->CompatibleSetIndication[i], 8); //reserve group
   }
 }
+
+static VOID write_LoudnessBaseBox(ia_bit_buf_struct *ptr_bit_buf, ia_loudnessInfo *loudnessInfo)
+{
+  /* This is implemented as per definition of 'LoudnessBaseBox' defined in ISO/IEC 14496-12:2022(E) */
+  WORD8 version = loudnessInfo->version;
+  if (version >= 1)
+  {
+    impegh_write_bits_buf(ptr_bit_buf, 0, 2); // reserved
+    impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->eqSetId, 6);
+  }
+  impegh_write_bits_buf(ptr_bit_buf, 0, 3); // reserved
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->downmixId, 7);
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->drcSetId, 6);
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->bsSamplePeakLevel, 12);
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->bsTruePeakLevel, 12);
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->measurementSystem, 4);
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->reliability, 4);
+  impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->measurementCount, 8);
+  for (int i = 0; i < loudnessInfo->measurementCount; i++)
+  {
+    impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->methodDefinition[i], 8);
+    impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->methodValue[i], 8);
+    impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->measurementSystemArr[i], 4);
+    impegh_write_bits_buf(ptr_bit_buf, loudnessInfo->reliabilityArr[i], 4);
+  }
+}
+
+VOID ia_write_mhaD_dat(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *audio_config_data)
+{
+  /* Searching for USAC element index that corresponds to DRC config info. */
+  WORD8 elem_idx_with_uni_drc_cnfg = -1;
+  for (int elemIdx = 0; elemIdx < audio_config_data->mpegh3daDecoderConfig_data.numElements; elemIdx++)
+  {
+    if (audio_config_data->mpegh3daDecoderConfig_data.mpegh3daCoreConfig_data[elemIdx].mpegh3daExtElementConfig_data.usacExtElementType == ID_EXT_ELE_UNI_DRC)
+    {
+      elem_idx_with_uni_drc_cnfg = elemIdx;
+      break;
+    }
+  }
+  ia_mpegh3daUniDrcConfig *drcCfg = &audio_config_data->mpegh3daDecoderConfig_data
+    .mpegh3daCoreConfig_data[elem_idx_with_uni_drc_cnfg].mpegh3daExtElementConfig_data.mpegh3daUniDrcConfig_data;
+  WORD8 downmixIdCount = audio_config_data->mpegh3daConfigExtension_data.downmixConfig.dowmixMatrixSet.downmixIdCount;
+
+  impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
+  impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrcCount, 6);
+  impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
+  impegh_write_bits_buf(ptr_bit_buf, drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoCount, 6);
+  impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
+  impegh_write_bits_buf(ptr_bit_buf, drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoAlbumCount, 6);
+  impegh_write_bits_buf(ptr_bit_buf, 0, 3);   // reserved
+  impegh_write_bits_buf(ptr_bit_buf, downmixIdCount, 5);
+
+  for (int i = 0; i < drcCfg->drcInstructionsUniDrcCount; i++)
+  {
+    impegh_write_bits_buf(ptr_bit_buf, 0, 6);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsType[i], 2);
+    if (drcCfg->drcInstructionsType[i] == 2)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->mae_groupID[i], 7);
+    }
+    if (drcCfg->drcInstructionsType[i] == 3)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 3);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->mae_groupPresetID[i], 5);
+    }
+    impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetId, 6);
+    impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId, 7);
+    impegh_write_bits_buf(ptr_bit_buf, 0, 5);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixIdCount, 3);
+    for (int j = 0; j < drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixIdCount; j++)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixId[j], 7);
+    }
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetEffect, 16);
+    impegh_write_bits_buf(ptr_bit_buf, 0, 7);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].limiterPeakTargetPresent, 1);
+    if (drcCfg->drcInstructionsUniDrc_data[i].limiterPeakTargetPresent == 1)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].bsLimiterPeakTarget, 8);
+    }
+    impegh_write_bits_buf(ptr_bit_buf, 0, 7);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetTargetLoudnessPresent, 1);
+    if (drcCfg->drcInstructionsUniDrc_data[i].drcSetTargetLoudnessPresent == 1)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].bsDrcSetTargetLoudnessValueUpper, 6);
+      impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].bsDrcSetTargetLoudnessValueLower, 6);
+    }
+    impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].dependsOnDrcSet, 6);
+    if (drcCfg->drcInstructionsUniDrc_data[i].dependsOnDrcSet)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].noIndependentUse, 1);
+    }
+    else
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+    }
+  }
+
+  for (int i = 0; i < drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoCount; i++)
+  {
+    impegh_write_bits_buf(ptr_bit_buf, 0, 6);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoType[i], 2);
+    if (drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoType[i] == 1 || drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoType[i] == 2)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->mpegh3daLoudnessInfoSet_data.mae_groupID[i], 7);
+    }
+    else if (drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoType[i] == 3)
+    {
+      impegh_write_bits_buf(ptr_bit_buf, 0, 3);   // reserved
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->mpegh3daLoudnessInfoSet_data.mae_groupPresetID[i], 5);
+    }
+    write_LoudnessBaseBox(ptr_bit_buf, &drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfo[i]);
+  }
+  for (int i = 0; i < drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoAlbumCount; i++)
+  {
+    write_LoudnessBaseBox(ptr_bit_buf, &drcCfg->mpegh3daLoudnessInfoSet_data.loudnessInfoAlbum[i]);
+  }
+  for (int i = 0; i < downmixIdCount; i++)
+  {
+    impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
+    impegh_write_bits_buf(ptr_bit_buf, audio_config_data->mpegh3daConfigExtension_data.downmixConfig.dowmixMatrixSet.downmixId[i], 7);
+    impegh_write_bits_buf(ptr_bit_buf, audio_config_data->mpegh3daConfigExtension_data.downmixConfig.dowmixMatrixSet.downmixType[i], 2);
+    impegh_write_bits_buf(ptr_bit_buf, audio_config_data->mpegh3daConfigExtension_data.downmixConfig.dowmixMatrixSet.CICPspeakerLayoutIdx[i], 6);
+  }
+}
+
 IA_ERRORCODE impegh_3d_audio_config_data_process(ia_bit_buf_struct *ptr_bit_buf, packet_info *header_info)
 {
   WORD32 tmp = 0, tmp_value = 0;
   ia_bit_buf_struct ptr_mhaD_buf;
   ia_bit_buf_struct ptr_mhaP_buf;
-  ia_3d_audio_cnfg_data audio_config_data = { 0 };
+  ia_3d_audio_cnfg_data* audio_config_data = NULL;
 
+  audio_config_data = (ia_3d_audio_cnfg_data *)calloc(1, sizeof(ia_3d_audio_cnfg_data));
 
   //////////Parsing///////////////
   header_info->profile_info =
     impegh_read_bits_buf(ptr_bit_buf, 8); // read mpegh_3da_profile_lvl_indication
-  audio_config_data.usacSamplingFrequencyIndex = impegh_read_bits_buf(ptr_bit_buf, 5);
-  if (audio_config_data.usacSamplingFrequencyIndex == 0x1f)
+  audio_config_data->usacSamplingFrequencyIndex = impegh_read_bits_buf(ptr_bit_buf, 5);
+  if (audio_config_data->usacSamplingFrequencyIndex == 0x1f)
   {
-    audio_config_data.usacSamplingFrequency = impegh_read_bits_buf(ptr_bit_buf, 24);
-    if (audio_config_data.usacSamplingFrequency > MAX_SAMPLE_RATE)
+    audio_config_data->usacSamplingFrequency = impegh_read_bits_buf(ptr_bit_buf, 24);
+    if (audio_config_data->usacSamplingFrequency > MAX_SAMPLE_RATE)
     {
       return IMPEGHE_MUX_NON_FATAL_INVALID_SAMPLING_RATE;
     }
   }
   else
   {
-    audio_config_data.usacSamplingFrequency =
-      ia_sampling_rate_tbl[audio_config_data.usacSamplingFrequencyIndex]; /* Extract sampling rate from the
+    audio_config_data->usacSamplingFrequency =
+      ia_sampling_rate_tbl[audio_config_data->usacSamplingFrequencyIndex]; /* Extract sampling rate from the
                                                          config packet */
   }
-  audio_config_data.coreSbrFrameLengthIndex = impegh_read_bits_buf(
+  audio_config_data->coreSbrFrameLengthIndex = impegh_read_bits_buf(
     ptr_bit_buf, 3); // coreSbrFrameLengthIndex
 
-  audio_config_data.cfg_reserved = impegh_read_bits_buf(
+  audio_config_data->cfg_reserved = impegh_read_bits_buf(
     ptr_bit_buf, 1); // cfg_reserved
-  audio_config_data.receiverDelayCompensation = impegh_read_bits_buf(
+  audio_config_data->receiverDelayCompensation = impegh_read_bits_buf(
     ptr_bit_buf, 1); // cfg_reserved
-  audio_config_data.referenceLayout = SpeakerConfig3d(ptr_bit_buf, &audio_config_data.SpeakerConfig3d_data);
-  header_info->sampling_freq = audio_config_data.usacSamplingFrequency;
-  header_info->spaker_layout = audio_config_data.referenceLayout;
-  FrameworkConfig3d(ptr_bit_buf, &audio_config_data);
-  mpegh3daDecoderConfig(ptr_bit_buf, &audio_config_data);
-  audio_config_data.usacConfigExtensionPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
-  if (audio_config_data.usacConfigExtensionPresent)
+  audio_config_data->referenceLayout = SpeakerConfig3d(ptr_bit_buf, &audio_config_data->SpeakerConfig3d_data);
+  header_info->sampling_freq = audio_config_data->usacSamplingFrequency;
+  header_info->spaker_layout = audio_config_data->referenceLayout;
+  FrameworkConfig3d(ptr_bit_buf, audio_config_data);
+  mpegh3daDecoderConfig(ptr_bit_buf, audio_config_data);
+  audio_config_data->usacConfigExtensionPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+  if (audio_config_data->usacConfigExtensionPresent)
   {
-    mpegh3daConfigExtension(ptr_bit_buf, &audio_config_data);
+    mpegh3daConfigExtension(ptr_bit_buf, audio_config_data);
   }
 
 
@@ -1574,7 +2120,7 @@ IA_ERRORCODE impegh_3d_audio_config_data_process(ia_bit_buf_struct *ptr_bit_buf,
     sizeof(header_info->mhaP_buff), 1);
 
   //mhaP box data
-  ia_CompatibleProfileLevelSet *pstr_CompatibleProfileLevelSet_data = &audio_config_data.mpegh3daConfigExtension_data.CompatibleProfileLevelSet_data;
+  ia_CompatibleProfileLevelSet *pstr_CompatibleProfileLevelSet_data = &audio_config_data->mpegh3daConfigExtension_data.CompatibleProfileLevelSet_data;
   header_info->mhaP_data_present = pstr_CompatibleProfileLevelSet_data->CompatibleProfileLevelSet_data_present;
   if (pstr_CompatibleProfileLevelSet_data->CompatibleProfileLevelSet_data_present)
   {
@@ -1583,8 +2129,15 @@ IA_ERRORCODE impegh_3d_audio_config_data_process(ia_bit_buf_struct *ptr_bit_buf,
   header_info->mhaP_bits = ptr_mhaP_buf.cnt_bits;
 
   //mhaD box data
-  //add below
+  header_info->mhaD_data_present = audio_config_data->mpegh3daDecoderConfig_data.mpegh3daUniDrcConfigPresent;
+  if (header_info->mhaD_data_present)
+  {
+    ia_write_mhaD_dat(&ptr_mhaD_buf, audio_config_data);
+  }
   header_info->mhaD_bits = ptr_mhaD_buf.cnt_bits;
+
+  if (audio_config_data != NULL)
+      free(audio_config_data);
 
   return IA_NO_ERROR;
 }

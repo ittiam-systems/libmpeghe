@@ -96,6 +96,13 @@
 #define MAX_NUM_TGT_LOUDNESS_CONDITIONS (7)
 #define MAX_NUM_PRESET_PROD_SCREENS (31)
 
+#define UNIDRCLOUDEXT_TERM (0x0)
+#define UNIDRCLOUDEXT_EQ   (0x1)
+
+#define UNIDRCCONFEXT_TERM      (0x0)
+#define UNIDRCCONFEXT_PARAM_DRC (0x1)
+#define UNIDRCCONFEXT_V1        (0x2)
+
 // structures
 typedef struct
 {
