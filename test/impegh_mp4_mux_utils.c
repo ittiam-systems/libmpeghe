@@ -302,6 +302,7 @@ static VOID impegh_mae_parse_description_data(ia_bit_buf_struct *ptr_bit_buf,
     description_data->mae_descriptionID[n] = tmp;
     tmp = impegh_read_bits_buf(ptr_bit_buf, 4);
     description_data->mae_bsNumDescLanguages[n] = tmp + 1;
+    assert(description_data->mae_bsNumDescLanguages[n] < 8);
     for (i = 0; i < description_data->mae_bsNumDescLanguages[n]; i++)
     {
       tmp = impegh_read_bits_buf(ptr_bit_buf, 24);
@@ -1298,25 +1299,25 @@ IA_ERRORCODE impegh_audio_scene_info_process(ia_bit_buf_struct *ptr_bit_buf, pac
   ia_bit_buf_struct ptr_maes_buf;
   ia_bit_buf_struct ptr_maep_buf;
   ia_bit_buf_struct ptr_mael_buf;
-  ia_audio_scene_data audio_scene_data = { 0 };
-
+  ia_audio_scene_data *audio_scene_data = NULL;
+  audio_scene_data = (ia_audio_scene_data *)calloc(1, sizeof(ia_audio_scene_data));
 
 
   //////////Parsing///////////////
 
-  audio_scene_data.mae_isMainStream = impegh_read_bits_buf(ptr_bit_buf, 1);;
-  if (audio_scene_data.mae_isMainStream) // main_stream_flag
+  audio_scene_data->mae_isMainStream = impegh_read_bits_buf(ptr_bit_buf, 1);;
+  if (audio_scene_data->mae_isMainStream) // main_stream_flag
   {
-    audio_scene_data.mae_audioSceneInfoIDPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
-    if (audio_scene_data.mae_audioSceneInfoIDPresent)
+    audio_scene_data->mae_audioSceneInfoIDPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
+    if (audio_scene_data->mae_audioSceneInfoIDPresent)
     {
-      audio_scene_data.mae_audioSceneInfoID = impegh_read_bits_buf(ptr_bit_buf, 8); // asi_id
+      audio_scene_data->mae_audioSceneInfoID = impegh_read_bits_buf(ptr_bit_buf, 8); // asi_id
     }
 
 
     /* ASI - Group Definition*/
-    audio_scene_data.mae_numGroups = impegh_read_bits_buf(ptr_bit_buf, 7); // no:of groups
-    if (audio_scene_data.mae_numGroups)
+    audio_scene_data->mae_numGroups = impegh_read_bits_buf(ptr_bit_buf, 7); // no:of groups
+    if (audio_scene_data->mae_numGroups)
     {
       header_info->maei_present = 1;
     }
@@ -1325,43 +1326,43 @@ IA_ERRORCODE impegh_audio_scene_info_process(ia_bit_buf_struct *ptr_bit_buf, pac
       header_info->maei_present = 0;
       return 0;
     }
-    if (audio_scene_data.mae_numGroups > MAX_NUM_GROUPS)
+    if (audio_scene_data->mae_numGroups > MAX_NUM_GROUPS)
     {
       return -1;
     }
-    impegh_mae_asi_group_def_parse(&audio_scene_data,ptr_bit_buf);
+    impegh_mae_asi_group_def_parse(audio_scene_data,ptr_bit_buf);
 
 
     /* ASI - Switch Group Definition*/
-    audio_scene_data.mae_numSwitchGroups = impegh_read_bits_buf(ptr_bit_buf, 5);
-    if (audio_scene_data.mae_numSwitchGroups > MAX_NUM_SWITCH_GROUPS)
+    audio_scene_data->mae_numSwitchGroups = impegh_read_bits_buf(ptr_bit_buf, 5);
+    if (audio_scene_data->mae_numSwitchGroups > MAX_NUM_SWITCH_GROUPS)
     {
       return IMPEGHE_MUX_NON_FATAL_INVALID_ASI_VALUE;
     }
-    impegh_mae_asi_switch_group_def_parse(&audio_scene_data, ptr_bit_buf);
+    impegh_mae_asi_switch_group_def_parse(audio_scene_data, ptr_bit_buf);
 
 
     /* ASI - Group presets Definition*/
-    audio_scene_data.mae_numGroupPresets = impegh_read_bits_buf(ptr_bit_buf, 5);
-    if (audio_scene_data.mae_numGroupPresets > MAX_NUM_GROUPS_PRESETS)
+    audio_scene_data->mae_numGroupPresets = impegh_read_bits_buf(ptr_bit_buf, 5);
+    if (audio_scene_data->mae_numGroupPresets > MAX_NUM_GROUPS_PRESETS)
     {
       return IMPEGHE_MUX_NON_FATAL_INVALID_ASI_VALUE;
     }
-    impegh_mae_asi_group_presets_def_parse(&audio_scene_data, ptr_bit_buf);
+    impegh_mae_asi_group_presets_def_parse(audio_scene_data, ptr_bit_buf);
 
 
     /* ASI - MAE Data*/
     ia_bit_buf_struct ptr_mael_buf;
     impegh_create_mp4_buffer(&ptr_mael_buf, &(header_info->mael_buff[0]),
                              sizeof(header_info->mael_buff), 1);
-    impegh_mae_asi_data_parse(&audio_scene_data, ptr_bit_buf);
-    audio_scene_data.mae_metaDataElementIDoffset = 0;
-    audio_scene_data.mae_metaDataElementIDmaxAvail = impegh_read_bits_buf(ptr_bit_buf, 7); // id max avail
+    impegh_mae_asi_data_parse(audio_scene_data, ptr_bit_buf);
+    audio_scene_data->mae_metaDataElementIDoffset = 0;
+    audio_scene_data->mae_metaDataElementIDmaxAvail = impegh_read_bits_buf(ptr_bit_buf, 7); // id max avail
   }
   else
   {
-    audio_scene_data.mae_metaDataElementIDoffset = impegh_read_bits_buf(ptr_bit_buf, 7) + 1;
-    audio_scene_data.mae_metaDataElementIDmaxAvail = impegh_read_bits_buf(ptr_bit_buf, 7);
+    audio_scene_data->mae_metaDataElementIDoffset = impegh_read_bits_buf(ptr_bit_buf, 7) + 1;
+    audio_scene_data->mae_metaDataElementIDmaxAvail = impegh_read_bits_buf(ptr_bit_buf, 7);
   }
 
 
@@ -1379,35 +1380,35 @@ IA_ERRORCODE impegh_audio_scene_info_process(ia_bit_buf_struct *ptr_bit_buf, pac
   if (header_info->maei_present) // main_stream_flag
   {
     //maeG box
-    if (audio_scene_data.mae_numGroups > MAX_NUM_GROUPS)
+    if (audio_scene_data->mae_numGroups > MAX_NUM_GROUPS)
     {
       return -1;
     }
-    impegh_write_bits_buf(&ptr_maeg_buf, audio_scene_data.mae_audioSceneInfoID, 8); // writing asi_id
-    impegh_write_bits_buf(&ptr_maeg_buf, audio_scene_data.mae_numGroups,8); //reserve group
-    impegh_mae_asi_group_def_write(&audio_scene_data, &ptr_maeg_buf);
+    impegh_write_bits_buf(&ptr_maeg_buf, audio_scene_data->mae_audioSceneInfoID, 8); // writing asi_id
+    impegh_write_bits_buf(&ptr_maeg_buf, audio_scene_data->mae_numGroups,8); //reserve group
+    impegh_mae_asi_group_def_write(audio_scene_data, &ptr_maeg_buf);
     header_info->maeg_bits = ptr_maeg_buf.cnt_bits;
 
     //maeS box
-    if (audio_scene_data.mae_numSwitchGroups > MAX_NUM_SWITCH_GROUPS)
+    if (audio_scene_data->mae_numSwitchGroups > MAX_NUM_SWITCH_GROUPS)
     {
       return IMPEGHE_MUX_NON_FATAL_INVALID_ASI_VALUE;
     }
-    impegh_write_bits_buf(&ptr_maes_buf, audio_scene_data.mae_numSwitchGroups, 8); // 3 reserved bits + 5 number of groups
-    impegh_mae_asi_switch_group_def_write(&audio_scene_data, &ptr_maes_buf);
+    impegh_write_bits_buf(&ptr_maes_buf, audio_scene_data->mae_numSwitchGroups, 8); // 3 reserved bits + 5 number of groups
+    impegh_mae_asi_switch_group_def_write(audio_scene_data, &ptr_maes_buf);
     header_info->maes_bits = ptr_maes_buf.cnt_bits;
 
     //maeP box
-    if (audio_scene_data.mae_numGroupPresets > MAX_NUM_GROUPS_PRESETS)
+    if (audio_scene_data->mae_numGroupPresets > MAX_NUM_GROUPS_PRESETS)
     {
       return IMPEGHE_MUX_NON_FATAL_INVALID_ASI_VALUE;
     }
-    impegh_write_bits_buf(&ptr_maep_buf, audio_scene_data.mae_numGroupPresets, 8); // 3 reserved bits + 5 number of groups
-    impegh_mae_asi_group_presets_def_write(&audio_scene_data, &ptr_maep_buf);
+    impegh_write_bits_buf(&ptr_maep_buf, audio_scene_data->mae_numGroupPresets, 8); // 3 reserved bits + 5 number of groups
+    impegh_mae_asi_group_presets_def_write(audio_scene_data, &ptr_maep_buf);
     header_info->maep_bits = ptr_maep_buf.cnt_bits;
 
     //maeL box
-    impegh_mae_asi_data_write(&audio_scene_data, &ptr_mael_buf);
+    impegh_mae_asi_data_write(audio_scene_data, &ptr_mael_buf);
     header_info->mael_bits = ptr_mael_buf.cnt_bits;
 
   }
@@ -1882,6 +1883,7 @@ WORD32 mpegh3daConfigExtension(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_
   pstr_mpegh3daConfigExtension_data->numConfigExtensions = impegh_read_escape_value(ptr_bit_buf, 2, 4, 8, &bits_used) +1 ;
   for (int confExtIdx = 0; confExtIdx < pstr_mpegh3daConfigExtension_data->numConfigExtensions; confExtIdx++)
   {
+    assert(confExtIdx < MAX_USAC_CONFIG_EXT_TYPES);
     pstr_mpegh3daConfigExtension_data->usacConfigExtType[confExtIdx] = impegh_read_escape_value(ptr_bit_buf, 4, 8, 16, &bits_used) ;
     pstr_mpegh3daConfigExtension_data->usacConfigExtLength[confExtIdx] = impegh_read_escape_value(ptr_bit_buf, 4, 8, 16, &bits_used) ;
     temp_bits_to_skip = pstr_mpegh3daConfigExtension_data->usacConfigExtLength[confExtIdx] << 3;
