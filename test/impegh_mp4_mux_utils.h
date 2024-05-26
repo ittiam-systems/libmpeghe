@@ -72,13 +72,40 @@
 
 #define MAX_NUM_DESCRIPTOIN_BLOCKS (128)
 #define MAX_NUM_CONTENT_BLOCKS (128)
-#define MAX_NUM_DESCR_LANGUAGES (16)
 #define MAX_DESCR_LANGUAGE_DATA_LEN (16)
 #define MAX_DESCRIPTON_DATA_LEN (256)
 #define MAX_NUM_COMPOSITE_PAIRS (128)
 #define MAX_NUM_TGT_LOUDNESS_CONDITIONS (7)
 #define MAX_NUM_PRESET_PROD_SCREENS (31)
 #define MAX_MAE_CONFIG_EXTENSIONS (16)
+#define MAX_MAE_NUM_DATA_SETS (10)
+#define MAX_NUM_SIGNAL_GROUPS (32)
+#define MAX_NUM_OAM_OBJS (24)
+#define MAX_METADATA_ELEMENT_ID_COUNT (128)
+#define MAX_GAIN_SET_COUNT (64)
+#define MAX_BAND_COUNT (16)
+#define MAX_ADDITIONAL_DMIX_COUNT (12)
+#define MAX_BASE_CHANNEL_COUNT (128)
+#define MAX_DOWNMIX_ID_COUNT (32)
+#define MAX_DOWNMIX_MATRIX_COUNT (16)
+#define MAX_DOWNMIX_MATRIX_LEN (512)
+#define MAX_LOUDNESS_INFO_COUNT (64)
+#define MAX_MEASUREMENT_COUNT (16)
+
+#ifdef NO_PROFILE_LIMIT
+#define MAX_DRC_COEFFICIENTS_UNI_DRC_COUNT (8)
+#define MAX_DRC_INSTRUCTIONS_UNI_DRC_COUNT (64)
+#define MAX_LOUD_SPEAKER_LAYOUT_INDX (100)
+#define MAX_USAC_CONFIG_EXT_TYPES (256)
+#define MAX_NUM_DESCR_LANGUAGES (16)
+#else
+#define MAX_DRC_COEFFICIENTS_UNI_DRC_COUNT (4)
+#define MAX_DRC_INSTRUCTIONS_UNI_DRC_COUNT (32)
+#define MAX_LOUD_SPEAKER_LAYOUT_INDX (20)
+#define MAX_USAC_CONFIG_EXT_TYPES (7)
+#define MAX_NUM_DESCR_LANGUAGES (8)
+#endif
+
 // error codes
 #define IMPEGHD_MHAS_SYNCWORD_MISMATCH (-1)
 
@@ -209,7 +236,7 @@ typedef struct
   WORD8 mae_bsGroupNumMembers;
   WORD8 mae_hasConjunctMembers;
   WORD8 mae_startID;
-  WORD8 mae_metaDataElementID[128];
+  WORD8 mae_metaDataElementID[MAX_METADATA_ELEMENT_ID_COUNT];
 } ia_maeG_data_struct;
 
 typedef struct
@@ -218,7 +245,7 @@ typedef struct
   WORD8 mae_switchGroupAllowOnOff;
   WORD8 mae_switchGroupDefaultOnOff;
   WORD8 mae_bsSwitchGroupNumMembers;
-  WORD8 mae_switchGroupMemberID[32];
+  WORD8 mae_switchGroupMemberID[MAX_SWITCH_GROUP_NUM_MEMBERS];
   WORD8 mae_switchGroupDefaultGroupID;
 } ia_maeS_data_struct;
 
@@ -227,16 +254,16 @@ typedef struct
   WORD8 mae_groupPresetID;
   WORD8 mae_groupPresetKind;
   WORD8 mae_bsGroupPresetNumConditions;
-  WORD8 mae_groupPresetReferenceID[16];
-  WORD8 mae_groupPresetConditionOnOff[16];
-  WORD8 mae_groupPresetDisableGainInteractivity[16];
-  WORD8 mae_groupPresetGainFlag[16];
-  WORD16 mae_groupPresetGain[16];
-  WORD16 mae_groupPresetDisablePositionInteractivity[16];
-  WORD8 mae_groupPresetPositionFlag[16];
-  WORD16 mae_groupPresetAzOffset[16];
-  WORD8 mae_groupPresetElOffset[16];
-  WORD8 mae_groupPresetDistFactor[16];
+  WORD8 mae_groupPresetReferenceID[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD8 mae_groupPresetConditionOnOff[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD8 mae_groupPresetDisableGainInteractivity[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD8 mae_groupPresetGainFlag[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD16 mae_groupPresetGain[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD16 mae_groupPresetDisablePositionInteractivity[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD8 mae_groupPresetPositionFlag[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD16 mae_groupPresetAzOffset[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD8 mae_groupPresetElOffset[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD8 mae_groupPresetDistFactor[MAX_GROUP_PRESET_NUM_CONDITIONS];
 } ia_maeP_data_struct;
 
 typedef struct
@@ -261,8 +288,8 @@ typedef struct
 typedef struct
 {
   WORD8 mae_numDataSets;
-  WORD8 mae_dataType[16];
-  WORD32 mae_dataLength[16];
+  WORD8 mae_dataType[MAX_MAE_NUM_DATA_SETS];
+  WORD32 mae_dataLength[MAX_MAE_NUM_DATA_SETS];
   ia_description_data_struct group_desc_data;
   ia_description_data_struct switch_desc_data;
   ia_description_data_struct group_preset_desc_data;
@@ -314,7 +341,7 @@ typedef struct
   WORD8 speakerLayoutType;
   WORD8 CICPspeakerLayoutIdx;
   WORD32 numSpeakers;
-  WORD8 CICPspeakerIdx[100];//check max number of speaker value
+  WORD8 CICPspeakerIdx[MAX_LOUD_SPEAKER_LAYOUT_INDX];
   ia_mpegh3daFlexibleSpeakerConfig mpegh3daFlexibleSpeakerConfig_data;
 } ia_SpeakerConfig3d;
 
@@ -327,18 +354,16 @@ typedef struct
   WORD32 numHOATransportChannels;
 
 
-  WORD8 bsNumSignalGroups;//check max number of speaker value
-  WORD8 signalGroupType[32];//check max number of speaker value
-  WORD32 signal_groupID[32];//check max number of speaker value
-  WORD32 bsNumberOfSignals[32];//check max number of speaker value
-  WORD32 differsFromReferenceLayout[32];//check max number of speaker value
-  WORD32 audioChannelLayout[32];//check max number of speaker value
-  ia_SpeakerConfig3d SpeakerConfig3d_data[32];//check max number of speaker value
+  WORD8 bsNumSignalGroups;
+  WORD8 signalGroupType[MAX_NUM_SIGNAL_GROUPS];
+  WORD32 signal_groupID[MAX_NUM_SIGNAL_GROUPS];
+  WORD32 bsNumberOfSignals[MAX_NUM_SIGNAL_GROUPS];
+  WORD32 differsFromReferenceLayout[MAX_NUM_SIGNAL_GROUPS];
+  WORD32 audioChannelLayout[MAX_NUM_SIGNAL_GROUPS];
+  ia_SpeakerConfig3d SpeakerConfig3d_data[MAX_NUM_SIGNAL_GROUPS];
   WORD8 saocDmxLayoutPresent;
   WORD8 saocDmxChannelLayout[32];
 } ia_FrameworkConfig3d;
-
-#define MAX_NUM_OAM_OBJS (24)
 
 typedef struct
 {
@@ -359,18 +384,18 @@ typedef struct
   WORD8 drcFrameSizePresent;
   WORD16 bsDrcFrameSize;
   WORD8 gainSetCount;
-  WORD8 gainSetIndex[64];
-  WORD8 gainCodingProfile[64];
-  WORD8 gainInterpolationType[64];
-  WORD8 fullFrame[64];
-  WORD8 timeAlignment[64];
-  WORD8 timeDeltaMinPresent[64];
-  WORD16 bsTimeDeltaMin[64];
-  WORD8 bandCount[64];
-  WORD8 drcBandType[64];
-  WORD8 drcCharacteristic[64][16];
-  WORD8 crossoverFreqIndex[64][16];
-  WORD8 startSubBandIndex[64][16];
+  WORD8 gainSetIndex[MAX_GAIN_SET_COUNT];
+  WORD8 gainCodingProfile[MAX_GAIN_SET_COUNT];
+  WORD8 gainInterpolationType[MAX_GAIN_SET_COUNT];
+  WORD8 fullFrame[MAX_GAIN_SET_COUNT];
+  WORD8 timeAlignment[MAX_GAIN_SET_COUNT];
+  WORD8 timeDeltaMinPresent[MAX_GAIN_SET_COUNT];
+  WORD16 bsTimeDeltaMin[MAX_GAIN_SET_COUNT];
+  WORD8 bandCount[MAX_GAIN_SET_COUNT];
+  WORD8 drcBandType[MAX_GAIN_SET_COUNT];
+  WORD8 drcCharacteristic[MAX_GAIN_SET_COUNT][MAX_BAND_COUNT];
+  WORD8 crossoverFreqIndex[MAX_GAIN_SET_COUNT][MAX_BAND_COUNT];
+  WORD8 startSubBandIndex[MAX_GAIN_SET_COUNT][MAX_BAND_COUNT];
   WORD32 gainSequenceCount;
 } ia_drcCoefficientsUniDrc;
 
@@ -381,7 +406,7 @@ typedef struct
   WORD8 downmixId;
   WORD8 additionalDownmixIdPresent;
   WORD8 additionalDownmixIdCount;
-  WORD8 additionalDownmixId[8];
+  WORD8 additionalDownmixId[MAX_ADDITIONAL_DMIX_COUNT];
   WORD32 drcSetEffect;
   WORD8 limiterPeakTargetPresent;
   WORD16 bsLimiterPeakTarget;
@@ -392,26 +417,26 @@ typedef struct
   WORD8 dependsOnDrcSetPresent;
   WORD8 dependsOnDrcSet;
   WORD8 noIndependentUse;
-  WORD8 bsGainSetIndex[128];
-  WORD8 repeatGainSetIndex[128];
+  WORD8 bsGainSetIndex[MAX_BASE_CHANNEL_COUNT];
+  WORD8 repeatGainSetIndex[MAX_BASE_CHANNEL_COUNT];
 
   //nDrcChannelGroups
-  WORD8 bsRepeatGainSetIndexCount[128];
-  WORD8 duckingScalingPresent[128];
-  WORD8 bsDuckingScaling[128];
-  WORD8 repeatParameters[128];
-  WORD8 bsRepeatParametersCount[128];
-  WORD8 nDrcChannelGroups[128];
-  WORD8 targetCharacteristicLeftIndex[128];
-  WORD8 targetCharacteristicRightPresent[128];
-  WORD8 targetCharacteristicRightIndex[128];
-  WORD8 gainScalingPresent[128];
-  WORD8 bsAttenuationScaling[128];
-  WORD8 bsAmplificationScaling[128];
-  WORD8 gainOffsetPresent[128];
-  WORD8 bsGainOffset[128];
-  WORD8 shapeFilterPresent[128];
-  WORD8 shapeFilterIndex[128];
+  WORD8 bsRepeatGainSetIndexCount[MAX_BASE_CHANNEL_COUNT];
+  WORD8 duckingScalingPresent[MAX_BASE_CHANNEL_COUNT];
+  WORD8 bsDuckingScaling[MAX_BASE_CHANNEL_COUNT];
+  WORD8 repeatParameters[MAX_BASE_CHANNEL_COUNT];
+  WORD8 bsRepeatParametersCount[MAX_BASE_CHANNEL_COUNT];
+  WORD8 nDrcChannelGroups[MAX_BASE_CHANNEL_COUNT];
+  WORD8 targetCharacteristicLeftIndex[MAX_BASE_CHANNEL_COUNT];
+  WORD8 targetCharacteristicRightPresent[MAX_BASE_CHANNEL_COUNT];
+  WORD8 targetCharacteristicRightIndex[MAX_BASE_CHANNEL_COUNT];
+  WORD8 gainScalingPresent[MAX_BASE_CHANNEL_COUNT];
+  WORD8 bsAttenuationScaling[MAX_BASE_CHANNEL_COUNT];
+  WORD8 bsAmplificationScaling[MAX_BASE_CHANNEL_COUNT];
+  WORD8 gainOffsetPresent[MAX_BASE_CHANNEL_COUNT];
+  WORD8 bsGainOffset[MAX_BASE_CHANNEL_COUNT];
+  WORD8 shapeFilterPresent[MAX_BASE_CHANNEL_COUNT];
+  WORD8 shapeFilterIndex[MAX_BASE_CHANNEL_COUNT];
 } ia_drcInstructionsUniDrc;
 
 
@@ -447,10 +472,10 @@ typedef struct
   WORD8 measurementSystem;
   WORD8 reliability;
   WORD8 measurementCount;
-  WORD8 methodDefinition[16];
-  WORD16 methodValue[16];
-  WORD8 measurementSystemArr[16];
-  WORD8 reliabilityArr[16];
+  WORD8 methodDefinition[MAX_LOUDNESS_INFO_COUNT];
+  WORD16 methodValue[MAX_LOUDNESS_INFO_COUNT];
+  WORD8 measurementSystemArr[MAX_LOUDNESS_INFO_COUNT];
+  WORD8 reliabilityArr[MAX_LOUDNESS_INFO_COUNT];
 } ia_loudnessInfo;
 
 typedef struct
@@ -459,22 +484,22 @@ typedef struct
   WORD8 bitSizeLen;
   WORD32 bitSize;
   WORD8 loudnessInfoV1AlbumCount;
-  ia_loudnessInfo loudnessInfoV1Album[64];
+  ia_loudnessInfo loudnessInfoV1Album[MAX_LOUDNESS_INFO_COUNT];
   WORD8 loudnessInfoV1Count;
-  ia_loudnessInfo loudnessInfoV1[64];
-  WORD8 otherBit[64];
+  ia_loudnessInfo loudnessInfoV1[MAX_LOUDNESS_INFO_COUNT];
+  WORD8 otherBit[MAX_LOUDNESS_INFO_COUNT];
 } ia_loudnessInfoSetExtension;
 
 typedef struct
 {
   WORD8 loudnessInfoCount;
-  WORD8 loudnessInfoType[64];
-  WORD8 mae_groupID[64];
-  WORD8 mae_groupPresetID[64];
-  ia_loudnessInfo loudnessInfo[64];
+  WORD8 loudnessInfoType[MAX_LOUDNESS_INFO_COUNT];
+  WORD8 mae_groupID[MAX_LOUDNESS_INFO_COUNT];
+  WORD8 mae_groupPresetID[MAX_LOUDNESS_INFO_COUNT];
+  ia_loudnessInfo loudnessInfo[MAX_LOUDNESS_INFO_COUNT];
   WORD8 loudnessInfoAlbumPresent;
   WORD8 loudnessInfoAlbumCount;
-  ia_loudnessInfo loudnessInfoAlbum[64];
+  ia_loudnessInfo loudnessInfoAlbum[MAX_LOUDNESS_INFO_COUNT];
   WORD8 loudnessInfoSetExtensionPresent;
   ia_loudnessInfoSetExtension loudnessInfoSetExtension;
 } ia_mpegh3daLoudnessInfoSet;
@@ -498,12 +523,12 @@ typedef struct
   WORD8 drcInstructionsUniDrcCount;
   WORD8 downmixInstructionsCount;
   ia_mpegh3daUniDrcChannelLayout mpegh3daUniDrcChannelLayout_data;
-  ia_drcCoefficientsUniDrc drcCoefficientsUniDrc_data[8];
+  ia_drcCoefficientsUniDrc drcCoefficientsUniDrc_data[MAX_DRC_COEFFICIENTS_UNI_DRC_COUNT];
   ia_downmixInstruction downmixInstructions[32];
   WORD8 drcInstructionsType[32];
   WORD8 mae_groupID[32];
   WORD8 mae_groupPresetID[32];
-  ia_drcInstructionsUniDrc drcInstructionsUniDrc_data[64];
+  ia_drcInstructionsUniDrc drcInstructionsUniDrc_data[MAX_DRC_INSTRUCTIONS_UNI_DRC_COUNT];
   WORD8 uniDrcConfigExtPresent;
   ia_uniDrcConfigExtension  uniDrcConfigExtension_data;
   WORD8 loudnessInfoSetPresent;
@@ -571,13 +596,13 @@ typedef struct
 typedef struct
 {
   WORD8 downmixIdCount;
-  WORD8 downmixId[32];
-  WORD8 downmixType[32];
-  WORD8 CICPspeakerLayoutIdx[32];
-  WORD8 bsDownmixMatrixCount[32];
-  WORD16 bsNumAssignedGroupIDs[32][16];
-  WORD8 signal_groupID[32][16][512];
-  WORD32 dmxMatrixLenBits[32][16];
+  WORD8 downmixId[MAX_DOWNMIX_ID_COUNT];
+  WORD8 downmixType[MAX_DOWNMIX_ID_COUNT];
+  WORD8 CICPspeakerLayoutIdx[MAX_DOWNMIX_ID_COUNT];
+  WORD8 bsDownmixMatrixCount[MAX_DOWNMIX_ID_COUNT];
+  WORD16 bsNumAssignedGroupIDs[MAX_DOWNMIX_ID_COUNT][MAX_DOWNMIX_MATRIX_COUNT];
+  WORD8 signal_groupID[MAX_DOWNMIX_ID_COUNT][MAX_DOWNMIX_MATRIX_COUNT][MAX_DOWNMIX_MATRIX_LEN];
+  WORD32 dmxMatrixLenBits[MAX_DOWNMIX_ID_COUNT][MAX_DOWNMIX_MATRIX_COUNT];
 } ia_downmixMatrixSet;
 
 typedef struct
@@ -592,8 +617,8 @@ typedef struct
 typedef struct
 {
   WORD32 numConfigExtensions;
-  WORD16 usacConfigExtType[256];//recheck max size
-  WORD16 usacConfigExtLength[256];//recheck max size
+  WORD16 usacConfigExtType[MAX_USAC_CONFIG_EXT_TYPES];
+  WORD16 usacConfigExtLength[MAX_USAC_CONFIG_EXT_TYPES];
   ia_CompatibleProfileLevelSet CompatibleProfileLevelSet_data;
   ia_downmixConfig downmixConfig;
 } ia_mpegh3daConfigExtension;
