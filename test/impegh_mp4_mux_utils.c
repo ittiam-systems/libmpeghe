@@ -1412,6 +1412,9 @@ IA_ERRORCODE impegh_audio_scene_info_process(ia_bit_buf_struct *ptr_bit_buf, pac
     header_info->mael_bits = ptr_mael_buf.cnt_bits;
 
   }
+
+  if (audio_scene_data != NULL)
+    free(audio_scene_data);
   return IA_NO_ERROR;
 }
 
