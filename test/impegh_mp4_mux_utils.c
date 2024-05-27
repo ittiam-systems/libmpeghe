@@ -1301,6 +1301,10 @@ IA_ERRORCODE impegh_audio_scene_info_process(ia_bit_buf_struct *ptr_bit_buf, pac
   ia_bit_buf_struct ptr_mael_buf;
   ia_audio_scene_data *audio_scene_data = NULL;
   audio_scene_data = (ia_audio_scene_data *)calloc(1, sizeof(ia_audio_scene_data));
+  if (audio_scene_data == NULL)
+  {
+    return IA_FATAL_ERROR;
+  }
 
 
   //////////Parsing///////////////
@@ -2080,6 +2084,10 @@ IA_ERRORCODE impegh_3d_audio_config_data_process(ia_bit_buf_struct *ptr_bit_buf,
   ia_3d_audio_cnfg_data* audio_config_data = NULL;
 
   audio_config_data = (ia_3d_audio_cnfg_data *)calloc(1, sizeof(ia_3d_audio_cnfg_data));
+  if (audio_config_data == NULL)
+  {
+    return IA_FATAL_ERROR;
+  }
 
   //////////Parsing///////////////
   header_info->profile_info =
