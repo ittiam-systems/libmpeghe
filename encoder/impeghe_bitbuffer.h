@@ -45,6 +45,7 @@ typedef struct ia_bit_buf_struct
   WORD32 read_position;
   WORD32 write_position;
   WORD32 cnt_bits;
+  WORD32 bit_pos;
   WORD32 size;
   jmp_buf *impeghe_jmp_buf;
 } ia_bit_buf_struct;

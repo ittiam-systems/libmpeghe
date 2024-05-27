@@ -2331,6 +2331,13 @@ IA_ERRORCODE impegh_mp4_read_samples(pVOID fp, ia_mp4_sample_entry **n, ia_mp4_m
     }
     return IT_OK;
   }
+  if (len == 0)
+  {
+    return IT_OK;
+    //no child atoms of mhm1
+  }
+  //reading child atoms of mhm1
+
   ret = impegh_mp4_fread(charbuf, 1, 4, fp);
   if (ret < 4)
   {
