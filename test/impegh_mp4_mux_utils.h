@@ -282,7 +282,7 @@ typedef struct
   WORD8 mae_ContentDataGroupID[MAX_NUM_CONTENT_BLOCKS];
   WORD8 mae_contentKind[MAX_NUM_CONTENT_BLOCKS];
   WORD8 mae_hasContentLanguage[MAX_NUM_CONTENT_BLOCKS];
-  WORD32 mae_contentLanguage[MAX_NUM_DESCR_LANGUAGES];
+  WORD32 mae_contentLanguage[MAX_NUM_CONTENT_BLOCKS];
 } ia_content_data_structure;
 
 typedef struct
@@ -539,7 +539,7 @@ typedef struct
 typedef struct
 {
   WORD32 usacExtElementType;
-  WORD8 usacExtElementConfigLength;
+  WORD32 usacExtElementConfigLength;
   WORD32 usacExtElementDefaultLengthPresent;
   WORD32 usacExtElementDefaultLength;
   WORD8 usacExtElementPayloadFrag;
