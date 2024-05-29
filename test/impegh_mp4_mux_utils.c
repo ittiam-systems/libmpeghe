@@ -1731,7 +1731,7 @@ WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreC
     cnt_bits = ptr_bit_buf->cnt_bits;
     EnhancedObjectMetadataConfig(pstr_mpegh3daExtElementConfig_data, ptr_bit_buf, numAudioObjects);
     cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
-    assert(cnt_bits < temp_bits_to_skip);
+    assert(cnt_bits <= temp_bits_to_skip);
     temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
     impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
     break;
@@ -1770,7 +1770,7 @@ WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreC
     *uniDrcConfigPresent = 1;
     mpegh3daUniDrcConfig(pstr_mpegh3daExtElementConfig_data, ptr_bit_buf);
     cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
-    assert(cnt_bits < temp_bits_to_skip);
+    assert(cnt_bits <= temp_bits_to_skip);
     temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
     impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
     //DRC data
@@ -1903,7 +1903,7 @@ WORD32 mpegh3daConfigExtension(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_
       cnt_bits = ptr_bit_buf->cnt_bits;
       downmixConfig(ptr_bit_buf, &pstr_mpegh3daConfigExtension_data->downmixConfig);
       cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
-      assert(cnt_bits < temp_bits_to_skip);
+      assert(cnt_bits <= temp_bits_to_skip);
       temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
       impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
       break;
