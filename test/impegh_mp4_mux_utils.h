@@ -41,7 +41,7 @@
 #include "impegh_error_codes_mux.h"
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX_SAMPLE_RATE (96000)
-#define MAX_MAE_BUFFER_SIZE (100)
+#define MAX_MAE_BUFFER_SIZE (10000)
 #define MAX_MAE_NUM_DATASETS (15)
 
 #define ID_MAE_GROUP_DESCRIPTION (0)
