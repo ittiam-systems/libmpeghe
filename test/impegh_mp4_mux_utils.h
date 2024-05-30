@@ -181,6 +181,8 @@ typedef struct packet_info
 {
   WORD32 sync_packet_bits;
   WORD32 sync_packet_length;
+  WORD32 cnfg_box_complete;
+  WORD32 asi_box_complete;
   WORD32 asi_packet_length;
   WORD32 asi_packet_bits;
   UWORD8 mhaD_buff[MAX_MAE_BUFFER_SIZE];
