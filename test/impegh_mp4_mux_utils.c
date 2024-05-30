@@ -978,25 +978,88 @@ static ia_downmixInstruction* selectDownmixInstructions(ia_mpegh3daUniDrcConfig 
   return NULL;
 }
 
+static void deriveDrcChannelGroups(
+  const WORD32 drcSetEffect,  /* in */
+  const WORD32 channelCount,  /* in */
+  const WORD8* gainSetIndex,  /* in */
+  UWORD8* nDrcChannelGroups,  /* out */
+  WORD8* uniqueIndex,         /* out (gainSetIndexForChannelGroup) */
+  WORD8* groupForChannel      /* out */
+)
+{
+  WORD32 duckingSequence = -1;
+  WORD32 c, n, g, match, idx;
+  WORD16 uniqueScaling[28];
+
+  for (g = 0; g < 28; g++) {
+    uniqueIndex[g] = -10;
+    uniqueScaling[g] = (WORD16)(-1.0f);
+  }
+
+  g = 0;
+
+  { /* no ducking */
+    for (c = 0; c < channelCount; c++) {
+      idx = gainSetIndex[c];
+      match = 0;
+      if (idx >= 0) {
+        for (n = 0; n < g; n++) {
+          if (uniqueIndex[n] == idx) {
+            match = 1;
+            groupForChannel[c] = n;
+            break;
+          }
+        }
+        if (match == 0) {
+          uniqueIndex[g] = idx;
+          groupForChannel[c] = g;
+          g++;
+        }
+      }
+      else {
+        groupForChannel[c] = -1;
+      }
+    }
+  }
+  *nDrcChannelGroups = g;
+}
+
 static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_data, WORD32 idx, ia_bit_buf_struct *ptr_bit_buf, WORD32 baseChannelCount)
 {
   WORD32 channel_count = 0;
   ia_drcInstructionsUniDrc *drcInstructionsUniDrc_data = &mpegh3daUniDrcConfig_data->drcInstructionsUniDrc_data[idx];
+  WORD8* gainSetIndex = drcInstructionsUniDrc_data->gainSetIndex;
+  WORD32 bsRepeatParametersCount;
+  WORD32 repeatParameters;
+  WORD32 repeatGainSetIndex;
+  WORD32 bsRepeatGainSetIndexCount;
+  WORD32 bsGainSetIndex;
+  WORD8 channelGroupForChannel[2 * 28];
   drcInstructionsUniDrc_data->drcSetId = impegh_read_bits_buf(ptr_bit_buf, 6);
   drcInstructionsUniDrc_data->drcLocation = impegh_read_bits_buf(ptr_bit_buf, 4);
-  drcInstructionsUniDrc_data->downmixId = impegh_read_bits_buf(ptr_bit_buf, 7);
+  drcInstructionsUniDrc_data->downmixId[0] = impegh_read_bits_buf(ptr_bit_buf, 7);
+  if (drcInstructionsUniDrc_data->downmixId[0] == 0)
+  {
+    drcInstructionsUniDrc_data->drcApplyToDownmix = 0;
+  }
+  else
+  {
+    drcInstructionsUniDrc_data->drcApplyToDownmix = 1;
+  }
   drcInstructionsUniDrc_data->additionalDownmixIdPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
   if (drcInstructionsUniDrc_data->additionalDownmixIdPresent == 1)
   {
       drcInstructionsUniDrc_data->additionalDownmixIdCount = impegh_read_bits_buf(ptr_bit_buf, 3);
       for (int j = 0; j < drcInstructionsUniDrc_data->additionalDownmixIdCount; j++)
       {
-          drcInstructionsUniDrc_data->additionalDownmixId[j] = impegh_read_bits_buf(ptr_bit_buf, 7);
+          drcInstructionsUniDrc_data->downmixId[j + 1] = impegh_read_bits_buf(ptr_bit_buf, 7);
       }
+      drcInstructionsUniDrc_data->downmixIdCount = 1 + drcInstructionsUniDrc_data->additionalDownmixIdCount;
   }
   else
   {
       drcInstructionsUniDrc_data->additionalDownmixIdCount = 0;
+      drcInstructionsUniDrc_data->downmixIdCount = 1;
   }
   drcInstructionsUniDrc_data->drcSetEffect = impegh_read_bits_buf(ptr_bit_buf, 16);
   if ((drcInstructionsUniDrc_data->drcSetEffect & (3 << 10)) == 0)
@@ -1028,49 +1091,93 @@ static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_
       drcInstructionsUniDrc_data->noIndependentUse = impegh_read_bits_buf(ptr_bit_buf, 1);
   }
   channel_count = baseChannelCount;
+  drcInstructionsUniDrc_data->drcChannelCount = baseChannelCount;
   if ((drcInstructionsUniDrc_data->drcSetEffect & (3 << 10)) != 0)
   {
-      for (int i = 0; i < channel_count; i++)
+      int i = 0;
+      while (i < channel_count)
       {
-          drcInstructionsUniDrc_data->bsGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
+          bsGainSetIndex = impegh_read_bits_buf(ptr_bit_buf, 6);
+          gainSetIndex[i] = bsGainSetIndex - 1;
           drcInstructionsUniDrc_data->duckingScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
           if (drcInstructionsUniDrc_data->duckingScalingPresent[i] == 1)
           {
               drcInstructionsUniDrc_data->bsDuckingScaling[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
           }
-          drcInstructionsUniDrc_data->repeatParameters[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
-          if (drcInstructionsUniDrc_data->repeatParameters[i])
+          i++;
+          repeatParameters = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (repeatParameters)
           {
-              drcInstructionsUniDrc_data->bsRepeatParametersCount[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
-              i = i + drcInstructionsUniDrc_data->bsRepeatParametersCount[i] + 1;
+              bsRepeatParametersCount = impegh_read_bits_buf(ptr_bit_buf, 5);
+              bsRepeatParametersCount += 1;
+              for (int j = 0; j < bsRepeatParametersCount; j++) {
+                gainSetIndex[i] = gainSetIndex[i - 1];
+                i++;
+              }
           }
       }
+      // deriveDrcChannelGroups()
   }
   else
   {
-      WORD32 dmix_id = drcInstructionsUniDrc_data->downmixId;
+      WORD32 deriveChannelCount = 0;
+      WORD32 dmix_id = drcInstructionsUniDrc_data->downmixId[0];
       WORD32 additional_dmix_id_cnt = drcInstructionsUniDrc_data->additionalDownmixIdCount;
       if (dmix_id != 0 && dmix_id != 0x7F && additional_dmix_id_cnt == 0)
       {
-          ia_downmixInstruction *pDmix = selectDownmixInstructions(mpegh3daUniDrcConfig_data, dmix_id);
-          channel_count = pDmix->targetChannelCount;
-      }
-      else if (dmix_id != 0x7F || additional_dmix_id_cnt != 0)
-      {
-          channel_count = 1;
-      }
-      for (int i = 0; i < channel_count; i++)
-      {
-          drcInstructionsUniDrc_data->bsGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
-          drcInstructionsUniDrc_data->repeatGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
-          if (drcInstructionsUniDrc_data->repeatGainSetIndex[i])
+          if (mpegh3daUniDrcConfig_data->downmixInstructions != 0)
           {
-              drcInstructionsUniDrc_data->bsRepeatGainSetIndexCount[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
-              i = i + drcInstructionsUniDrc_data->bsRepeatGainSetIndexCount[i] + 1;
+              ia_downmixInstruction *pDmix = selectDownmixInstructions(mpegh3daUniDrcConfig_data, dmix_id);
+              channel_count = pDmix->targetChannelCount; /* targetChannelCountFromDownmixId*/
+          }
+          else
+          {
+              deriveChannelCount = 1;
+              channel_count = 1;
           }
       }
-      WORD32 nDrcChannelGroups = 0;  // calculateNumDrcChannelGroups (Derivation of drcChannelGroups from gainSetIndices)
-      for (int i = 0; i < nDrcChannelGroups; i++)
+      else if (dmix_id == 0x7F || additional_dmix_id_cnt != 0)
+      {
+        drcInstructionsUniDrc_data->drcChannelCount = 2 * 28;
+        channel_count = 1;
+      }
+      int i = 0;
+      while (i < channel_count)
+      {
+          bsGainSetIndex = impegh_read_bits_buf(ptr_bit_buf, 6);
+          gainSetIndex[i] = bsGainSetIndex - 1;
+          i++;
+          repeatGainSetIndex = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (repeatGainSetIndex == 1)
+          {
+              bsRepeatGainSetIndexCount = impegh_read_bits_buf(ptr_bit_buf, 5);
+              bsRepeatGainSetIndexCount += 1;
+              if (deriveChannelCount)
+              {
+                channel_count = 1 + bsRepeatGainSetIndexCount;
+              }
+              for (int j = 0; j < bsRepeatGainSetIndexCount; j++)
+              {
+                gainSetIndex[i] = bsGainSetIndex - 1;
+                i++;
+              }
+          }
+      }
+      if (deriveChannelCount) {
+        drcInstructionsUniDrc_data->drcChannelCount = channel_count;
+      }
+      /* DOWNMIX_ID_ANY_DOWNMIX: channelCount is 1. Distribute gainSetIndex to all channels. */
+      if ((drcInstructionsUniDrc_data->downmixId[0] == 0x7f) || (drcInstructionsUniDrc_data->downmixIdCount > 1)) {
+        for (int c = 1; c < drcInstructionsUniDrc_data->drcChannelCount; c++) {
+          gainSetIndex[c] = gainSetIndex[0];
+        }
+      }
+
+      deriveDrcChannelGroups(drcInstructionsUniDrc_data->drcSetEffect, drcInstructionsUniDrc_data->drcChannelCount, gainSetIndex,
+        &drcInstructionsUniDrc_data->nDrcChannelGroups, drcInstructionsUniDrc_data->gainSetIndexForChannelGroup,
+        channelGroupForChannel);
+
+      for (int i = 0; i < drcInstructionsUniDrc_data->nDrcChannelGroups; i++)
       {
           drcInstructionsUniDrc_data->gainScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
           if (drcInstructionsUniDrc_data->gainScalingPresent[i] == 1)
@@ -1247,8 +1354,8 @@ static VOID mpegh3daUniDrcConfig(ia_mpegh3daExtElementConfig *extElementConfig, 
           {
               mpegh3daUniDrcConfig_data->mae_groupID[i] = impegh_read_bits_buf(ptr_bit_buf, 7);
           }
-          drcInstructionsUniDrc(mpegh3daUniDrcConfig_data, i, ptr_bit_buf, baseChannelCount);
       }
+      drcInstructionsUniDrc(mpegh3daUniDrcConfig_data, i, ptr_bit_buf, baseChannelCount);
   }
   mpegh3daUniDrcConfig_data->uniDrcConfigExtPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
   if (mpegh3daUniDrcConfig_data->uniDrcConfigExtPresent == 1)
@@ -2011,13 +2118,13 @@ VOID ia_write_mhaD_dat(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *au
     impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
     impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetId, 6);
     impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
-    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId, 7);
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId[0], 7);
     impegh_write_bits_buf(ptr_bit_buf, 0, 5);   // reserved
     impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixIdCount, 3);
     for (int j = 0; j < drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixIdCount; j++)
     {
       impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
-      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixId[j], 7);
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId[j + 1], 7);
     }
     impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetEffect, 16);
     impegh_write_bits_buf(ptr_bit_buf, 0, 7);   // reserved

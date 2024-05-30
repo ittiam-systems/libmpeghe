@@ -84,7 +84,7 @@
 #define MAX_METADATA_ELEMENT_ID_COUNT (128)
 #define MAX_GAIN_SET_COUNT (64)
 #define MAX_BAND_COUNT (16)
-#define MAX_ADDITIONAL_DMIX_COUNT (12)
+#define MAX_DMIX_COUNT (8)
 #define MAX_BASE_CHANNEL_COUNT (128)
 #define MAX_DOWNMIX_ID_COUNT (32)
 #define MAX_DOWNMIX_MATRIX_COUNT (16)
@@ -403,10 +403,11 @@ typedef struct
 {
   WORD8 drcSetId;
   WORD8 drcLocation;
-  WORD8 downmixId;
+  WORD8 downmixIdCount;
+  WORD8 downmixId[MAX_DMIX_COUNT];
+  WORD8 drcApplyToDownmix;
   WORD8 additionalDownmixIdPresent;
   WORD8 additionalDownmixIdCount;
-  WORD8 additionalDownmixId[MAX_ADDITIONAL_DMIX_COUNT];
   WORD32 drcSetEffect;
   WORD8 limiterPeakTargetPresent;
   WORD16 bsLimiterPeakTarget;
@@ -417,19 +418,14 @@ typedef struct
   WORD8 dependsOnDrcSetPresent;
   WORD8 dependsOnDrcSet;
   WORD8 noIndependentUse;
-  WORD8 bsGainSetIndex[MAX_BASE_CHANNEL_COUNT];
-  WORD8 repeatGainSetIndex[MAX_BASE_CHANNEL_COUNT];
+  WORD8 gainSetIndex[2 * 28];
+  UWORD8 drcChannelCount;
 
   //nDrcChannelGroups
-  WORD8 bsRepeatGainSetIndexCount[MAX_BASE_CHANNEL_COUNT];
+  WORD8 nDrcChannelGroups;
+  WORD8 gainSetIndexForChannelGroup[28];
   WORD8 duckingScalingPresent[MAX_BASE_CHANNEL_COUNT];
   WORD8 bsDuckingScaling[MAX_BASE_CHANNEL_COUNT];
-  WORD8 repeatParameters[MAX_BASE_CHANNEL_COUNT];
-  WORD8 bsRepeatParametersCount[MAX_BASE_CHANNEL_COUNT];
-  WORD8 nDrcChannelGroups[MAX_BASE_CHANNEL_COUNT];
-  WORD8 targetCharacteristicLeftIndex[MAX_BASE_CHANNEL_COUNT];
-  WORD8 targetCharacteristicRightPresent[MAX_BASE_CHANNEL_COUNT];
-  WORD8 targetCharacteristicRightIndex[MAX_BASE_CHANNEL_COUNT];
   WORD8 gainScalingPresent[MAX_BASE_CHANNEL_COUNT];
   WORD8 bsAttenuationScaling[MAX_BASE_CHANNEL_COUNT];
   WORD8 bsAmplificationScaling[MAX_BASE_CHANNEL_COUNT];
