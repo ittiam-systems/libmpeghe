@@ -2311,13 +2311,17 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
 
       WORD32 asi_packet_bits = 0, final_bits = 0;
       asi_packet_bits = ptr_bit_buf->cnt_bits;
-
-      error = impegh_audio_scene_info_process(ptr_bit_buf, header_info);
-      if (error != IA_NO_ERROR)
+      if (header_info->asi_box_complete == 0)
       {
-        return error;
+        //write only the first AUDIOSCENEINFO packet to mp4 box, later on skip parsing
+        error = impegh_audio_scene_info_process(ptr_bit_buf, header_info);
+        if (error != IA_NO_ERROR)
+        {
+          return error;
+        }
       }
 
+      header_info->asi_box_complete = 1;
       final_bits = asi_packet_bits - ptr_bit_buf->cnt_bits;
       if (final_bits < (packet_length << 3))
       {
@@ -2337,13 +2341,17 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
       WORD32 config_packet_bits = 0, final_bits = 0;
       config_packet_bits = ptr_bit_buf->cnt_bits;
 
-
-      error = impegh_3d_audio_config_data_process(ptr_bit_buf, header_info);
-      if (error != IA_NO_ERROR)
+      if (header_info->cnfg_box_complete == 0)
       {
-        return error;
+        //write only the first MPEGH3DACFG packet to mp4 box, later on skip parsing
+        error = impegh_3d_audio_config_data_process(ptr_bit_buf, header_info);
+        if (error != IA_NO_ERROR)
+        {
+          return error;
+        }
       }
 
+      header_info->cnfg_box_complete = 1;
       final_bits = config_packet_bits - ptr_bit_buf->cnt_bits;
       if (final_bits < (packet_length << 3))
       {
