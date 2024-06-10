@@ -2058,7 +2058,7 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
 
     // dummy write mp4 header
     // meta data
-    mp4_writer_io.meta_info.dec_info_init = pstr_out_cfg->i_dec_len;
+    mp4_writer_io.meta_info.mhac_length = pstr_out_cfg->i_dec_len;
     mp4_writer_io.meta_info.g_track_count = 1;
     mp4_writer_io.meta_info.ia_mp4_stsz_entries = expected_frame_count;
     mp4_writer_io.meta_info.media_time_scale = pstr_in_cfg->aud_ch_pcm_cfg.sample_rate;
