@@ -1056,9 +1056,8 @@ static WORD32 impeghe_mp4_write_btrt(ia_mp4_writer_struct *pstr_mp4_writer_io, W
   WORD32 max_frame_data_size = pstr_mp4_writer_io->max_frame_data_size;
   WORD32 total_frame_data_size = pstr_mp4_writer_io->total_frame_data_size;
   WORD32 frame_count = pstr_mp4_writer_io->frame_count;
-  WORD32 avg_frame_data_size = total_frame_data_size / frame_count;
+  WORD32 avg_frame_data_size = (frame_count != 0) ? total_frame_data_size / frame_count: 0;
   WORD32 sample_rate = pstr_mp4_writer_io->sampling_freq;
-  WORD32 frame_lrngth = 1024;
   WORD32 max_bitrate = ((WORD32)(max_frame_data_size / (1024.0 / sample_rate))) << 3;
   WORD32 avg_bitrate = ((WORD32)(avg_frame_data_size / (1024.0 / sample_rate)) << 3);
   // box size
