@@ -2287,6 +2287,15 @@ clean_return:
     }
 
     // for mhm1 - mhas hdr added to 1st frame
+
+    for (int idx = 0; idx < frame_count; idx++)
+    {
+      mp4_writer_io.max_frame_data_size = mp4_writer_io.meta_info.ia_mp4_stsz_size[idx] > mp4_writer_io.max_frame_data_size ?
+        mp4_writer_io.meta_info.ia_mp4_stsz_size[idx] : mp4_writer_io.max_frame_data_size;
+      mp4_writer_io.total_frame_data_size += mp4_writer_io.meta_info.ia_mp4_stsz_size[idx];
+    }
+    mp4_writer_io.frame_count = frame_count;
+    mp4_writer_io.sampling_freq = pstr_in_cfg->aud_ch_pcm_cfg.sample_rate;
     if (op_fmt == MP4_MHM1)
     {
       ia_stsz_size[0] += pstr_out_cfg->i_dec_len;
