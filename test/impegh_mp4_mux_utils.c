@@ -978,25 +978,84 @@ static ia_downmixInstruction* selectDownmixInstructions(ia_mpegh3daUniDrcConfig 
   return NULL;
 }
 
+static void derive_drc_channel_groups(
+  const WORD32 channel_count,  /* in */
+  const WORD8* gain_set_index,  /* in */
+  UWORD8* n_drc_channel_groups,  /* out */
+  WORD8* unique_index,         /* out (gainSetIndexForChannelGroup) */
+  WORD8* group_for_channel      /* out */
+)
+{
+  WORD32 c, n, g, match, idx;
+
+  for (g = 0; g < 28; g++) {
+    unique_index[g] = -10;
+  }
+
+  g = 0;
+
+  { /* no ducking */
+    for (c = 0; c < channel_count; c++) {
+      idx = gain_set_index[c];
+      match = 0;
+      if (idx >= 0) {
+        for (n = 0; n < g; n++) {
+          if (unique_index[n] == idx) {
+            match = 1;
+            group_for_channel[c] = n;
+            break;
+          }
+        }
+        if (match == 0) {
+          unique_index[g] = idx;
+          group_for_channel[c] = g;
+          g++;
+        }
+      }
+      else {
+        group_for_channel[c] = -1;
+      }
+    }
+  }
+  *n_drc_channel_groups = g;
+}
+
 static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_data, WORD32 idx, ia_bit_buf_struct *ptr_bit_buf, WORD32 baseChannelCount)
 {
   WORD32 channel_count = 0;
   ia_drcInstructionsUniDrc *drcInstructionsUniDrc_data = &mpegh3daUniDrcConfig_data->drcInstructionsUniDrc_data[idx];
+  WORD8* gainSetIndex = drcInstructionsUniDrc_data->gainSetIndex;
+  WORD32 bs_repeat_parameters_count;
+  WORD32 repeat_parameters;
+  WORD32 repeat_gain_set_index;
+  WORD32 bs_repeat_gain_set_index_count;
+  WORD32 bs_gain_set_index;
+  WORD8 channel_group_for_channel[2 * 28];
   drcInstructionsUniDrc_data->drcSetId = impegh_read_bits_buf(ptr_bit_buf, 6);
   drcInstructionsUniDrc_data->drcLocation = impegh_read_bits_buf(ptr_bit_buf, 4);
-  drcInstructionsUniDrc_data->downmixId = impegh_read_bits_buf(ptr_bit_buf, 7);
+  drcInstructionsUniDrc_data->downmixId[0] = impegh_read_bits_buf(ptr_bit_buf, 7);
+  if (drcInstructionsUniDrc_data->downmixId[0] == 0)
+  {
+    drcInstructionsUniDrc_data->drcApplyToDownmix = 0;
+  }
+  else
+  {
+    drcInstructionsUniDrc_data->drcApplyToDownmix = 1;
+  }
   drcInstructionsUniDrc_data->additionalDownmixIdPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
   if (drcInstructionsUniDrc_data->additionalDownmixIdPresent == 1)
   {
       drcInstructionsUniDrc_data->additionalDownmixIdCount = impegh_read_bits_buf(ptr_bit_buf, 3);
       for (int j = 0; j < drcInstructionsUniDrc_data->additionalDownmixIdCount; j++)
       {
-          drcInstructionsUniDrc_data->additionalDownmixId[j] = impegh_read_bits_buf(ptr_bit_buf, 7);
+          drcInstructionsUniDrc_data->downmixId[j + 1] = impegh_read_bits_buf(ptr_bit_buf, 7);
       }
+      drcInstructionsUniDrc_data->downmixIdCount = 1 + drcInstructionsUniDrc_data->additionalDownmixIdCount;
   }
   else
   {
       drcInstructionsUniDrc_data->additionalDownmixIdCount = 0;
+      drcInstructionsUniDrc_data->downmixIdCount = 1;
   }
   drcInstructionsUniDrc_data->drcSetEffect = impegh_read_bits_buf(ptr_bit_buf, 16);
   if ((drcInstructionsUniDrc_data->drcSetEffect & (3 << 10)) == 0)
@@ -1028,49 +1087,93 @@ static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_
       drcInstructionsUniDrc_data->noIndependentUse = impegh_read_bits_buf(ptr_bit_buf, 1);
   }
   channel_count = baseChannelCount;
+  drcInstructionsUniDrc_data->drcChannelCount = baseChannelCount;
   if ((drcInstructionsUniDrc_data->drcSetEffect & (3 << 10)) != 0)
   {
-      for (int i = 0; i < channel_count; i++)
+      int i = 0;
+      while (i < channel_count)
       {
-          drcInstructionsUniDrc_data->bsGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
+          bs_gain_set_index = impegh_read_bits_buf(ptr_bit_buf, 6);
+          gainSetIndex[i] = bs_gain_set_index - 1;
           drcInstructionsUniDrc_data->duckingScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
           if (drcInstructionsUniDrc_data->duckingScalingPresent[i] == 1)
           {
               drcInstructionsUniDrc_data->bsDuckingScaling[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
           }
-          drcInstructionsUniDrc_data->repeatParameters[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
-          if (drcInstructionsUniDrc_data->repeatParameters[i])
+          i++;
+          repeat_parameters = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (repeat_parameters)
           {
-              drcInstructionsUniDrc_data->bsRepeatParametersCount[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
-              i = i + drcInstructionsUniDrc_data->bsRepeatParametersCount[i] + 1;
+              bs_repeat_parameters_count = impegh_read_bits_buf(ptr_bit_buf, 5);
+              bs_repeat_parameters_count += 1;
+              for (int j = 0; j < bs_repeat_parameters_count; j++) {
+                gainSetIndex[i] = gainSetIndex[i - 1];
+                i++;
+              }
           }
       }
+      // derive_drc_channel_groups()
   }
   else
   {
-      WORD32 dmix_id = drcInstructionsUniDrc_data->downmixId;
+      WORD32 deriveChannelCount = 0;
+      WORD32 dmix_id = drcInstructionsUniDrc_data->downmixId[0];
       WORD32 additional_dmix_id_cnt = drcInstructionsUniDrc_data->additionalDownmixIdCount;
       if (dmix_id != 0 && dmix_id != 0x7F && additional_dmix_id_cnt == 0)
       {
-          ia_downmixInstruction *pDmix = selectDownmixInstructions(mpegh3daUniDrcConfig_data, dmix_id);
-          channel_count = pDmix->targetChannelCount;
-      }
-      else if (dmix_id != 0x7F || additional_dmix_id_cnt != 0)
-      {
-          channel_count = 1;
-      }
-      for (int i = 0; i < channel_count; i++)
-      {
-          drcInstructionsUniDrc_data->bsGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 6);
-          drcInstructionsUniDrc_data->repeatGainSetIndex[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
-          if (drcInstructionsUniDrc_data->repeatGainSetIndex[i])
+          if (mpegh3daUniDrcConfig_data->downmixInstructions != 0)
           {
-              drcInstructionsUniDrc_data->bsRepeatGainSetIndexCount[i] = impegh_read_bits_buf(ptr_bit_buf, 5);
-              i = i + drcInstructionsUniDrc_data->bsRepeatGainSetIndexCount[i] + 1;
+              ia_downmixInstruction *pDmix = selectDownmixInstructions(mpegh3daUniDrcConfig_data, dmix_id);
+              channel_count = pDmix->targetChannelCount; /* targetChannelCountFromDownmixId*/
+          }
+          else
+          {
+              deriveChannelCount = 1;
+              channel_count = 1;
           }
       }
-      WORD32 nDrcChannelGroups = 0;  // calculateNumDrcChannelGroups (Derivation of drcChannelGroups from gainSetIndices)
-      for (int i = 0; i < nDrcChannelGroups; i++)
+      else if (dmix_id == 0x7F || additional_dmix_id_cnt != 0)
+      {
+        drcInstructionsUniDrc_data->drcChannelCount = 2 * 28;
+        channel_count = 1;
+      }
+      int i = 0;
+      while (i < channel_count)
+      {
+          bs_gain_set_index = impegh_read_bits_buf(ptr_bit_buf, 6);
+          gainSetIndex[i] = bs_gain_set_index - 1;
+          i++;
+          repeat_gain_set_index = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (repeat_gain_set_index == 1)
+          {
+              bs_repeat_gain_set_index_count = impegh_read_bits_buf(ptr_bit_buf, 5);
+              bs_repeat_gain_set_index_count += 1;
+              if (deriveChannelCount)
+              {
+                channel_count = 1 + bs_repeat_gain_set_index_count;
+              }
+              for (int j = 0; j < bs_repeat_gain_set_index_count; j++)
+              {
+                gainSetIndex[i] = bs_gain_set_index - 1;
+                i++;
+              }
+          }
+      }
+      if (deriveChannelCount) {
+        drcInstructionsUniDrc_data->drcChannelCount = channel_count;
+      }
+      /* DOWNMIX_ID_ANY_DOWNMIX: channelCount is 1. Distribute gainSetIndex to all channels. */
+      if ((drcInstructionsUniDrc_data->downmixId[0] == 0x7f) || (drcInstructionsUniDrc_data->downmixIdCount > 1)) {
+        for (int c = 1; c < drcInstructionsUniDrc_data->drcChannelCount; c++) {
+          gainSetIndex[c] = gainSetIndex[0];
+        }
+      }
+
+      derive_drc_channel_groups(drcInstructionsUniDrc_data->drcChannelCount, gainSetIndex,
+        &drcInstructionsUniDrc_data->nDrcChannelGroups, drcInstructionsUniDrc_data->gainSetIndexForChannelGroup,
+        channel_group_for_channel);
+
+      for (int i = 0; i < drcInstructionsUniDrc_data->nDrcChannelGroups; i++)
       {
           drcInstructionsUniDrc_data->gainScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
           if (drcInstructionsUniDrc_data->gainScalingPresent[i] == 1)
@@ -1247,8 +1350,8 @@ static VOID mpegh3daUniDrcConfig(ia_mpegh3daExtElementConfig *extElementConfig, 
           {
               mpegh3daUniDrcConfig_data->mae_groupID[i] = impegh_read_bits_buf(ptr_bit_buf, 7);
           }
-          drcInstructionsUniDrc(mpegh3daUniDrcConfig_data, i, ptr_bit_buf, baseChannelCount);
       }
+      drcInstructionsUniDrc(mpegh3daUniDrcConfig_data, i, ptr_bit_buf, baseChannelCount);
   }
   mpegh3daUniDrcConfig_data->uniDrcConfigExtPresent = impegh_read_bits_buf(ptr_bit_buf, 1);
   if (mpegh3daUniDrcConfig_data->uniDrcConfigExtPresent == 1)
@@ -1731,7 +1834,7 @@ WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreC
     cnt_bits = ptr_bit_buf->cnt_bits;
     EnhancedObjectMetadataConfig(pstr_mpegh3daExtElementConfig_data, ptr_bit_buf, numAudioObjects);
     cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
-    assert(cnt_bits < temp_bits_to_skip);
+    assert(cnt_bits <= temp_bits_to_skip);
     temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
     impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
     break;
@@ -1770,7 +1873,7 @@ WORD32 mpegh3daExtElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreC
     *uniDrcConfigPresent = 1;
     mpegh3daUniDrcConfig(pstr_mpegh3daExtElementConfig_data, ptr_bit_buf);
     cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
-    assert(cnt_bits < temp_bits_to_skip);
+    assert(cnt_bits <= temp_bits_to_skip);
     temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
     impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
     //DRC data
@@ -1903,7 +2006,7 @@ WORD32 mpegh3daConfigExtension(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_
       cnt_bits = ptr_bit_buf->cnt_bits;
       downmixConfig(ptr_bit_buf, &pstr_mpegh3daConfigExtension_data->downmixConfig);
       cnt_bits = cnt_bits - ptr_bit_buf->cnt_bits;
-      assert(cnt_bits < temp_bits_to_skip);
+      assert(cnt_bits <= temp_bits_to_skip);
       temp_bits_to_skip = temp_bits_to_skip - cnt_bits;
       impegh_read_bits_buf(ptr_bit_buf, temp_bits_to_skip);
       break;
@@ -2011,13 +2114,13 @@ VOID ia_write_mhaD_dat(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *au
     impegh_write_bits_buf(ptr_bit_buf, 0, 2);   // reserved
     impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetId, 6);
     impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
-    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId, 7);
+    impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId[0], 7);
     impegh_write_bits_buf(ptr_bit_buf, 0, 5);   // reserved
     impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixIdCount, 3);
     for (int j = 0; j < drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixIdCount; j++)
     {
       impegh_write_bits_buf(ptr_bit_buf, 0, 1);   // reserved
-      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].additionalDownmixId[j], 7);
+      impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].downmixId[j + 1], 7);
     }
     impegh_write_bits_buf(ptr_bit_buf, drcCfg->drcInstructionsUniDrc_data[i].drcSetEffect, 16);
     impegh_write_bits_buf(ptr_bit_buf, 0, 7);   // reserved
@@ -2204,13 +2307,17 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
 
       WORD32 asi_packet_bits = 0, final_bits = 0;
       asi_packet_bits = ptr_bit_buf->cnt_bits;
-
-      error = impegh_audio_scene_info_process(ptr_bit_buf, header_info);
-      if (error != IA_NO_ERROR)
+      if (header_info->asi_box_complete == 0)
       {
-        return error;
+        //write only the first AUDIOSCENEINFO packet to mp4 box, later on skip parsing
+        error = impegh_audio_scene_info_process(ptr_bit_buf, header_info);
+        if (error != IA_NO_ERROR)
+        {
+          return error;
+        }
       }
 
+      header_info->asi_box_complete = 1;
       final_bits = asi_packet_bits - ptr_bit_buf->cnt_bits;
       if (final_bits < (packet_length << 3))
       {
@@ -2230,13 +2337,17 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
       WORD32 config_packet_bits = 0, final_bits = 0;
       config_packet_bits = ptr_bit_buf->cnt_bits;
 
-
-      error = impegh_3d_audio_config_data_process(ptr_bit_buf, header_info);
-      if (error != IA_NO_ERROR)
+      if (header_info->cnfg_box_complete == 0)
       {
-        return error;
+        //write only the first MPEGH3DACFG packet to mp4 box, later on skip parsing
+        error = impegh_3d_audio_config_data_process(ptr_bit_buf, header_info);
+        if (error != IA_NO_ERROR)
+        {
+          return error;
+        }
       }
 
+      header_info->cnfg_box_complete = 1;
       final_bits = config_packet_bits - ptr_bit_buf->cnt_bits;
       if (final_bits < (packet_length << 3))
       {
