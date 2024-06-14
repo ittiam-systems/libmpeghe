@@ -978,50 +978,46 @@ static ia_downmixInstruction* selectDownmixInstructions(ia_mpegh3daUniDrcConfig 
   return NULL;
 }
 
-static void deriveDrcChannelGroups(
-  const WORD32 drcSetEffect,  /* in */
-  const WORD32 channelCount,  /* in */
-  const WORD8* gainSetIndex,  /* in */
-  UWORD8* nDrcChannelGroups,  /* out */
-  WORD8* uniqueIndex,         /* out (gainSetIndexForChannelGroup) */
-  WORD8* groupForChannel      /* out */
+static void derive_drc_channel_groups(
+  const WORD32 channel_count,  /* in */
+  const WORD8* gain_set_index,  /* in */
+  UWORD8* n_drc_channel_groups,  /* out */
+  WORD8* unique_index,         /* out (gainSetIndexForChannelGroup) */
+  WORD8* group_for_channel      /* out */
 )
 {
-  WORD32 duckingSequence = -1;
   WORD32 c, n, g, match, idx;
-  WORD16 uniqueScaling[28];
 
   for (g = 0; g < 28; g++) {
-    uniqueIndex[g] = -10;
-    uniqueScaling[g] = (WORD16)(-1.0f);
+    unique_index[g] = -10;
   }
 
   g = 0;
 
   { /* no ducking */
-    for (c = 0; c < channelCount; c++) {
-      idx = gainSetIndex[c];
+    for (c = 0; c < channel_count; c++) {
+      idx = gain_set_index[c];
       match = 0;
       if (idx >= 0) {
         for (n = 0; n < g; n++) {
-          if (uniqueIndex[n] == idx) {
+          if (unique_index[n] == idx) {
             match = 1;
-            groupForChannel[c] = n;
+            group_for_channel[c] = n;
             break;
           }
         }
         if (match == 0) {
-          uniqueIndex[g] = idx;
-          groupForChannel[c] = g;
+          unique_index[g] = idx;
+          group_for_channel[c] = g;
           g++;
         }
       }
       else {
-        groupForChannel[c] = -1;
+        group_for_channel[c] = -1;
       }
     }
   }
-  *nDrcChannelGroups = g;
+  *n_drc_channel_groups = g;
 }
 
 static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_data, WORD32 idx, ia_bit_buf_struct *ptr_bit_buf, WORD32 baseChannelCount)
@@ -1029,12 +1025,12 @@ static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_
   WORD32 channel_count = 0;
   ia_drcInstructionsUniDrc *drcInstructionsUniDrc_data = &mpegh3daUniDrcConfig_data->drcInstructionsUniDrc_data[idx];
   WORD8* gainSetIndex = drcInstructionsUniDrc_data->gainSetIndex;
-  WORD32 bsRepeatParametersCount;
-  WORD32 repeatParameters;
-  WORD32 repeatGainSetIndex;
-  WORD32 bsRepeatGainSetIndexCount;
-  WORD32 bsGainSetIndex;
-  WORD8 channelGroupForChannel[2 * 28];
+  WORD32 bs_repeat_parameters_count;
+  WORD32 repeat_parameters;
+  WORD32 repeat_gain_set_index;
+  WORD32 bs_repeat_gain_set_index_count;
+  WORD32 bs_gain_set_index;
+  WORD8 channel_group_for_channel[2 * 28];
   drcInstructionsUniDrc_data->drcSetId = impegh_read_bits_buf(ptr_bit_buf, 6);
   drcInstructionsUniDrc_data->drcLocation = impegh_read_bits_buf(ptr_bit_buf, 4);
   drcInstructionsUniDrc_data->downmixId[0] = impegh_read_bits_buf(ptr_bit_buf, 7);
@@ -1097,26 +1093,26 @@ static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_
       int i = 0;
       while (i < channel_count)
       {
-          bsGainSetIndex = impegh_read_bits_buf(ptr_bit_buf, 6);
-          gainSetIndex[i] = bsGainSetIndex - 1;
+          bs_gain_set_index = impegh_read_bits_buf(ptr_bit_buf, 6);
+          gainSetIndex[i] = bs_gain_set_index - 1;
           drcInstructionsUniDrc_data->duckingScalingPresent[i] = impegh_read_bits_buf(ptr_bit_buf, 1);
           if (drcInstructionsUniDrc_data->duckingScalingPresent[i] == 1)
           {
               drcInstructionsUniDrc_data->bsDuckingScaling[i] = impegh_read_bits_buf(ptr_bit_buf, 4);
           }
           i++;
-          repeatParameters = impegh_read_bits_buf(ptr_bit_buf, 1);
-          if (repeatParameters)
+          repeat_parameters = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (repeat_parameters)
           {
-              bsRepeatParametersCount = impegh_read_bits_buf(ptr_bit_buf, 5);
-              bsRepeatParametersCount += 1;
-              for (int j = 0; j < bsRepeatParametersCount; j++) {
+              bs_repeat_parameters_count = impegh_read_bits_buf(ptr_bit_buf, 5);
+              bs_repeat_parameters_count += 1;
+              for (int j = 0; j < bs_repeat_parameters_count; j++) {
                 gainSetIndex[i] = gainSetIndex[i - 1];
                 i++;
               }
           }
       }
-      // deriveDrcChannelGroups()
+      // derive_drc_channel_groups()
   }
   else
   {
@@ -1144,21 +1140,21 @@ static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_
       int i = 0;
       while (i < channel_count)
       {
-          bsGainSetIndex = impegh_read_bits_buf(ptr_bit_buf, 6);
-          gainSetIndex[i] = bsGainSetIndex - 1;
+          bs_gain_set_index = impegh_read_bits_buf(ptr_bit_buf, 6);
+          gainSetIndex[i] = bs_gain_set_index - 1;
           i++;
-          repeatGainSetIndex = impegh_read_bits_buf(ptr_bit_buf, 1);
-          if (repeatGainSetIndex == 1)
+          repeat_gain_set_index = impegh_read_bits_buf(ptr_bit_buf, 1);
+          if (repeat_gain_set_index == 1)
           {
-              bsRepeatGainSetIndexCount = impegh_read_bits_buf(ptr_bit_buf, 5);
-              bsRepeatGainSetIndexCount += 1;
+              bs_repeat_gain_set_index_count = impegh_read_bits_buf(ptr_bit_buf, 5);
+              bs_repeat_gain_set_index_count += 1;
               if (deriveChannelCount)
               {
-                channel_count = 1 + bsRepeatGainSetIndexCount;
+                channel_count = 1 + bs_repeat_gain_set_index_count;
               }
-              for (int j = 0; j < bsRepeatGainSetIndexCount; j++)
+              for (int j = 0; j < bs_repeat_gain_set_index_count; j++)
               {
-                gainSetIndex[i] = bsGainSetIndex - 1;
+                gainSetIndex[i] = bs_gain_set_index - 1;
                 i++;
               }
           }
@@ -1173,9 +1169,9 @@ static VOID drcInstructionsUniDrc(ia_mpegh3daUniDrcConfig *mpegh3daUniDrcConfig_
         }
       }
 
-      deriveDrcChannelGroups(drcInstructionsUniDrc_data->drcSetEffect, drcInstructionsUniDrc_data->drcChannelCount, gainSetIndex,
+      derive_drc_channel_groups(drcInstructionsUniDrc_data->drcChannelCount, gainSetIndex,
         &drcInstructionsUniDrc_data->nDrcChannelGroups, drcInstructionsUniDrc_data->gainSetIndexForChannelGroup,
-        channelGroupForChannel);
+        channel_group_for_channel);
 
       for (int i = 0; i < drcInstructionsUniDrc_data->nDrcChannelGroups; i++)
       {
