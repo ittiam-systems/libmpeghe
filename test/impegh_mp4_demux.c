@@ -94,6 +94,7 @@ IA_ERRORCODE impegh_mp4_demultiplex()
   WORD32 offset = 0;
   WORD32 size_cfg_header;
   UWORD32 number_entries;
+  UWORD32 sample_size;
   WORD32 *length_store;
   UWORD8 *buff;
   UWORD8 charbuf[10];
@@ -112,6 +113,7 @@ IA_ERRORCODE impegh_mp4_demultiplex()
   impegh_mp4_init_wrap(m_mp4);
 
   number_entries = m_mp4->imp_trak_info[1]->stsz_count;
+  sample_size = m_mp4->imp_trak_info[1]->sample_size;
   length_store = malloc(number_entries * sizeof(WORD32));
   UWORD32 bytes = m_mp4->st_maei_info.maei_bytes_written;
   data_size = (UWORD32 *)&charbuf[0];
@@ -125,12 +127,23 @@ IA_ERRORCODE impegh_mp4_demultiplex()
   }
   /* Seeking to a position after version, sample_size and sample_count */
   fseek(itf->fp, 12, SEEK_CUR);
-  for (UWORD32 j = 0; j < number_entries; j++)
+  if (sample_size == 0)
   {
-    fread_size = (WORD32)fread(&charbuf, 4, 1, itf->fp);
-    (*data_size) = (*data_size) * fread_size;
-    length_store[j] = impegh_mp4_rev32(*data_size);
+    for (UWORD32 j = 0; j < number_entries; j++)
+    {
+      fread_size = (WORD32)fread(&charbuf, 4, 1, itf->fp);
+      (*data_size) = (*data_size) * fread_size;
+      length_store[j] = impegh_mp4_rev32(*data_size);
+    }
   }
+  else
+  {
+    for (UWORD32 j = 0; j < number_entries; j++)
+    {
+      length_store[j] = sample_size;
+    }
+  }
+
   buff = malloc(sizeof(UWORD8) * MAX_HEADER_LENGTH); /* char array to store sync + cfg packets */
   if (buff == NULL)
   {
