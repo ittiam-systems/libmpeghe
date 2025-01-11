@@ -96,7 +96,7 @@ typedef enum impeghe_op_fmts
 /* Global variables                                                          */
 /*****************************************************************************/
 
-FILE *g_pf_inps[56], *g_pf_inp, *g_pf_out, *g_pf_meta, *g_pf_spk, *g_asi;
+FILE *g_pf_inps[56], *g_pf_inp, *g_pf_out, *g_asi, *g_pf_meta, *g_pf_spk, *g_asi;
 FILE *g_pf_ec; // earcon inputfile
 WORD8 ec_present = 0;
 WORD32 array_ec[1024] = {0};
@@ -370,6 +370,8 @@ VOID impeghe_print_usage()
   printf("\n<executable> -ifile:<inputfile> -ofile:<outputfile> [options]\n");
   printf("\n[options] can be,");
   printf("\n[-br:<bitrate>]");
+  printf("\n[-iasi:<asi_file>]");
+  printf("\n[-mhas_asi:<asi_mhas>]");
   printf("\n[-op_fmt:<output_format>]");
   printf("\n[-cicp:<cicp_layout_index>]");
   printf("\n[-oam_file:<oam_file>]");
@@ -385,6 +387,9 @@ VOID impeghe_print_usage()
          "\n \t192000 for 6-channel,"
          "\n \t256000 for 8-channel,"
          "\n \t320000 for 10-channel");
+  printf("\n<asi_file> is the asi text file name");
+  printf("\n<asi_mhas> is the flag to enable or disable writing ASI to mhas packet.");
+  printf("\n           If set to 0 ASI will be written as config extension element.");
   printf("\n<output_format> is the output format. (1 - MHAS, 2 - MHA1, 3 - MHM1). Default is "
          "1 (MHAS)");
   printf("\n<cicp_layout_index> is the channel configuration index. Range: 1 to 20 except 8 "
@@ -679,6 +684,7 @@ static VOID impeghe_set_default_config_param(ia_input_config *pstr_input_config)
   pstr_input_config->oam_read_data = 0;
   pstr_input_config->oam_skip_data = 0;
   pstr_input_config->kernel = 0;
+  pstr_input_config->asi_mhas = 0;
   return;
 }
 
@@ -714,6 +720,17 @@ IA_ERRORCODE impeghe_parse_config_param(WORD32 argc, pWORD8 argv[], pVOID ptr_en
     {
       pCHAR8 pb_arg_val = (pCHAR8)argv[i] + 4;
       pstr_enc_api->input_config.bitrate = atoi(pb_arg_val);
+    }
+    /* Audio Scene Info configuration file */
+    if (!strncmp((pCHAR8)argv[i], "-iasi:", 6))
+    {
+        pstr_enc_api->input_config.asi_enable = 1;
+    }
+    /* Flag to enable / diable writing ASI to mhas packet */
+    if (!strncmp((pCHAR8)argv[i], "-mhas_asi:", 10))
+    {
+      pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 10);
+      pstr_enc_api->input_config.asi_mhas = atoi(pb_arg_val);
     }
     /*op fmt*/
     if (!strncmp((pCHAR8)argv[i], "-op_fmt:", 8))
@@ -2550,6 +2567,22 @@ WORD32 main(WORD32 argc, char *argv[])
             g_is_hoa_input = 1;
             file_count++;
           }
+          if (!strncmp((pCHAR8)fargv[i], "-iasi:", 6))
+          {
+            pWORD8 pb_arg_val = fargv[i] + 6;
+            WORD8 pb_asi_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+            strcat((char *)pb_asi_file_name, (const char *)pb_input_file_path);
+            strcat((char *)pb_asi_file_name, (const char *)pb_arg_val);
+
+            g_asi = NULL;
+            g_asi = fopen((const char *)pb_asi_file_name, "rt");
+            if (g_asi == NULL)
+            {
+              err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+              impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
+            }
+          }
           /*op fmt*/
           if (!strncmp((pCHAR8)fargv[i], "-op_fmt:", 8))
           {
@@ -2724,6 +2757,22 @@ WORD32 main(WORD32 argc, char *argv[])
 
         g_is_hoa_input = 1;
         file_count++;
+      }
+      if (!strncmp((pCHAR8)argv[i], "-iasi:", 6))
+      {
+        pCHAR8 pb_arg_val = argv[i] + 6;
+        CHAR8 pb_asi_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+        strcat((char *)pb_asi_file_name, (const char *)pb_input_file_path);
+        strcat((char *)pb_asi_file_name, (const char *)pb_arg_val);
+
+        g_asi = NULL;
+        g_asi = fopen((const char *)pb_asi_file_name, "rt");
+        if (g_asi == NULL)
+        {
+          err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+          impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
+        }
       }
       /*op fmt*/
       if (!strncmp((pCHAR8)argv[i], "-op_fmt:", 8))

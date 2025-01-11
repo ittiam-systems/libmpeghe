@@ -581,6 +581,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
     ia_mae_audio_scene_info *pstr_mae_info =
         (ia_mae_audio_scene_info *)&p_obj_mpeghe->config.audio_specific_config.str_asi_info;
     pstr_mae_info->asi_present = pstr_input_config->asi_enable;
+    pstr_mae_info->asi_mhas = pstr_input_config->asi_mhas;
     pstr_mae_info->main_stream_flag = pstr_input_config->str_asi_config.main_stream_flag;
     pstr_mae_info->mae_id_offset = pstr_input_config->str_asi_config.mae_id_offset;
     pstr_mae_info->mae_id_max_avail = pstr_input_config->str_asi_config.mae_id_max_avail;
@@ -746,8 +747,12 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
                 pstr_input_config->str_asi_config.num_grp_def_decription_languages[n];
             for (WORD32 i = 0; i < ptr_description_data->num_descr_languages[n]; i++)
             {
-              ptr_description_data->descr_language[n][i] =
-                  pstr_input_config->str_asi_config.grp_def_decription_languages[n][i];
+              ptr_description_data->descr_language[n][i][0] =
+                  pstr_input_config->str_asi_config.grp_def_decription_languages[n][i][0];
+              ptr_description_data->descr_language[n][i][1] =
+                  pstr_input_config->str_asi_config.grp_def_decription_languages[n][i][1];
+              ptr_description_data->descr_language[n][i][2] =
+                  pstr_input_config->str_asi_config.grp_def_decription_languages[n][i][2];
               ptr_description_data->descr_data_length[n][i] =
                   pstr_input_config->str_asi_config.grp_def_decription_data_length[n][i];
               for (WORD32 c = 0; c < ptr_description_data->descr_data_length[n][i]; c++)
@@ -777,8 +782,12 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
                 pstr_input_config->str_asi_config.switch_grp_num_decription_languages[n];
             for (WORD32 i = 0; i < ptr_description_data->num_descr_languages[n]; i++)
             {
-              ptr_description_data->descr_language[n][i] =
-                  pstr_input_config->str_asi_config.switch_grp_decription_languages[n][i];
+              ptr_description_data->descr_language[n][i][0] =
+                  pstr_input_config->str_asi_config.switch_grp_decription_languages[n][i][0];
+              ptr_description_data->descr_language[n][i][1] =
+                  pstr_input_config->str_asi_config.switch_grp_decription_languages[n][i][1];
+              ptr_description_data->descr_language[n][i][2] =
+                  pstr_input_config->str_asi_config.switch_grp_decription_languages[n][i][2];
               ptr_description_data->descr_data_length[n][i] =
                   pstr_input_config->str_asi_config.switch_grp_decription_data_length[n][i];
               for (WORD32 c = 0; c < ptr_description_data->descr_data_length[n][i]; c++)
@@ -799,7 +808,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
           {
             return IMPEGHE_CONFIG_FATAL_ASI_INVALID_CONFIG;
           }
-          for (n = 0; n < pstr_mae_info->group_desc_data.num_desc_blocks; n++)
+          for (n = 0; n < pstr_mae_info->preset_desc_data.num_desc_blocks; n++)
           {
             ptr_description_data->group_id[n] =
                 pstr_input_config->str_asi_config.preset_decription_grp_id[n];
@@ -808,8 +817,12 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
                 pstr_input_config->str_asi_config.preset_num_decription_languages[n];
             for (WORD32 i = 0; i < ptr_description_data->num_descr_languages[n]; i++)
             {
-              ptr_description_data->descr_language[n][i] =
-                  pstr_input_config->str_asi_config.preset_decription_languages[n][i];
+              ptr_description_data->descr_language[n][i][0] =
+                  pstr_input_config->str_asi_config.preset_decription_languages[n][i][0];
+              ptr_description_data->descr_language[n][i][1] =
+                  pstr_input_config->str_asi_config.preset_decription_languages[n][i][1];
+              ptr_description_data->descr_language[n][i][2] =
+                  pstr_input_config->str_asi_config.preset_decription_languages[n][i][2];
               ptr_description_data->descr_data_length[n][i] =
                   pstr_input_config->str_asi_config.preset_decription_data_length[n][i];
               for (WORD32 c = 0; c < ptr_description_data->descr_data_length[n][i]; c++)
@@ -839,8 +852,12 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
             pstr_mae_info->content_data.has_content_language[n] =
                 pstr_input_config->str_asi_config.has_content_language[n];
 
-            pstr_mae_info->content_data.content_language[n] =
-                pstr_input_config->str_asi_config.content_language[n];
+            pstr_mae_info->content_data.content_language[n][0] =
+                pstr_input_config->str_asi_config.content_language[n][0];
+            pstr_mae_info->content_data.content_language[n][1] =
+                pstr_input_config->str_asi_config.content_language[n][1];
+            pstr_mae_info->content_data.content_language[n][2] =
+                pstr_input_config->str_asi_config.content_language[n][2];
           }
         }
         if (pstr_mae_info->mae_data.data_type[idx] == 3)
@@ -909,17 +926,51 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
         {
           for (n = 0; n < pstr_mae_info->num_group_presets; n++)
           {
-            pstr_mae_info->group_presets_definition[n].group_id =
-                pstr_input_config->str_asi_config.grp_preset_def_grp_id[n];
-            pstr_mae_info->group_presets_definition[n].preset_kind =
-                pstr_input_config->str_asi_config.grp_preset_def_preset_kind[n];
-            pstr_mae_info->group_presets_definition[n].num_conditions[0] =
-                pstr_input_config->str_asi_config.grp_preset_def_num_conditions[n];
-            for (WORD32 i = 0; i < pstr_mae_info->group_presets_definition[n].num_conditions[0];
-                 i++)
+            pstr_mae_info->group_presets_definition_ext[n].has_switch_group_conditions =
+                pstr_input_config->str_asi_config.has_switch_group_conditions[n];
+            for (int cnt = 0; cnt < pstr_mae_info->group_presets_definition[n].num_conditions[0]; cnt++)
             {
-              pstr_mae_info->group_presets_definition[n].reference_id[i] =
-                  pstr_input_config->str_asi_config.grp_preset_def_reference_id[n][i];
+              pstr_mae_info->group_presets_definition_ext[n].is_switch_group_condition_preset_def[cnt] =
+                pstr_input_config->str_asi_config.is_switch_group_condition_preset_definition[n][cnt];
+            }
+
+            pstr_mae_info->group_presets_definition_ext[n].has_downmix_id_group_preset_extensions =
+                pstr_input_config->str_asi_config.has_downmix_id_group_preset_extensions[n];
+            pstr_mae_info->group_presets_definition_ext[n].num_dmx_id_group_preset_ext =
+                pstr_input_config->str_asi_config.num_dmx_id_group_preset_ext[n];
+            for (j = 0; j < pstr_mae_info->group_presets_definition_ext[n].num_dmx_id_group_preset_ext; j++)
+            {
+              pstr_mae_info->group_presets_definition_ext[n].group_preset_downmix_id[j] =
+                pstr_input_config->str_asi_config.group_preset_downmix_id[i][j + 1];
+              pstr_mae_info->group_presets_definition_ext[n].group_preset_num_conditions[j] =
+                pstr_input_config->str_asi_config.group_preset_num_conditions[i][j + 1];
+              for (WORD32 k = 0; k < pstr_mae_info->group_presets_definition_ext[n].group_preset_num_conditions[j]; k++)
+              {
+                pstr_mae_info->group_presets_definition_ext[n].is_switch_group_condition[j][k] =
+                  pstr_input_config->str_asi_config.is_switch_group_condition[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_switch_group_id[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_group_id[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_group_id[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_group_id[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_condition_on_off[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_condition_on_off[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_disable_gain_interactivity[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_disable_gain_interactivity[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_gain_flag[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_gain_flag[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_gain[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_gain[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_disable_position_interactivity[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_disable_position_interactivity[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_position_flag[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_position_flag[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_az_offset[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_az_offset[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_el_offset[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_el_offset[i][j + 1][k];
+                pstr_mae_info->group_presets_definition_ext[n].group_preset_dist_factor[j][k] =
+                  pstr_input_config->str_asi_config.group_preset_dist_factor[i][j + 1][k];
+              }
             }
           }
         }
@@ -1688,7 +1739,7 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
   ia_mpeghe_api_struct *p_obj_mpeghe = (ia_mpeghe_api_struct *)p_ia_mpeghe_obj;
   ia_input_config *pstr_input_config = (ia_input_config *)pv_input;
   ia_output_config *pstr_output_config = (ia_output_config *)pv_output;
-
+  UWORD8 byte_allign_bits = 0;
   jmp_buf api_init_jmp_buf;
   err_code = setjmp(api_init_jmp_buf);
   if (err_code != IA_NO_ERROR)
@@ -1822,6 +1873,37 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
       ptr_asc_bit_buf, &p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.str_scratch,
       &p_obj_mpeghe->config.audio_specific_config);
   pstr_output_config->i_dec_len = (ptr_asc_bit_buf->cnt_bits + 7) / 8;
+  byte_allign_bits = (8 - (ptr_asc_bit_buf->cnt_bits & 7));
+  if ((ptr_asc_bit_buf->cnt_bits & 7))
+  {
+    impeghe_write_bits_buf(ptr_asc_bit_buf, 0, (UWORD8)byte_allign_bits);
+  }
+  if (pstr_input_config->asi_enable && pstr_input_config->asi_mhas)
+  {
+    ia_bit_buf_struct it_bit_buf_local;
+    ia_mae_audio_scene_info *pstr_mae_asi =
+        &p_obj_mpeghe->config.audio_specific_config.str_asi_info;
+    WORD32 bit_cnt_ext;
+    WORD32 num_bytes = 0;
+    (void)impeghe_create_bit_buffer(
+      &it_bit_buf_local, p_obj_mpeghe->pp_mem[IA_MEMTYPE_SCRATCH],
+      p_obj_mpeghe->p_mem_info_mpeghe[IA_MEMTYPE_SCRATCH].ui_size);
+    num_bits = it_bit_buf_local.cnt_bits;
+    err_code = impeghe_mae_asi_write(&it_bit_buf_local, pstr_mae_asi, &bit_cnt_ext);
+    num_bytes = (it_bit_buf_local.cnt_bits - num_bits + 7) >> 3;
+    if (err_code & IA_FATAL_ERROR)
+    {
+      return err_code;
+    }
+    impeghe_mhas_write_asi( ptr_asc_bit_buf, p_obj_mpeghe->pp_mem[IA_MEMTYPE_SCRATCH], num_bytes);
+    pstr_output_config->i_dec_len = (ptr_asc_bit_buf->cnt_bits + 7) / 8;
+    byte_allign_bits = (8 - (ptr_asc_bit_buf->cnt_bits & 7));
+    if ((ptr_asc_bit_buf->cnt_bits & 7))
+    {
+      impeghe_write_bits_buf(ptr_asc_bit_buf, 0, (UWORD8)byte_allign_bits);
+    }
+
+  }
 
   return err_code;
 }

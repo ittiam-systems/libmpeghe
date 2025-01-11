@@ -190,7 +190,6 @@ static WORD32 impeghe_config_extension(ia_bit_buf_struct *it_bit_buff,
   ia_bit_buf_struct it_bit_buf_local;
   ia_signal_grp_info str_signal_grp;
   IA_ERRORCODE err_code = 0;
-  UWORD32 loudness_byte_val = 0x00;
 
   UWORD32 fill_byte_val = 0xa5;
 
@@ -281,7 +280,7 @@ static WORD32 impeghe_config_extension(ia_bit_buf_struct *it_bit_buff,
     case ID_CONFIG_EXT_LOUDNESS_INFO:
       for (i = 0; i < pstr_usac_config->usac_config_ext_len[j]; i++)
       {
-        bit_cnt += impeghe_write_bits_buf(it_bit_buff, loudness_byte_val, 8);
+        bit_cnt += impeghe_write_bits_buf(it_bit_buff, pstr_usac_config->usac_config_ext_buf[j][i], 8);
       }
       break;
     case ID_CONFIG_EXT_AUDIOSCENE_INFO:

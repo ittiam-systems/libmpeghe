@@ -57,7 +57,24 @@
 #define MAX_NUM_OF_SPEAKERS (24)
 #define MAX_NUM_ELEMENTS (128)
 #define MAX_NUM_GRPS (16)
+#define MAX_NUM_DATASETS (16)
 #define MAX_MAE_CONFIG_LINE_LEN (512)
+#define MAX_NUM_SIG_GRPS (56)
+#define MAX_NUM_GROUPS_PRESETS (16)
+#define MAX_GROUP_PRESET_NUM_CONDITIONS (16)
+#define MAX_NUM_PRESET_GROUP_EXTENSIONS (16)
+#define MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT (32)
+
+#define MAX_NUM_GROUPS (28)
+#define MAX_NUM_SWITCH_GROUPS (14)
+#define MAX_NUM_GROUPS_PRESETS (16)
+#define MAX_NUM_DESCRIPTOIN_BLOCKS (128)
+#define MAX_NUM_DESCR_LANGUAGES (16)
+#define MAX_DESCR_LANGUAGE_DATA_LEN (16)
+#define MAX_DESCRIPTON_DATA_LEN (256)
+
+#define MAX_NUM_CONTENT_DATA_BLOCKS (128)
+
 #ifndef ABS
 #define ABS(A) ((A) < 0 ? (-A) : (A))
 #endif
@@ -164,31 +181,34 @@ typedef struct
   WORD32 preset_min_gain[MAX_NUM_ELEMENTS];
   WORD32 preset_max_gain[MAX_NUM_ELEMENTS];
   WORD32 num_grp_def_decription_blocks;
-  WORD32 grp_def_decription_grp_id[MAX_NUM_ELEMENTS];
-  WORD32 num_grp_def_decription_languages[MAX_NUM_ELEMENTS];
-  WORD32 grp_def_decription_languages[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 grp_def_decription_data_length[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 grp_def_decription_data[MAX_NUM_GRPS][MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
+  WORD32 grp_def_decription_grp_id[MAX_NUM_DESCRIPTOIN_BLOCKS];
+  WORD32 num_grp_def_decription_languages[MAX_NUM_DESCRIPTOIN_BLOCKS];
+  WORD8 grp_def_decription_languages[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][3];
+  WORD32 grp_def_decription_data_length[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES];
+  WORD8 grp_def_decription_data[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][MAX_DESCRIPTON_DATA_LEN];
+
   WORD32 num_switch_grp_decription_blocks;
-  WORD32 switch_grp_decription_grp_id[MAX_NUM_ELEMENTS];
-  WORD32 switch_grp_num_decription_languages[MAX_NUM_ELEMENTS];
-  WORD32 switch_grp_decription_languages[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 switch_grp_decription_data_length[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 switch_grp_decription_data[MAX_NUM_GRPS][MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
+  WORD32 switch_grp_decription_grp_id[MAX_NUM_DESCRIPTOIN_BLOCKS];
+  WORD32 switch_grp_num_decription_languages[MAX_NUM_DESCRIPTOIN_BLOCKS];
+  WORD8 switch_grp_decription_languages[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][3];
+  WORD32 switch_grp_decription_data_length[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES];
+  WORD8 switch_grp_decription_data[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][MAX_DESCRIPTON_DATA_LEN];
+
   WORD32 num_preset_decription_blocks;
-  WORD32 preset_decription_grp_id[MAX_NUM_ELEMENTS];
-  WORD32 preset_num_decription_languages[MAX_NUM_ELEMENTS];
-  WORD32 preset_decription_languages[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 preset_decription_data_length[MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 preset_decription_data[MAX_NUM_GRPS][MAX_NUM_GRPS][MAX_NUM_ELEMENTS];
-  WORD32 data_type[MAX_NUM_ELEMENTS];
-  WORD32 decription_data[MAX_NUM_ELEMENTS];
+  WORD32 preset_decription_grp_id[MAX_NUM_DESCRIPTOIN_BLOCKS];
+  WORD32 preset_num_decription_languages[MAX_NUM_DESCRIPTOIN_BLOCKS];
+  WORD8 preset_decription_languages[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][3];
+  WORD32 preset_decription_data_length[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES];
+  WORD8 preset_decription_data[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][MAX_DESCRIPTON_DATA_LEN];
+
+  WORD32 data_type[MAX_NUM_DATASETS];
   WORD32 num_content_data_blocks;
-  WORD32 content_group_id[MAX_NUM_ELEMENTS];
-  WORD32 content_kind[MAX_NUM_ELEMENTS];
-  WORD32 has_content_language[MAX_NUM_ELEMENTS];
-  WORD32 has_conjunct_members[MAX_NUM_ELEMENTS];
-  WORD32 content_language[MAX_NUM_ELEMENTS];
+  WORD32 content_group_id[MAX_NUM_CONTENT_DATA_BLOCKS];
+  WORD32 content_kind[MAX_NUM_CONTENT_DATA_BLOCKS];
+  WORD32 has_content_language[MAX_NUM_CONTENT_DATA_BLOCKS];
+  WORD32 has_conjunct_members[MAX_NUM_CONTENT_DATA_BLOCKS];
+  WORD8 content_language[MAX_NUM_CONTENT_DATA_BLOCKS][3];
+
   WORD32 num_comp_pairs;
   WORD32 element_id[MAX_NUM_ELEMENTS];
   WORD32 has_non_std_screen_size[MAX_NUM_ELEMENTS];
@@ -206,6 +226,36 @@ typedef struct
   WORD32 overwrite_prod_screen_size_data;
 
   WORD8 asi_enable;
+
+  WORD32 has_switch_group_conditions[MAX_NUM_GROUPS_PRESETS];
+  WORD32 is_switch_group_condition_preset_definition[MAX_NUM_GROUPS_PRESETS][MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 is_switch_group_condition[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                  [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 has_downmix_id_group_preset_extensions[MAX_NUM_GROUPS_PRESETS];
+  WORD32 num_dmx_id_group_preset_ext[MAX_NUM_GROUPS_PRESETS];
+  WORD32 group_preset_downmix_id[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT];
+  WORD32 group_preset_num_conditions[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT];
+  WORD32 group_preset_switch_group_id[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                     [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_group_id[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                              [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_condition_on_off[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                      [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_disable_gain_interactivity[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                                [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_gain_flag[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                               [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_gain[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT][MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_disable_position_interactivity[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                                    [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_position_flag[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                   [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_az_offset[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                               [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_el_offset[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                               [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_dist_factor[MAX_NUM_GROUPS_PRESETS][MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+                                 [MAX_GROUP_PRESET_NUM_CONDITIONS];
 } ia_asi_config;
 typedef struct
 {
@@ -295,6 +345,7 @@ typedef struct
   IA_ERRORCODE err_code;
 
   WORD8 asi_enable;
+  WORD8 asi_mhas;
   ia_asi_config str_asi_config;
   WORD8 flexi_spk_enable;
   ia_flexi_spk_config str_flexi_spk_config;

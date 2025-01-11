@@ -137,7 +137,7 @@ typedef struct
   WORD32 data_group_id[MAX_NUM_CONTENT_DATA_BLOCKS];
   WORD32 content_kind[MAX_NUM_CONTENT_DATA_BLOCKS];
   WORD32 has_content_language[MAX_NUM_CONTENT_DATA_BLOCKS];
-  WORD32 content_language[MAX_NUM_CONTENT_DATA_BLOCKS];
+  WORD8 content_language[MAX_NUM_CONTENT_DATA_BLOCKS][3];
 } ia_content_data;
 
 typedef struct
@@ -145,9 +145,9 @@ typedef struct
   WORD32 num_desc_blocks;
   WORD32 group_id[MAX_NUM_DESCRIPTOIN_BLOCKS];
   WORD32 num_descr_languages[MAX_NUM_DESCRIPTOIN_BLOCKS];
-  WORD32 descr_language[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES];
+  WORD8 descr_language[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][3];
   WORD32 descr_data_length[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES];
-  WORD32 descr_data[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][MAX_DESCRIPTON_DATA_LEN];
+  WORD8 descr_data[MAX_NUM_DESCRIPTOIN_BLOCKS][MAX_NUM_DESCR_LANGUAGES][MAX_DESCRIPTON_DATA_LEN];
 } ia_description_data;
 
 typedef struct
@@ -206,11 +206,14 @@ typedef struct
 typedef struct
 {
   WORD32 has_switch_group_conditions;
-  WORD32 is_switch_group_condition[MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+  WORD32 is_switch_group_condition_preset_def
                                   [MAX_GROUP_PRESET_NUM_CONDITIONS];
   WORD32 has_downmix_id_group_preset_extensions;
   WORD32 num_dmx_id_group_preset_ext;
-  WORD32 group_preset_downmix_id[MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 is_switch_group_condition[MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
+    [MAX_GROUP_PRESET_NUM_CONDITIONS];
+  WORD32 group_preset_downmix_id[MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT];
+  WORD32 group_preset_num_conditions[MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT];
   WORD32 group_preset_switch_group_id[MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
                                      [MAX_GROUP_PRESET_NUM_CONDITIONS];
   WORD32 group_preset_group_id[MAX_NUM_DOWNMIXID_GROUP_PRESET_EXT]
@@ -240,6 +243,7 @@ typedef struct
   // mae - metadata audio element
   WORD32 ei_present; // element interaction data
   WORD32 asi_present;
+  WORD32 asi_mhas;
   WORD32 asi_config_set;
   WORD32 main_stream_flag;
   WORD32 asi_id_present;
@@ -277,5 +281,8 @@ WORD32 impeghe_signal_group_info(ia_bit_buf_struct *it_bit_buf,
 
 WORD32 impeghe_mae_asi_write(ia_bit_buf_struct *it_bit_buf, ia_mae_audio_scene_info *pstr_mae_asi,
                              WORD32 *ptr_bit_cnt);
+
+WORD32 impeghe_mhas_write_asi(ia_bit_buf_struct *it_bit_buff,
+                              UWORD8 *data, UWORD32 num_bytes);
 
 #endif /*IMPEGHE_MAE_WRITE_H*/

@@ -32,6 +32,8 @@
 ---------------------------------------------------------------
 */
 
+#include <ctype.h>
+#include <math.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +46,159 @@
 #include "impeghe_dmx_matrix_common.h"
 #include "impeghe_memory_standards.h"
 #include "impeghe_mae_config_defines.h"
+
+
+
+#define READ_NEXT_LINE()                                                           \
+  memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);                                        \
+  if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)                  \
+  {                                                                                \
+    ii++;                                                                          \
+  }                                                                                \
+  do                                                                               \
+  {                                                                                \
+    if (line[0] == '#' || (line[0] == '/' && line[1] == '/') || isspace(line[0]))  \
+    {                                                                              \
+      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);                                    \
+      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)              \
+      {                                                                            \
+        ii++;                                                                      \
+      }                                                                            \
+    }                                                                              \
+    else                                                                           \
+    {                                                                              \
+      break;                                                                       \
+    }                                                                              \
+  } while (1);
+
+
+
+/**
+ *  impeghe_mae_read_csv_descr_data
+ *
+ *  \brief Read comma separated values (csv) from a string
+ *
+ *  \param [out]    ptr_out     pointer to asi config structure.
+ *  \param [in]     ptr_string  pointer to string.
+ *  \param [in]     max_len     maximum lenght of the buffer holding description data.
+ *  \param [in]     ptr_len     pointer to buffer with actual length of description data.
+ *  \param [in]     len         number of values to be extracted.
+ *
+ *  \return VOID       error code
+ *
+ */
+
+static VOID impeghe_mae_read_csv_descr_data( pWORD8 ptr_out, pCHAR8 ptr_string, WORD32 max_len, WORD32 *ptr_len, WORD32 num_values)
+{
+  pCHAR8 p_separator = ",";
+  pCHAR8 ptr_val = strtok(ptr_string, p_separator);
+  for (WORD8 i = 0; i < num_values; i++)
+  {
+    for (WORD8 j = 0; j < ptr_len[i]; j++)
+    {
+      ptr_out[j] = ptr_val[j];
+    }
+    ptr_out += max_len;
+    ptr_val = strtok(NULL, p_separator);
+    if (ptr_val == NULL)
+    {
+      break;
+    }
+  }
+  return ;
+}
+
+/**
+ *  impeghe_mae_read_csv_char
+ *
+ *  \brief Read comma separated values (csv) from a string
+ *
+ *  \param [out]    ptr_out     pointer to asi config structure.
+ *  \param [in]     ptr_string  pointer to string.
+ *  \param [in]     len         number of values to be extracted.
+ *
+ *  \return VOID       error code
+ *
+ */
+
+static VOID impeghe_mae_read_csv_lan( pWORD8 ptr_out, pCHAR8 ptr_string, WORD32 num_values)
+{
+  pCHAR8 p_separator = ",";
+  pCHAR8 ptr_val = strtok(ptr_string, p_separator);
+  for (WORD8 i = 0; i < num_values; i++)
+  {
+    ptr_out[0] = ptr_val[0];
+    ptr_out[1] = ptr_val[1];
+    ptr_out[2] = ptr_val[2];
+    ptr_out += 3;
+    ptr_val = strtok(NULL, p_separator);
+    if (ptr_val == NULL)
+    {
+      break;
+    }
+  }
+  return ;
+}
+
+/**
+ *  impeghe_mae_read_csv_char
+ *
+ *  \brief Read comma separated values (csv) from a string
+ *
+ *  \param [out]    ptr_out     pointer to asi config structure.
+ *  \param [in]     ptr_string  pointer to string.
+ *  \param [in]     len         number of values to be extracted.
+ *
+ *  \return VOID
+ *
+ */
+
+static VOID impeghe_mae_read_csv_float( pWORD32 ptr_out, pCHAR8 ptr_string, WORD32 num_values, FLOAT32 quant_fac, WORD32 offset)
+{
+  pCHAR8 p_separator = ",";
+  pCHAR8 ptr_val = strtok(ptr_string, p_separator);
+  for (WORD8 i = 0; i < num_values; i++)
+  {
+    FLOAT32 tmp = (FLOAT32)(atof(ptr_val) / (quant_fac)) + offset;
+    ptr_out[i] = (WORD32) floor(tmp);
+    ptr_val = strtok(NULL, p_separator);
+    if (ptr_val == NULL)
+    {
+      break;
+    }
+  }
+  return ;
+}
+
+/**
+ *  impeghe_mae_read_csv_char
+ *
+ *  \brief Read comma separated values (csv) from a string
+ *
+ *  \param [out]    ptr_out     pointer to asi config structure.
+ *  \param [in]     ptr_string  pointer to string.
+ *  \param [in]     len         number of values to be extracted.
+ *
+ *  \return VOID
+ *
+ */
+
+static VOID impeghe_mae_read_csv_char( pWORD32 ptr_out, pCHAR8 ptr_string, WORD32 num_values)
+{
+  pCHAR8 p_separator = ",";
+  pCHAR8 ptr_val = strtok(ptr_string, p_separator);
+  for (WORD8 i = 0; i < num_values; i++)
+  {
+    ptr_out[i] = atoi(ptr_val);
+    ptr_val = strtok(NULL, p_separator);
+    if (ptr_val == NULL)
+    {
+      break;
+    }
+  }
+  return ;
+}
+
 /**
  *  impeghe_read_asi
  *
@@ -67,7 +222,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
       num_positions++;
   }
   fseek(file, 0, SEEK_SET);
-  WORD8 line[MAX_MAE_CONFIG_LINE_LEN];
+  CHAR8 line[MAX_MAE_CONFIG_LINE_LEN];
   WORD32 ii = 0;
   while (ii < num_positions)
   {
@@ -89,222 +244,154 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
     if (strncmp((pCHAR8)line, STRING_MAE_ID_OFFSET, strlen(STRING_MAE_ID_OFFSET)) == 0)
     {
       pstr_asi_config->mae_id_offset = (atoi((const pCHAR8)&line[strlen(STRING_MAE_ID_OFFSET)]));
-      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-      {
-        ii++;
-      }
+      READ_NEXT_LINE()
     }
     if (strncmp((pCHAR8)line, STRING_MAE_ID_MAX_AVAIL, strlen(STRING_MAE_ID_MAX_AVAIL)) == 0)
     {
-      pstr_asi_config->mae_id_offset =
+      pstr_asi_config->mae_id_max_avail =
           (atoi((const pCHAR8)&line[strlen(STRING_MAE_ID_MAX_AVAIL)]));
-      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-      {
-        ii++;
-      }
+      READ_NEXT_LINE()
     }
     if (strncmp((pCHAR8)line, STRING_NUM_GROUPS, strlen(STRING_NUM_GROUPS)) == 0)
     {
       pstr_asi_config->num_groups = (atoi((const pCHAR8)&line[strlen(STRING_NUM_GROUPS)]));
-      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-      {
-        ii++;
-      }
+      READ_NEXT_LINE()
 
-      for (i = 0; i < pstr_asi_config->num_groups; i++)
-      {
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_GROUP_ID, strlen(STRING_GROUP_DFN_GROUP_ID)) ==
             0)
         {
-          pstr_asi_config->grp_def_grp_id[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_GROUP_ID)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_GROUP_ID)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_grp_id[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_ALLOW_ON_OFF,
                     strlen(STRING_GROUP_DFN_ALLOW_ON_OFF)) == 0)
         {
-          pstr_asi_config->grp_def_allow_on_off[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_ALLOW_ON_OFF)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_ALLOW_ON_OFF)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_allow_on_off[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_DEFAULT_ON_OFF,
                     strlen(STRING_GROUP_DFN_DEFAULT_ON_OFF)) == 0)
         {
-          pstr_asi_config->grp_def_default_on_off[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_DEFAULT_ON_OFF)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_DEFAULT_ON_OFF)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_default_on_off[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_ALLOW_POS_INTERACT,
                     strlen(STRING_GROUP_DFN_ALLOW_POS_INTERACT)) == 0)
         {
-          pstr_asi_config->grp_def_allow_pos_interact[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_ALLOW_POS_INTERACT)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-        }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_ALLOW_POS_INTERACT)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_allow_pos_interact[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MIN_AZ_OFFSET,
                     strlen(STRING_GROUP_DFN_MIN_AZ_OFFSET)) == 0)
         {
-          pstr_asi_config->grp_def_min_az_offset[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MIN_AZ_OFFSET)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          FLOAT32 quant = -1.5f;
+          WORD32 offset = 0;
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MIN_AZ_OFFSET)];
+          impeghe_mae_read_csv_float(&pstr_asi_config->grp_def_min_az_offset[0], ptr_val_string, pstr_asi_config->num_groups, quant, offset);
+          READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MAX_AZ_OFFSET,
                     strlen(STRING_GROUP_DFN_MAX_AZ_OFFSET)) == 0)
         {
-          pstr_asi_config->grp_def_max_az_offset[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MAX_AZ_OFFSET)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          FLOAT32 quant = 1.5f;
+          WORD32 offset = 0;
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MAX_AZ_OFFSET)];
+          impeghe_mae_read_csv_float(&pstr_asi_config->grp_def_max_az_offset[0], ptr_val_string, pstr_asi_config->num_groups, quant, offset);
+          READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MIN_EL_OFFSET,
                     strlen(STRING_GROUP_DFN_MIN_EL_OFFSET)) == 0)
         {
-          pstr_asi_config->grp_def_min_el_offset[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MIN_EL_OFFSET)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          FLOAT32 quant = -3.0f;
+          WORD32 offset = 0;
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MIN_EL_OFFSET)];
+          impeghe_mae_read_csv_float(&pstr_asi_config->grp_def_min_el_offset[0], ptr_val_string, pstr_asi_config->num_groups, quant, offset);
+          READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MAX_EL_OFFSET,
                     strlen(STRING_GROUP_DFN_MAX_EL_OFFSET)) == 0)
         {
-          pstr_asi_config->grp_def_max_el_offset[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MAX_EL_OFFSET)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          FLOAT32 quant = 3.0f;
+          WORD32 offset = 0;
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MIN_EL_OFFSET)];
+          impeghe_mae_read_csv_float(&pstr_asi_config->grp_def_max_el_offset[0], ptr_val_string, pstr_asi_config->num_groups, quant, offset);
+          READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MIN_DIST_FACTOR,
                     strlen(STRING_GROUP_DFN_MIN_DIST_FACTOR)) == 0)
         {
-          pstr_asi_config->grp_def_min_dist_factor[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MIN_DIST_FACTOR)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MIN_DIST_FACTOR)];
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_min_dist_factor[0], ptr_val_string, pstr_asi_config->num_groups);
+          READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MAX_DIST_FACTOR,
                     strlen(STRING_GROUP_DFN_MAX_DIST_FACTOR)) == 0)
         {
-          pstr_asi_config->grp_def_max_dist_factor[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MAX_DIST_FACTOR)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MAX_DIST_FACTOR)];
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_max_dist_factor[0], ptr_val_string, pstr_asi_config->num_groups);
+          READ_NEXT_LINE();
           }
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_ALLOW_GAIN_FACTOR,
                     strlen(STRING_GROUP_DFN_ALLOW_GAIN_FACTOR)) == 0)
         {
-          pstr_asi_config->grp_def_allow_gain_interact[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_ALLOW_GAIN_FACTOR)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-        }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_ALLOW_GAIN_FACTOR)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_allow_gain_interact[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
+
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MIN_GAIN, strlen(STRING_GROUP_DFN_MIN_GAIN)) ==
             0)
         {
-          pstr_asi_config->grp_def_min_gain[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MIN_GAIN)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MIN_GAIN)];
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_min_gain[0], ptr_val_string, pstr_asi_config->num_groups);
+          for (WORD32 idx = 0; idx < pstr_asi_config->num_groups; idx++)
           {
-            ii++;
+            pstr_asi_config->grp_def_min_gain[idx] += 63;
           }
+          READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_MAX_GAIN, strlen(STRING_GROUP_DFN_MAX_GAIN)) ==
             0)
         {
-          pstr_asi_config->grp_def_max_gain[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_MAX_GAIN)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_MAX_GAIN)];
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_max_gain[0], ptr_val_string, pstr_asi_config->num_groups);
+          READ_NEXT_LINE();
+        }
+      }
+
+      if (strncmp((pCHAR8)line, STRING_GROUP_DFN_GRP_NUM, strlen(STRING_GROUP_DFN_GRP_NUM)) ==
+          0)
           {
-            ii++;
-          }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_GRP_NUM)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_group_num[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
         }
         if (strncmp((pCHAR8)line, STRING_GROUP_DFN_HAS_CONJUNCT_MEM,
                     strlen(STRING_GROUP_DFN_HAS_CONJUNCT_MEM)) == 0)
         {
-          pstr_asi_config->grp_def_start_id[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_HAS_CONJUNCT_MEM)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_HAS_CONJUNCT_MEM)];
+        impeghe_mae_read_csv_char(&pstr_asi_config->has_conjunct_members[0], ptr_val_string, pstr_asi_config->num_groups);
+        READ_NEXT_LINE();
+
           if (strncmp((pCHAR8)line, STRING_GROUP_DFN_START_ID,
                       strlen(STRING_GROUP_DFN_START_ID)) == 0)
           {
-            pstr_asi_config->grp_def_start_id[i] =
-                (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_START_ID)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_START_ID)];
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_start_id[0], ptr_val_string, pstr_asi_config->num_groups);
+          READ_NEXT_LINE();
           }
-        }
-        if (strncmp((pCHAR8)line, STRING_GROUP_DFN_GRP_NUM, strlen(STRING_GROUP_DFN_GRP_NUM)) ==
-            0)
-        {
-          pstr_asi_config->grp_def_group_num[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_GRP_NUM)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-          for (j = 0; j < pstr_asi_config->grp_def_group_num[i]; j++)
-          {
             if (strncmp((pCHAR8)line, STRING_GROUP_DFN_META_ELE_ID,
                         strlen(STRING_GROUP_DFN_META_ELE_ID)) == 0)
             {
-              pstr_asi_config->grp_def_metadata_ele_id[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DFN_META_ELE_ID)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+          pCHAR8 ptr_val_string = &line[strlen(STRING_GROUP_DFN_GRP_NUM)];
+          for (i = 0; i < pstr_asi_config->num_groups; i++)
               {
-                ii++;
-              }
-            }
+            impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_metadata_ele_id[i][0], ptr_val_string, pstr_asi_config->grp_def_group_num[i]);
           }
+          READ_NEXT_LINE()
         }
       }
     }
@@ -312,68 +399,47 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
     {
       pstr_asi_config->num_switch_groups =
           (atoi((const pCHAR8)&line[strlen(STRING_NUM_SWITCH_GRP)]));
-      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-      {
-        ii++;
-      }
-      for (i = 0; i < pstr_asi_config->num_switch_groups; i++)
-      {
+      READ_NEXT_LINE()
         if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DEFN_GRP_ID,
                     strlen(STRING_SWITCH_GRP_DEFN_GRP_ID)) == 0)
         {
-          pstr_asi_config->switch_grp_def_grp_id[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DEFN_GRP_ID)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_def_grp_id[0],
+            &line[strlen(STRING_SWITCH_GRP_DEFN_GRP_ID)],
+            pstr_asi_config->num_switch_groups);
+        READ_NEXT_LINE()
         }
         if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DEFN_ALLOW_ON_OFF,
                     strlen(STRING_SWITCH_GRP_DEFN_ALLOW_ON_OFF)) == 0)
         {
-          pstr_asi_config->switch_grp_def_allow_on_off[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DEFN_ALLOW_ON_OFF)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_def_allow_on_off[0],
+            &line[strlen(STRING_SWITCH_GRP_DEFN_ALLOW_ON_OFF)],
+            pstr_asi_config->num_switch_groups);
+        READ_NEXT_LINE()
         }
         if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DEFN_DEFAULT_ON_OFF,
                     strlen(STRING_SWITCH_GRP_DEFN_DEFAULT_ON_OFF)) == 0)
         {
-          pstr_asi_config->switch_grp_def_default_on_off[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DEFN_DEFAULT_ON_OFF)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+        impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_def_default_on_off[0],
+            &line[strlen(STRING_SWITCH_GRP_DEFN_DEFAULT_ON_OFF)],
+            pstr_asi_config->num_switch_groups);
+        READ_NEXT_LINE()
         }
         if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DEFN_GRP_NUM_MEM,
                     strlen(STRING_SWITCH_GRP_DEFN_GRP_NUM_MEM)) == 0)
         {
-          pstr_asi_config->switch_grp_def_grp_num_member[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DEFN_GRP_NUM_MEM)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-          for (j = 0; j < pstr_asi_config->switch_grp_def_grp_num_member[i]; j++)
+        impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_def_grp_num_member[0],
+            &line[strlen(STRING_SWITCH_GRP_DEFN_GRP_NUM_MEM)],
+            pstr_asi_config->num_switch_groups);
+        READ_NEXT_LINE()
+        for (j = 0; j < pstr_asi_config->num_switch_groups; j++)
           {
             if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DEFN_MEM_ID,
                         strlen(STRING_SWITCH_GRP_DEFN_MEM_ID)) == 0)
             {
-              pstr_asi_config->switch_grp_def_grp_member_id[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DEFN_MEM_ID)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+            impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_def_grp_member_id[j][0],
+                &line[strlen(STRING_SWITCH_GRP_DEFN_MEM_ID)],
+                pstr_asi_config->switch_grp_def_grp_num_member[j]);
+            READ_NEXT_LINE()
             }
           }
         }
@@ -381,170 +447,134 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
         if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DEFN_DEFAULT_GRP_ID,
                     strlen(STRING_SWITCH_GRP_DEFN_DEFAULT_GRP_ID)) == 0)
         {
-          pstr_asi_config->switch_grp_def_default_group_id[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DEFN_DEFAULT_GRP_ID)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-        }
+        impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_def_default_group_id[0],
+            &line[strlen(STRING_SWITCH_GRP_DEFN_DEFAULT_GRP_ID)],
+            pstr_asi_config->num_switch_groups);
+        READ_NEXT_LINE()
       }
     }
     if (strncmp((pCHAR8)line, STRING_NUM_GRP_PRESETS, strlen(STRING_NUM_GRP_PRESETS)) == 0)
     {
       pstr_asi_config->num_group_presets =
           (atoi((const pCHAR8)&line[strlen(STRING_NUM_GRP_PRESETS)]));
-      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-      {
-        ii++;
-      }
-      for (i = 0; i < pstr_asi_config->num_group_presets; i++)
+      READ_NEXT_LINE()
+      //for (i = 0; i < pstr_asi_config->num_group_presets; i++)
       {
         if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GRP_ID,
                     strlen(STRING_GRP_PRESET_DEFN_GRP_ID)) == 0)
         {
-          pstr_asi_config->grp_preset_def_grp_id[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_GRP_ID)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_grp_id[0],
+              &line[strlen(STRING_GRP_PRESET_DEFN_GRP_ID)],
+              pstr_asi_config->num_group_presets);
+          READ_NEXT_LINE()
         }
         if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_PRESET_KIND,
                     strlen(STRING_GRP_PRESET_DEFN_PRESET_KIND)) == 0)
         {
-          pstr_asi_config->grp_preset_def_preset_kind[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_PRESET_KIND)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_preset_kind[0],
+              &line[strlen(STRING_GRP_PRESET_DEFN_PRESET_KIND)],
+              pstr_asi_config->num_group_presets);
+          READ_NEXT_LINE()
         }
         if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_NUM_CONDITION,
                     strlen(STRING_GRP_PRESET_DEFN_NUM_CONDITION)) == 0)
         {
-          pstr_asi_config->grp_preset_def_num_conditions[i] =
-              (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_NUM_CONDITION)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-          for (j = 0; j < pstr_asi_config->grp_preset_def_num_conditions[i]; j++)
+          impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_num_conditions[0],
+              &line[strlen(STRING_GRP_PRESET_DEFN_NUM_CONDITION)],
+              pstr_asi_config->num_group_presets);
+          READ_NEXT_LINE()
+          for (j = 0; j < pstr_asi_config->num_group_presets; j++)
           {
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_REF_ID,
                         strlen(STRING_GRP_PRESET_DEFN_REF_ID)) == 0)
             {
-              pstr_asi_config->grp_preset_def_reference_id[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_REF_ID)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_reference_id[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_REF_ID)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_CON_ON_OFF,
                         strlen(STRING_GRP_PRESET_DEFN_CON_ON_OFF)) == 0)
             {
-              pstr_asi_config->grp_preset_def_cond_on_off[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_CON_ON_OFF)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_cond_on_off[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_CON_ON_OFF)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GAIN_FLAG,
                         strlen(STRING_GRP_PRESET_DEFN_GAIN_FLAG)) == 0)
             {
-              pstr_asi_config->grp_preset_def_gain_flag[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_GAIN_FLAG)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_gain_flag[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_GAIN_FLAG)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GAIN,
                         strlen(STRING_GRP_PRESET_DEFN_GAIN)) == 0)
             {
-              pstr_asi_config->grp_preset_def_gain[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_GAIN)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              FLOAT32 quant_fac = 0.5f;
+              WORD32 offset = 191;
+              impeghe_mae_read_csv_float(&pstr_asi_config->grp_preset_def_gain[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_GAIN)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j],
+                  quant_fac, offset);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT,
                         strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)) == 0)
             {
-              pstr_asi_config->grp_preset_def_disable_gain_interact[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_disable_gain_interact[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT,
                         strlen(STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT)) == 0)
             {
-              pstr_asi_config->grp_preset_def_disable_position_interact[i][j] = (atoi(
-                  (const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_disable_position_interact[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT,
                         strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)) == 0)
             {
-              pstr_asi_config->grp_preset_def_position_interact[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_position_interact[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_AZ_OFFSET,
                         strlen(STRING_GRP_PRESET_DEFN_AZ_OFFSET)) == 0)
             {
-              pstr_asi_config->grp_preset_def_azimuth_offset[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_AZ_OFFSET)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              FLOAT32 quant_fac = 1.5f;
+              WORD32 offset = 127;
+              impeghe_mae_read_csv_float(&pstr_asi_config->grp_preset_def_azimuth_offset[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_AZ_OFFSET)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j],
+                  quant_fac,
+                  offset);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_EL_OFFSET,
                         strlen(STRING_GRP_PRESET_DEFN_EL_OFFSET)) == 0)
             {
-              pstr_asi_config->grp_preset_def_elevation_offset[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_EL_OFFSET)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              FLOAT32 quant_fac = 3.0f;
+              WORD32 offset = 31;
+              impeghe_mae_read_csv_float(&pstr_asi_config->grp_preset_def_elevation_offset[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_EL_OFFSET)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j],
+                  quant_fac,
+                  offset);
+              READ_NEXT_LINE()
             }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DIST_FACTOR,
                         strlen(STRING_GRP_PRESET_DEFN_DIST_FACTOR)) == 0)
             {
-              pstr_asi_config->grp_preset_def_dist_factor[i][j] =
-                  (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DIST_FACTOR)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_dist_factor[j][0],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_DIST_FACTOR)],
+                  pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
             }
           }
         }
@@ -554,22 +584,16 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
     if (strncmp((pCHAR8)line, STRING_NUM_DATA_SETS, strlen(STRING_NUM_DATA_SETS)) == 0)
     {
       pstr_asi_config->num_data_sets = (atoi((const pCHAR8)&line[strlen(STRING_NUM_DATA_SETS)]));
-      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+      READ_NEXT_LINE()
+      if (strncmp((pCHAR8)line, STRING_DATA_TYPE, strlen(STRING_DATA_TYPE)) == 0)
       {
-        ii++;
+        impeghe_mae_read_csv_char(&pstr_asi_config->data_type[0],
+            &line[strlen(STRING_DATA_TYPE)],
+            pstr_asi_config->num_data_sets);
+        READ_NEXT_LINE()
       }
       for (i = 0; i < pstr_asi_config->num_data_sets; i++)
       {
-        if (strncmp((pCHAR8)line, STRING_DATA_TYPE, strlen(STRING_DATA_TYPE)) == 0)
-        {
-          pstr_asi_config->data_type[i] = (atoi((const pCHAR8)&line[strlen(STRING_DATA_TYPE)]));
-          memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-          if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-          {
-            ii++;
-          }
-        }
         if (pstr_asi_config->data_type[i] == 0)
         {
           if (strncmp((pCHAR8)line, STRING_NUM_GROUP_DEF_DSCRPTN_BLOCKS,
@@ -577,73 +601,51 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->num_grp_def_decription_blocks =
                 (atoi((const pCHAR8)&line[strlen(STRING_NUM_GROUP_DEF_DSCRPTN_BLOCKS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
-            for (j = 0; j < pstr_asi_config->num_grp_def_decription_blocks; j++)
+            READ_NEXT_LINE()
+            for (int block_idx = 0; block_idx < pstr_asi_config->num_grp_def_decription_blocks; block_idx++)
             {
               if (strncmp((pCHAR8)line, STRING_GROUP_DEF_DSCRPTN_GRP_ID,
                           strlen(STRING_GROUP_DEF_DSCRPTN_GRP_ID)) == 0)
               {
-                pstr_asi_config->grp_def_decription_grp_id[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DEF_DSCRPTN_GRP_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_decription_grp_id[block_idx],
+                  &line[strlen(STRING_GROUP_DEF_DSCRPTN_GRP_ID)],
+                  1);
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_GROUP_DEF_NUM_DSCRPTN_LANGUAGES,
                           strlen(STRING_GROUP_DEF_NUM_DSCRPTN_LANGUAGES)) == 0)
               {
-                pstr_asi_config->num_grp_def_decription_languages[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DEF_NUM_DSCRPTN_LANGUAGES)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
-                for (WORD32 k = 0; k < pstr_asi_config->num_grp_def_decription_languages[j]; k++)
-                {
+                impeghe_mae_read_csv_char(&pstr_asi_config->num_grp_def_decription_languages[block_idx],
+                  &line[strlen(STRING_GROUP_DEF_NUM_DSCRPTN_LANGUAGES)],
+                  1);
+                READ_NEXT_LINE()
+
                   if (strncmp((pCHAR8)line, STRING_GROUP_DEF_DSCRPTN_LANGUAGES,
                               strlen(STRING_GROUP_DEF_DSCRPTN_LANGUAGES)) == 0)
                   {
-                    pstr_asi_config->grp_def_decription_languages[j][k] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DEF_DSCRPTN_LANGUAGES)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
+                    impeghe_mae_read_csv_lan(&pstr_asi_config->grp_def_decription_languages[block_idx][0][0],
+                      &line[strlen(STRING_GROUP_DEF_DSCRPTN_LANGUAGES)],
+                      pstr_asi_config->num_grp_def_decription_languages[block_idx]);
+                    READ_NEXT_LINE()
                   }
                   if (strncmp((pCHAR8)line, STRING_GROUP_DEF_DSCRPTN_DATA_LENGTH,
                               strlen(STRING_GROUP_DEF_DSCRPTN_DATA_LENGTH)) == 0)
                   {
-                    pstr_asi_config->grp_def_decription_data_length[j][k] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DEF_DSCRPTN_DATA_LENGTH)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
+                  impeghe_mae_read_csv_char(&pstr_asi_config->grp_def_decription_data_length[block_idx][0],
+                    &line[strlen(STRING_GROUP_DEF_DSCRPTN_DATA_LENGTH)],
+                    pstr_asi_config->num_grp_def_decription_languages[block_idx]);
+                  READ_NEXT_LINE()
                     }
-                  }
-                  for (WORD32 l = 0; l < pstr_asi_config->grp_def_decription_data_length[j][k];
-                       l++)
-                  {
+
                     if (strncmp((pCHAR8)line, STRING_GROUP_DEF_DSCRPTN_DATA,
                                 strlen(STRING_GROUP_DEF_DSCRPTN_DATA)) == 0)
                     {
-                      pstr_asi_config->grp_def_decription_data[j][k][l] =
-                          (atoi((const pCHAR8)&line[strlen(STRING_GROUP_DEF_DSCRPTN_DATA)]));
-                      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                      {
-                        ii++;
-                      }
-                    }
-                  }
+                  impeghe_mae_read_csv_descr_data(&pstr_asi_config->grp_def_decription_data[block_idx][0][0],
+                    &line[strlen(STRING_GROUP_DEF_DSCRPTN_DATA)],
+                    MAX_DESCRIPTON_DATA_LEN,
+                    &pstr_asi_config->grp_def_decription_data_length[block_idx][0],
+                    pstr_asi_config->num_grp_def_decription_languages[block_idx]);
+                  READ_NEXT_LINE()
                 }
               }
             }
@@ -656,74 +658,48 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->num_switch_grp_decription_blocks =
                 (atoi((const pCHAR8)&line[strlen(STRING_NUM_SWITCH_GRP_DSCRPTN_BLOCKS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
-            for (j = 0; j < pstr_asi_config->num_switch_grp_decription_blocks; j++)
+            READ_NEXT_LINE()
+            for (int block_idx = 0; block_idx < pstr_asi_config->num_switch_grp_decription_blocks; block_idx++)
             {
               if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DSCRPTN_GRP_ID,
                           strlen(STRING_SWITCH_GRP_DSCRPTN_GRP_ID)) == 0)
               {
-                pstr_asi_config->switch_grp_decription_grp_id[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DSCRPTN_GRP_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_decription_grp_id[block_idx],
+                  &line[strlen(STRING_SWITCH_GRP_DSCRPTN_GRP_ID)],
+                  pstr_asi_config->num_switch_grp_decription_blocks);
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_NUM_DSCRPTN_LANGUAGES,
                           strlen(STRING_SWITCH_GRP_NUM_DSCRPTN_LANGUAGES)) == 0)
               {
-                pstr_asi_config->switch_grp_num_decription_languages[j] =
+                pstr_asi_config->switch_grp_num_decription_languages[block_idx] =
                     (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_NUM_DSCRPTN_LANGUAGES)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
-                for (WORD32 k = 0; k < pstr_asi_config->switch_grp_num_decription_languages[j];
-                     k++)
-                {
+                READ_NEXT_LINE()
                   if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DSCRPTN_LANGUAGES,
                               strlen(STRING_SWITCH_GRP_DSCRPTN_LANGUAGES)) == 0)
                   {
-                    pstr_asi_config->switch_grp_decription_languages[j][k] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DSCRPTN_LANGUAGES)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
+                    impeghe_mae_read_csv_lan(&pstr_asi_config->switch_grp_decription_languages[block_idx][0][0],
+                      &line[strlen(STRING_SWITCH_GRP_DSCRPTN_LANGUAGES)],
+                      pstr_asi_config->switch_grp_num_decription_languages[block_idx]);
+                    READ_NEXT_LINE()
                   }
                   if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DSCRPTN_DATA_LENGTH,
                               strlen(STRING_SWITCH_GRP_DSCRPTN_DATA_LENGTH)) == 0)
                   {
-                    pstr_asi_config->switch_grp_decription_data_length[j][k] = (atoi(
-                        (const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DSCRPTN_DATA_LENGTH)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
+                  impeghe_mae_read_csv_char(&pstr_asi_config->switch_grp_decription_data_length[block_idx][0],
+                    &line[strlen(STRING_SWITCH_GRP_DSCRPTN_DATA_LENGTH)],
+                    pstr_asi_config->switch_grp_num_decription_languages[block_idx]);
+                  READ_NEXT_LINE()
                     }
-                  }
-                  for (WORD32 l = 0; l < pstr_asi_config->switch_grp_decription_data_length[j][k];
-                       l++)
-                  {
                     if (strncmp((pCHAR8)line, STRING_SWITCH_GRP_DSCRPTN_DATA,
                                 strlen(STRING_SWITCH_GRP_DSCRPTN_DATA)) == 0)
                     {
-                      pstr_asi_config->switch_grp_decription_data[j][k][l] =
-                          (atoi((const pCHAR8)&line[strlen(STRING_SWITCH_GRP_DSCRPTN_DATA)]));
-                      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                      {
-                        ii++;
-                      }
-                    }
-                  }
+                  impeghe_mae_read_csv_descr_data(&pstr_asi_config->switch_grp_decription_data[block_idx][0][0],
+                    &line[strlen(STRING_SWITCH_GRP_DSCRPTN_DATA)],
+                    MAX_DESCRIPTON_DATA_LEN,
+                    &pstr_asi_config->switch_grp_decription_data_length[block_idx][0],
+                    pstr_asi_config->switch_grp_num_decription_languages[block_idx]);
+                  READ_NEXT_LINE()
                 }
               }
             }
@@ -736,73 +712,49 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->num_preset_decription_blocks =
                 (atoi((const pCHAR8)&line[strlen(STRING_NUM_PRESET_DSCRPTN_BLOCKS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
-            for (j = 0; j < pstr_asi_config->num_preset_decription_blocks; j++)
+            READ_NEXT_LINE()
+            for (int block_idx = 0; block_idx < pstr_asi_config->num_preset_decription_blocks; block_idx++)
             {
               if (strncmp((pCHAR8)line, STRING_PRESET_DSCRPTN_GRP_ID,
                           strlen(STRING_PRESET_DSCRPTN_GRP_ID)) == 0)
               {
-                pstr_asi_config->grp_preset_def_grp_id[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_PRESET_DSCRPTN_GRP_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_char(&pstr_asi_config->preset_decription_grp_id[block_idx],
+                  &line[strlen(STRING_PRESET_DSCRPTN_GRP_ID)],
+                  1);
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_PRESET_NUM_DSCRPTN_LANGUAGES,
                           strlen(STRING_PRESET_NUM_DSCRPTN_LANGUAGES)) == 0)
               {
-                pstr_asi_config->preset_num_decription_languages[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_PRESET_NUM_DSCRPTN_LANGUAGES)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
-                for (WORD32 k = 0; k < pstr_asi_config->preset_num_decription_languages[j]; k++)
-                {
+                impeghe_mae_read_csv_char(&pstr_asi_config->preset_num_decription_languages[block_idx],
+                    &line[strlen(STRING_PRESET_NUM_DSCRPTN_LANGUAGES)],
+                    1);
+                READ_NEXT_LINE()
                   if (strncmp((pCHAR8)line, STRING_PRESET_DSCRPTN_LANGUAGES,
                               strlen(STRING_PRESET_DSCRPTN_LANGUAGES)) == 0)
                   {
-                    pstr_asi_config->preset_decription_languages[j][k] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_PRESET_DSCRPTN_LANGUAGES)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
+                    impeghe_mae_read_csv_lan(&pstr_asi_config->preset_decription_languages[block_idx][0][0],
+                      &line[strlen(STRING_PRESET_DSCRPTN_LANGUAGES)],
+                      pstr_asi_config->preset_num_decription_languages[block_idx]);
+                    READ_NEXT_LINE()
                   }
                   if (strncmp((pCHAR8)line, STRING_PRESET_DSCRPTN_DATA_LENGTH,
                               strlen(STRING_PRESET_DSCRPTN_DATA_LENGTH)) == 0)
                   {
-                    pstr_asi_config->preset_decription_data_length[j][k] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_PRESET_DSCRPTN_DATA_LENGTH)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
+                  impeghe_mae_read_csv_char(&pstr_asi_config->preset_decription_data_length[block_idx][0],
+                    &line[strlen(STRING_PRESET_DSCRPTN_DATA_LENGTH)],
+                    pstr_asi_config->preset_num_decription_languages[block_idx]);
+                  READ_NEXT_LINE()
                   }
-                  for (WORD32 l = 0; l < pstr_asi_config->preset_decription_data_length[j][k];
-                       l++)
-                  {
                     if (strncmp((pCHAR8)line, STRING_PRESET_DSCRPTN_DATA,
                                 strlen(STRING_PRESET_DSCRPTN_DATA)) == 0)
                     {
-                      pstr_asi_config->preset_decription_data[j][k][l] =
-                          (atoi((const pCHAR8)&line[strlen(STRING_PRESET_DSCRPTN_DATA)]));
-                      memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                      if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                      {
-                        ii++;
-                      }
-                    }
-                  }
+                  impeghe_mae_read_csv_descr_data(&pstr_asi_config->preset_decription_data[block_idx][0][0],
+                    &line[strlen(STRING_PRESET_DSCRPTN_DATA)],
+                    MAX_DESCRIPTON_DATA_LEN,
+                    &pstr_asi_config->preset_decription_data_length[block_idx][0],
+                    pstr_asi_config->preset_num_decription_languages[0]);
+                  READ_NEXT_LINE()
                 }
               }
             }
@@ -815,55 +767,39 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->num_content_data_blocks =
                 (atoi((const pCHAR8)&line[strlen(STRING_NUM_CONTENT_DATA_BLOCKS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
-            for (j = 0; j < pstr_asi_config->num_content_data_blocks; j++)
+            READ_NEXT_LINE()
+            //for (j = 0; j < pstr_asi_config->num_content_data_blocks; j++)
             {
               if (strncmp((pCHAR8)line, STRING_CONTENT_GRP_ID, strlen(STRING_CONTENT_GRP_ID)) ==
                   0)
               {
-                pstr_asi_config->content_group_id[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_CONTENT_GRP_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_char(&pstr_asi_config->content_group_id[0],
+                    &line[strlen(STRING_CONTENT_GRP_ID)],
+                    pstr_asi_config->num_content_data_blocks);
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_CONTENT_KIND, strlen(STRING_CONTENT_KIND)) == 0)
               {
-                pstr_asi_config->content_kind[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_CONTENT_KIND)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_char(&pstr_asi_config->content_kind[0],
+                    &line[strlen(STRING_CONTENT_KIND)],
+                    pstr_asi_config->num_content_data_blocks);
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_HAS_CONTENT_LANGUAGE,
                           strlen(STRING_HAS_CONTENT_LANGUAGE)) == 0)
               {
-                pstr_asi_config->has_content_language[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_HAS_CONTENT_LANGUAGE)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_char(&pstr_asi_config->has_content_language[0],
+                    &line[strlen(STRING_HAS_CONTENT_LANGUAGE)],
+                    pstr_asi_config->num_content_data_blocks);
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_CONTENT_LANGUAGE,
                           strlen(STRING_CONTENT_LANGUAGE)) == 0)
               {
-                pstr_asi_config->content_language[j] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_CONTENT_LANGUAGE)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                impeghe_mae_read_csv_lan(&pstr_asi_config->content_language[0][0],
+                    &line[strlen(STRING_CONTENT_LANGUAGE)],
+                    pstr_asi_config->num_content_data_blocks);
+                READ_NEXT_LINE()
               }
             }
           }
@@ -874,22 +810,14 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->num_comp_pairs =
                 (atoi((const pCHAR8)&line[strlen(STRING_NUM_COMP_PAIRS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
             for (j = 0; j < 2 * pstr_asi_config->num_comp_pairs; j++)
             {
               if (strncmp((pCHAR8)line, STRING_ELEMENT_ID, strlen(STRING_ELEMENT_ID)) == 0)
               {
                 pstr_asi_config->element_id[j] =
                     (atoi((const pCHAR8)&line[strlen(STRING_ELEMENT_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
             }
           }
@@ -901,42 +829,26 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->has_non_std_screen_size[i] =
                 (atoi((const pCHAR8)&line[strlen(STRING_HAS_NON_STD_SCRN_SIZE)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (strncmp((pCHAR8)line, STRING_SCRN_SIZE_AZ, strlen(STRING_SCRN_SIZE_AZ)) == 0)
           {
             pstr_asi_config->screen_size_az =
                 (atoi((const pCHAR8)&line[strlen(STRING_SCRN_SIZE_AZ)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (strncmp((pCHAR8)line, STRING_SCRN_SIZE_EL, strlen(STRING_SCRN_SIZE_EL)) == 0)
           {
             pstr_asi_config->screen_size_el =
                 (atoi((const pCHAR8)&line[strlen(STRING_SCRN_SIZE_EL)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (strncmp((pCHAR8)line, STRING_SCRN_SIZE_BOT_EL, strlen(STRING_SCRN_SIZE_BOT_EL)) ==
               0)
           {
             pstr_asi_config->screen_size_bot_el[i] =
                 (atoi((const pCHAR8)&line[strlen(STRING_SCRN_SIZE_BOT_EL)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
         }
         if (pstr_asi_config->data_type[i] == 7)
@@ -947,44 +859,28 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->overwrite_prod_screen_size_data =
                 ((int)line[strlen(STRING_OVERWRITE_PRO_SCRN_SIZE_DATA)] - '0');
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (strncmp((pCHAR8)line, STRING_DFLT_SCRN_SZ_LEFT_AZ,
                       strlen(STRING_DFLT_SCRN_SZ_LEFT_AZ)) == 0)
           {
             pstr_asi_config->default_screen_sz_left_az =
                 (atoi((const pCHAR8)&line[strlen(STRING_DFLT_SCRN_SZ_LEFT_AZ)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (strncmp((pCHAR8)line, STRING_DFLT_SCRN_SZ_RIGHT_AZ,
                       strlen(STRING_DFLT_SCRN_SZ_RIGHT_AZ)) == 0)
           {
             pstr_asi_config->default_screen_sz_right_az =
                 (atoi((const pCHAR8)&line[strlen(STRING_DFLT_SCRN_SZ_RIGHT_AZ)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (strncmp((pCHAR8)line, STRING_NUM_PRESET_PROD_SCRNS,
                       strlen(STRING_NUM_PRESET_PROD_SCRNS)) == 0)
           {
             pstr_asi_config->num_preset_prod_screens =
                 (atoi((const pCHAR8)&line[strlen(STRING_NUM_PRESET_PROD_SCRNS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
             for (j = 0; j < pstr_asi_config->num_preset_prod_screens; j++)
             {
               if (strncmp((pCHAR8)line, STRING_SCRN_GRP_PRESET_ID,
@@ -992,215 +888,176 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
               {
                 pstr_asi_config->screen_grp_preset_id[j] =
                     (atoi((const pCHAR8)&line[strlen(STRING_SCRN_GRP_PRESET_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_CENTERED_IN_AZ, strlen(STRING_CENTERED_IN_AZ)) ==
                   0)
               {
                 pstr_asi_config->centered_in_az[j] =
                     (atoi((const pCHAR8)&line[strlen(STRING_CENTERED_IN_AZ)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_SCRN_SZ_LEFT_AZ, strlen(STRING_SCRN_SZ_LEFT_AZ)) ==
                   0)
               {
                 pstr_asi_config->screen_sz_left_az[j] =
                     (atoi((const pCHAR8)&line[strlen(STRING_SCRN_SZ_LEFT_AZ)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_SCRN_SZ_RIGHT_AZ,
                           strlen(STRING_SCRN_SZ_RIGHT_AZ)) == 0)
               {
                 pstr_asi_config->screen_sz_right_az[j] =
                     (atoi((const pCHAR8)&line[strlen(STRING_SCRN_SZ_RIGHT_AZ)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_SCRN_SZ_TOP_EL, strlen(STRING_SCRN_SZ_TOP_EL)) ==
                   0)
               {
                 pstr_asi_config->screen_sz_top_el[j] =
                     (atoi((const pCHAR8)&line[strlen(STRING_SCRN_SZ_TOP_EL)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
             }
           }
         }
         if (pstr_asi_config->data_type[i] == 8)
         {
-          if (strncmp((pCHAR8)line, STRING_NUM_GRP_PRESETS, strlen(STRING_NUM_GRP_PRESETS)) == 0)
-          {
-            pstr_asi_config->num_group_presets =
-                (atoi((const pCHAR8)&line[strlen(STRING_NUM_GRP_PRESETS)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+          WORD32 pr;
+          if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_HAS_SWITCH_COND, strlen(STRING_GRP_PR_EXT_HAS_SWITCH_COND)) == 0)
             {
-              ii++;
+            impeghe_mae_read_csv_char(&pstr_asi_config->has_switch_group_conditions[0],
+                    &line[strlen(STRING_GRP_PR_EXT_HAS_SWITCH_COND)],
+                    pstr_asi_config->num_group_presets);
+            READ_NEXT_LINE();
             }
-            for (i = 0; i < pstr_asi_config->num_group_presets; i++)
+          for (pr = 0; pr < pstr_asi_config->num_group_presets; pr++)
             {
-              if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GRP_ID,
-                          strlen(STRING_GRP_PRESET_DEFN_GRP_ID)) == 0)
+            if (pstr_asi_config->has_switch_group_conditions[pr])
               {
-                pstr_asi_config->grp_preset_def_grp_id[i] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_GRP_ID)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+              if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_IS_SWITCH_COND_PRESET_DEF, strlen(STRING_GRP_PR_EXT_IS_SWITCH_COND_PRESET_DEF)) == 0)
                 {
-                  ii++;
+                impeghe_mae_read_csv_char(&pstr_asi_config->is_switch_group_condition_preset_definition[pr][0],
+                        &line[strlen(STRING_GRP_PR_EXT_IS_SWITCH_COND_PRESET_DEF)],
+                        pstr_asi_config->grp_preset_def_num_conditions[pr]);
+                READ_NEXT_LINE();
+              }
                 }
               }
-              if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_PRESET_KIND,
-                          strlen(STRING_GRP_PRESET_DEFN_PRESET_KIND)) == 0)
-              {
-                pstr_asi_config->grp_preset_def_preset_kind[i] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_PRESET_KIND)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+          if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_HAS_DOWNMIX_ID, strlen(STRING_GRP_PR_EXT_HAS_DOWNMIX_ID)) == 0)
                 {
-                  ii++;
+            impeghe_mae_read_csv_char(&pstr_asi_config->has_downmix_id_group_preset_extensions[0],
+                    &line[strlen(STRING_GRP_PR_EXT_HAS_DOWNMIX_ID)],
+                    pstr_asi_config->num_group_presets);
+            READ_NEXT_LINE();
                 }
-              }
-              if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_NUM_CONDITION,
-                          strlen(STRING_GRP_PRESET_DEFN_NUM_CONDITION)) == 0)
+          for (pr = 0; pr < pstr_asi_config->num_group_presets; pr++)
+                {
+            if (pstr_asi_config->has_downmix_id_group_preset_extensions[pr])
+                  {
+              if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_NUM_DOWNMIX_ID, strlen(STRING_GRP_PR_EXT_NUM_DOWNMIX_ID)) == 0)
+                    {
+                impeghe_mae_read_csv_char(&pstr_asi_config->num_dmx_id_group_preset_ext[pr],
+                        &line[strlen(STRING_GRP_PR_EXT_NUM_DOWNMIX_ID)],
+                        1);
+                READ_NEXT_LINE();
+                    }
+              if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_DOWNMIX_ID, strlen(STRING_GRP_PR_EXT_DOWNMIX_ID)) == 0)
               {
-                pstr_asi_config->grp_preset_def_num_conditions[i] =
-                    (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_NUM_CONDITION)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+                impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_downmix_id[pr][0],
+                        &line[strlen(STRING_GRP_PR_EXT_DOWNMIX_ID)],
+                        pstr_asi_config->num_dmx_id_group_preset_ext[pr]);
+                READ_NEXT_LINE();
+                  }
+              if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_NUM_COND, strlen(STRING_GRP_PR_EXT_NUM_COND)) == 0)
+                  {
+                impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_num_conditions[pr][1],
+                        &line[strlen(STRING_GRP_PR_EXT_NUM_COND)],
+                        pstr_asi_config->num_dmx_id_group_preset_ext[pr]);
+                READ_NEXT_LINE();
+                  }
+              for (j = 0; j < pstr_asi_config->num_dmx_id_group_preset_ext[pr]; j++)
+                  {
+                if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_IS_SWITCH_COND, strlen(STRING_GRP_PR_EXT_IS_SWITCH_COND)) == 0)
+                    {
+                  impeghe_mae_read_csv_char(&pstr_asi_config->is_switch_group_condition[pr][j + 1][0],
+                          &line[strlen(STRING_GRP_PR_EXT_IS_SWITCH_COND)],
+                          pstr_asi_config->group_preset_num_conditions[pr][j + 1]);
+                  READ_NEXT_LINE();
+                    }
+                if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_SW_GRP_GRP_ID, strlen(STRING_GRP_PR_EXT_SW_GRP_GRP_ID)) == 0)
                 {
-                  ii++;
+                  impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_group_id[pr][j + 1][0],
+                          &line[strlen(STRING_GRP_PR_EXT_SW_GRP_GRP_ID)],
+                          pstr_asi_config->group_preset_num_conditions[pr][j + 1]);
+                  READ_NEXT_LINE();
+                  }
+                if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_COND_ON_OFF, strlen(STRING_GRP_PR_EXT_COND_ON_OFF)) == 0)
+                  {
+                  impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_condition_on_off[pr][j + 1][0],
+                          &line[strlen(STRING_GRP_PR_EXT_COND_ON_OFF)],
+                          pstr_asi_config->group_preset_num_conditions[pr][j + 1]);
+                  READ_NEXT_LINE();
                 }
-                for (j = 0; j < pstr_asi_config->grp_preset_def_num_conditions[i]; j++)
-                {
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_REF_ID,
-                              strlen(STRING_GRP_PRESET_DEFN_REF_ID)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_reference_id[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_REF_ID)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+                for (k = 0; k < pstr_asi_config->group_preset_num_conditions[pr][j + 1]; k++)
                     {
-                      ii++;
+                  if (pstr_asi_config->group_preset_condition_on_off[pr][j + 1][k])
+                  {
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_DISABLE_GAIN_INTERACT, strlen(STRING_GRP_PR_EXT_DISABLE_GAIN_INTERACT)) == 0)
+                    {
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_disable_gain_interactivity[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_DISABLE_GAIN_INTERACT)],
+                              1);
+                      READ_NEXT_LINE();
                     }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_CON_ON_OFF,
-                              strlen(STRING_GRP_PRESET_DEFN_CON_ON_OFF)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_cond_on_off[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_CON_ON_OFF)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_GAIN_FLAG, strlen(STRING_GRP_PR_EXT_GAIN_FLAG)) == 0)
                     {
-                      ii++;
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_gain_flag[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_GAIN_FLAG)],
+                              1);
+                      READ_NEXT_LINE();
+                  }
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_GAIN, strlen(STRING_GRP_PR_EXT_GAIN)) == 0)
+                  {
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_gain[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_GAIN)],
+                              1);
+                      READ_NEXT_LINE();
                     }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GAIN_FLAG,
-                              strlen(STRING_GRP_PRESET_DEFN_GAIN_FLAG)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_gain_flag[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_GAIN_FLAG)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_DISABLE_POS_INTERACT, strlen(STRING_GRP_PR_EXT_DISABLE_POS_INTERACT)) == 0)
                     {
-                      ii++;
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_disable_position_interactivity[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_DISABLE_POS_INTERACT)],
+                              1);
+                      READ_NEXT_LINE();
+                  }
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_POS_FLAG, strlen(STRING_GRP_PR_EXT_POS_FLAG)) == 0)
+                  {
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_position_flag[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_POS_FLAG)],
+                              1);
+                      READ_NEXT_LINE();
                     }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GAIN,
-                              strlen(STRING_GRP_PRESET_DEFN_GAIN)) == 0)
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_AZ_OFFSET, strlen(STRING_GRP_PR_EXT_AZ_OFFSET)) == 0)
                   {
-                    pstr_asi_config->grp_preset_def_gain[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_GAIN)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_az_offset[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_AZ_OFFSET)],
+                              1);
+                      READ_NEXT_LINE();
                     }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT,
-                              strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_disable_gain_interact[i][j] = (atoi(
-                        (const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_EL_OFFSET, strlen(STRING_GRP_PR_EXT_EL_OFFSET)) == 0)
                     {
-                      ii++;
-                    }
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_el_offset[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_EL_OFFSET)],
+                              1);
+                      READ_NEXT_LINE();
                   }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT,
-                              strlen(STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT)) == 0)
+                    if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_DIST_FACT, strlen(STRING_GRP_PR_EXT_DIST_FACT)) == 0)
                   {
-                    pstr_asi_config->grp_preset_def_disable_position_interact[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(
-                            STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT,
-                              strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_position_interact[i][j] = (atoi(
-                        (const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_AZ_OFFSET,
-                              strlen(STRING_GRP_PRESET_DEFN_AZ_OFFSET)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_azimuth_offset[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_AZ_OFFSET)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_EL_OFFSET,
-                              strlen(STRING_GRP_PRESET_DEFN_EL_OFFSET)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_elevation_offset[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_EL_OFFSET)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
-                    }
-                  }
-                  if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DIST_FACTOR,
-                              strlen(STRING_GRP_PRESET_DEFN_DIST_FACTOR)) == 0)
-                  {
-                    pstr_asi_config->grp_preset_def_dist_factor[i][j] =
-                        (atoi((const pCHAR8)&line[strlen(STRING_GRP_PRESET_DEFN_DIST_FACTOR)]));
-                    memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                    if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                    {
-                      ii++;
+                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_dist_factor[pr][j + 1][k],
+                              &line[strlen(STRING_GRP_PR_EXT_DIST_FACT)],
+                              1);
+                      READ_NEXT_LINE();
                     }
                   }
                 }
@@ -1218,11 +1075,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
               {
                 pstr_asi_config->group_loudness[k] =
                     (atoi((const pCHAR8)&line[strlen(STRING_GRP_LOUDNESS)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
             }
           }
@@ -1231,11 +1084,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
           {
             pstr_asi_config->default_params_present =
                 (atoi((const pCHAR8)&line[strlen(STRING_DFLT_PARAM_PRESENT)]));
-            memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-            if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-            {
-              ii++;
-            }
+            READ_NEXT_LINE()
           }
           if (pstr_asi_config->default_params_present)
           {
@@ -1246,11 +1095,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
               {
                 pstr_asi_config->default_include_group[k] =
                     (atoi((const pCHAR8)&line[strlen(STRING_DFLT_INCL_GRP)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
             }
             if (strncmp((pCHAR8)line, STRING_DFLT_MIN_MAX_GAIN_PRESENT,
@@ -1258,11 +1103,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
             {
               pstr_asi_config->default_min_max_gain_present =
                   (atoi((const pCHAR8)&line[strlen(STRING_DFLT_MIN_MAX_GAIN_PRESENT)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              READ_NEXT_LINE()
             }
 
             if (pstr_asi_config->default_min_max_gain_present)
@@ -1271,21 +1112,13 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
               {
                 pstr_asi_config->default_min_gain =
                     (atoi((const pCHAR8)&line[strlen(STRING_DFLT_MIN_GAIN)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
               if (strncmp((pCHAR8)line, STRING_DFLT_MAX_GAIN, strlen(STRING_DFLT_INCL_GRP)) == 0)
               {
                 pstr_asi_config->default_max_gain =
                     (atoi((const pCHAR8)&line[strlen(STRING_DFLT_MAX_GAIN)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
             }
           }
@@ -1296,11 +1129,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
             {
               pstr_asi_config->preset_params_present[k] =
                   (atoi((const pCHAR8)&line[strlen(STRING_PRESET_PARAM_PRESENT)]));
-              memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-              if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-              {
-                ii++;
-              }
+              READ_NEXT_LINE()
             }
             if (pstr_asi_config->preset_params_present[k])
             {
@@ -1311,11 +1140,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                 {
                   pstr_asi_config->preset_include_group[k][j] =
                       (atoi((const pCHAR8)&line[strlen(STRING_PRESET_INCLUDE_GRP)]));
-                  memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                  if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                  {
-                    ii++;
-                  }
+                  READ_NEXT_LINE()
                 }
               }
               if (strncmp((pCHAR8)line, STRING_PRESET_MIN_MAX_PRESENT,
@@ -1323,11 +1148,7 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
               {
                 pstr_asi_config->preset_min_max_gain_present[k] =
                     (atoi((const pCHAR8)&line[strlen(STRING_PRESET_MIN_MAX_PRESENT)]));
-                memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                {
-                  ii++;
-                }
+                READ_NEXT_LINE()
               }
               if (pstr_asi_config->preset_min_max_gain_present[k])
               {
@@ -1336,22 +1157,14 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                 {
                   pstr_asi_config->preset_min_gain[k] =
                       (atoi((const pCHAR8)&line[strlen(STRING_PRESET_MIN_GAIN)]));
-                  memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                  if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                  {
-                    ii++;
-                  }
+                  READ_NEXT_LINE()
                 }
                 if (strncmp((pCHAR8)line, STRING_PRESET_MAX_GAIN, strlen(STRING_DFLT_INCL_GRP)) ==
                     0)
                 {
                   pstr_asi_config->preset_max_gain[k] =
                       (atoi((const pCHAR8)&line[strlen(STRING_PRESET_MAX_GAIN)]));
-                  memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
-                  if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
-                  {
-                    ii++;
-                  }
+                  READ_NEXT_LINE()
                 }
               }
             }
@@ -1364,3 +1177,4 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
   fclose(file);
   return 0;
 }
+

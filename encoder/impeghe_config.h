@@ -135,6 +135,7 @@ typedef struct
   UWORD32 num_config_extensions;
   UWORD32 usac_config_ext_type[USAC_MAX_CONFIG_EXTENSIONS];
   UWORD32 usac_config_ext_len[USAC_MAX_CONFIG_EXTENSIONS];
+  UWORD8 *usac_config_ext_buf[USAC_MAX_CONFIG_EXTENSIONS];
   UWORD8 usac_cfg_ext_info_buf[USAC_MAX_CONFIG_EXTENSIONS][MAX_CHANNEL_BITS / MAX_SHORT_WINDOWS];
   WORD32 num_out_channels;
   WORD32 num_signal_grp;

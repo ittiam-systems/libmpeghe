@@ -264,18 +264,22 @@ static VOID impeghe_mae_write_description_data(ia_bit_buf_struct *it_bit_buf,
     tmp = ptr_description_data->group_id[n];
     bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, group_id_bits);
 
-    tmp = ptr_description_data->num_descr_languages[n];
+    tmp = ptr_description_data->num_descr_languages[n] - 1;
     bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 4);
 
-    for (i = 0; i < ptr_description_data->num_descr_languages[n] + 1; i++)
+    for (i = 0; i < ptr_description_data->num_descr_languages[n]; i++)
     {
-      tmp = ptr_description_data->descr_language[n][i];
-      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 24);
-
-      tmp = ptr_description_data->descr_data_length[n][i];
+      tmp = ptr_description_data->descr_language[n][i][0];
+      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
+      tmp = ptr_description_data->descr_language[n][i][1];
+      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
+      tmp = ptr_description_data->descr_language[n][i][2];
       bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
 
-      for (c = 0; c < ptr_description_data->descr_data_length[n][i] + 1; c++)
+      tmp = ptr_description_data->descr_data_length[n][i] - 1;
+      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
+
+      for (c = 0; c < ptr_description_data->descr_data_length[n][i]; c++)
       {
         tmp = ptr_description_data->descr_data[n][i][c];
         bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
@@ -434,8 +438,12 @@ static VOID impeghe_mae_write_content_data(ia_bit_buf_struct *it_bit_buf,
 
     if (tmp)
     {
-      tmp = ptr_content_data->content_language[n];
-      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 24);
+      tmp = ptr_content_data->content_language[n][0];
+      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
+      tmp = ptr_content_data->content_language[n][1];
+      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
+      tmp = ptr_content_data->content_language[n][2];
+      bits_written += impeghe_write_bits_buf(it_bit_buf, tmp, 8);
     }
   }
   *ptr_bit_cnt = bits_written;
@@ -577,14 +585,15 @@ static VOID impeghe_mae_write_prod_screen_sz_data_ext(
  *
  *  \param [out] it_bit_buf					Pointer to bit-buffer structure
  *  \param [in]  ptr_group_presets_definition	Pointer to group presets definition structure
- *  \param [in]  num_group_presets				Number of groups
+ *  \param [in]  num_group_presets				Number of group preset
  *  \param [out] ptr_bit_cnt					Pointer to number of bits written
+ *  \param [in] preset_definition					Preset definition
  *
  *  \return VOID
  */
 static VOID impeghe_mae_asi_group_presets_def_ext(
     ia_bit_buf_struct *it_bit_buf, ia_mae_group_presets_def_ext *pstr_group_presets_def_ext,
-    WORD32 num_group_presets, WORD32 *ptr_bit_cnt, WORD32 *num_conditions)
+    WORD32 num_group_presets, WORD32 *ptr_bit_cnt, ia_mae_group_presets_def *preset_definition)
 {
   WORD32 bits_written = 0;
   WORD32 grp, cnt, idx;
@@ -595,10 +604,10 @@ static VOID impeghe_mae_asi_group_presets_def_ext(
         impeghe_write_bits_buf(it_bit_buf, pstr_presets_def_ext.has_switch_group_conditions, 1);
     if (pstr_presets_def_ext.has_switch_group_conditions)
     {
-      for (cnt = 0; cnt < num_conditions[0] + 1; cnt++)
+      for (cnt = 0; cnt < preset_definition[grp].num_conditions[0] ; cnt++)
       {
         bits_written += impeghe_write_bits_buf(
-            it_bit_buf, pstr_presets_def_ext.is_switch_group_condition[cnt][0], 1);
+            it_bit_buf, pstr_presets_def_ext.is_switch_group_condition_preset_def[cnt], 1);
       }
     }
     bits_written += impeghe_write_bits_buf(
@@ -613,9 +622,9 @@ static VOID impeghe_mae_asi_group_presets_def_ext(
       {
         bits_written += impeghe_write_bits_buf(
             it_bit_buf, pstr_presets_def_ext.group_preset_downmix_id[cnt] - 1, 7);
-        bits_written += impeghe_write_bits_buf(it_bit_buf, num_conditions[cnt] - 1, 4);
+        bits_written += impeghe_write_bits_buf(it_bit_buf, preset_definition[grp].num_conditions[0] - 1, 4);
 
-        for (idx = 0; idx < num_conditions[cnt] - 1; idx++)
+        for (idx = 0; idx < preset_definition[grp].num_conditions[0]; idx++)
         {
           bits_written += impeghe_write_bits_buf(
               it_bit_buf, pstr_presets_def_ext.is_switch_group_condition[cnt][idx], 1);
@@ -779,9 +788,9 @@ WORD32 impeghe_mae_asi_data_write(ia_bit_buf_struct *it_bit_buf,
       impeghe_create_bit_buffer(&it_bit_buf_local, &(ptr_mae_asi->mae_info_buf[i][0]),
                                 sizeof(ptr_mae_asi->mae_info_buf[i]));
       impeghe_mae_asi_group_presets_def_ext(
-          &it_bit_buf_local, &ptr_mae_asi->group_presets_definition_ext[i],
+          &it_bit_buf_local, &ptr_mae_asi->group_presets_definition_ext[0],
           ptr_mae_asi->num_group_presets, &bit_cnt_ext,
-          ptr_mae_asi->group_presets_definition[i].num_conditions);
+          &ptr_mae_asi->group_presets_definition[0]);
       ptr_mae_data->data_length[i] = (bit_cnt_ext + 7) >> 3;
       break;
     }
