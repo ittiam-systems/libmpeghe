@@ -63,6 +63,9 @@ typedef struct
   UWORD32 startOffsetInSamples[MAX_TRACKS_PER_LAYER];
   UWORD32 playTimeInSamples[MAX_TRACKS_PER_LAYER];
 
+  UWORD32 ia_mp4_stts_entries;
+  UWORD32 *ia_mp4_stts_entries_sample_count;
+  UWORD32 *ia_mp4_stts_entries_sample_delta;
 } metadata_info;
 
 typedef struct ia_mp4_writer_struct

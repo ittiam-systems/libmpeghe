@@ -73,7 +73,6 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
 {
   WORD32 start_offset_samples;
   WORD32 i_dec_len = 0;
-  WORD32 skip_bytes = 0;
   UWORD8 *chtemp;
   ia_mp4_writer_struct *mp4_writer_io = (ia_mp4_writer_struct *)malloc(sizeof(*mp4_writer_io));
   memset(mp4_writer_io, 0, sizeof(ia_mp4_writer_struct));
@@ -144,7 +143,7 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
   mp4_writer_io->meta_info.movie_time_scale = header_info->sampling_freq;
   mp4_writer_io->meta_info.playTimeInSamples[0] =
       frame_count * 1024; // Future this will have to change accd to config frame
-  mp4_writer_io->meta_info.ia_mp4_stsz_size = (UWORD32 *)frame_lengths;
+  mp4_writer_io->meta_info.ia_mp4_stsz_size = (UWORD32 *)frame_packet_content_lengths;
 
   // init size
   mp4_writer_io->mdat_size = 0;
@@ -165,6 +164,11 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
   mp4_writer_io->meta_info.startOffsetInSamples[0] = start_offset_samples;
   // playTimeInSamples
   mp4_writer_io->meta_info.playTimeInSamples[0] = frame_count * 1024;
+
+  // audio truncation
+  mp4_writer_io->meta_info.ia_mp4_stts_entries = header_info->stts_entries;
+  mp4_writer_io->meta_info.ia_mp4_stts_entries_sample_count = header_info->stts_entries_sample_count;
+  mp4_writer_io->meta_info.ia_mp4_stts_entries_sample_delta = header_info->stts_entries_sample_delta;
 
   // gen mp4 file
   impeghe_mp4_writer(mp4_writer_io, 1); // mp4 header
@@ -194,7 +198,7 @@ IA_ERRORCODE impegh_mp4_mux(packet_info *header_info)
     {
       fwrite(&cTemp, 1, 1, g_pf_out);
       local_counter++;
-      if (local_counter == frame_lengths[i])
+      if (local_counter == frame_packet_content_lengths[i])
       {
         i++;
         if (i == frame_count)
@@ -289,10 +293,17 @@ IA_ERRORCODE impegh_mp4_multiplex()
   } while (1); /* Read the entire file to get the number of frames */
 
   /* Initialize the memory for frame_lengths and frame_header_lengths based on number of frames */
-  frame_lengths = (WORD32 *)malloc(sizeof(frame_lengths[0]) * frame_count);
+  frame_packet_content_lengths = (WORD32 *)malloc(sizeof(frame_packet_content_lengths[0]) * frame_count);
   frame_header_lengths = (WORD32 *)malloc(sizeof(frame_header_lengths[0]) * frame_count);
-  memset(frame_lengths, 0, sizeof(frame_lengths[0]) * frame_count);
+  memset(frame_packet_content_lengths, 0, sizeof(frame_packet_content_lengths[0]) * frame_count);
   memset(frame_header_lengths, 0, sizeof(frame_header_lengths[0]) * frame_count);
+
+  header_info.audio_truncation_lengths = (WORD32 *)malloc(sizeof(header_info.audio_truncation_lengths[0]) * frame_count);
+  header_info.stts_entries_sample_count = (UWORD32 *)malloc(sizeof(UWORD32) * frame_count);
+  header_info.stts_entries_sample_delta = (UWORD32 *)malloc(sizeof(UWORD32) * frame_count);
+  memset(header_info.audio_truncation_lengths, 0, sizeof(WORD32) * frame_count);
+  memset(header_info.stts_entries_sample_count, 0, sizeof(UWORD32) * frame_count);
+  memset(header_info.stts_entries_sample_delta, 0, sizeof(UWORD32) * frame_count);
 
   init = 1;
   fseek(g_pf_inp, 0L, SEEK_SET);
@@ -318,36 +329,44 @@ IA_ERRORCODE impegh_mp4_multiplex()
 
     if (op_fmt == MP4_MHM1)
     {
-      frame_lengths[frame_count] += ((header_info.frame_packet_bits + 7) >> 3)
+      frame_packet_content_lengths[frame_count] += ((header_info.frame_packet_bits + 7) >> 3)
         + ((header_info.other_packet_bits + 7) >> 3)
         + ((header_info.asi_packet_bits + 7) >> 3)
         + ((header_info.sync_packet_bits + 7) >> 3)
-        + ((header_info.config_packet_bits + 7) >> 3);
+        + ((header_info.config_packet_bits + 7) >> 3)
+        + ((header_info.audio_truncation_packet_bits + 7) >> 3);
+      header_info.audio_truncation_lengths[frame_count] = header_info.current_audio_truncation_length;
       header_info.sync_packet_bits = 0;
       header_info.config_packet_bits = 0;
       header_info.other_packet_bits = 0;
       header_info.asi_packet_bits = 0;
+      header_info.current_audio_truncation_length = 0;
+      header_info.audio_truncation_packet_bits = 0;
 
     }
     else /* MHA1 condition */
     {
-      frame_lengths[frame_count] = str_pac_info.packet_length; // frame data
+      frame_packet_content_lengths[frame_count] = str_pac_info.packet_length; // frame data
 
       //config packets
       frame_header_lengths[frame_count] += ((header_info.other_packet_bits + 7) >> 3)
         + ((header_info.asi_packet_bits + 7) >> 3)
         + ((header_info.sync_packet_bits + 7) >> 3)
-        + ((header_info.config_packet_bits + 7) >> 3);
+        + ((header_info.config_packet_bits + 7) >> 3)
+        + ((header_info.audio_truncation_packet_bits + 7) >> 3);
       //frame packet header
       frame_header_lengths[frame_count] += ((header_info.frame_packet_bits + 7) >> 3) - str_pac_info.packet_length;
+      header_info.audio_truncation_lengths[frame_count] = header_info.current_audio_truncation_length;
       header_info.other_packet_bits = 0;
       header_info.sync_packet_bits = 0;
       header_info.config_packet_bits = 0;
       header_info.asi_packet_bits = 0;
+      header_info.current_audio_truncation_length = 0;
+      header_info.audio_truncation_packet_bits = 0;
     }
 
-    header_info.max_frame_data_size = header_info.max_frame_data_size > frame_lengths[frame_count] ? header_info.max_frame_data_size : frame_lengths[frame_count];
-    header_info.total_frame_data_size = header_info.total_frame_data_size + frame_lengths[frame_count];
+    header_info.max_frame_data_size = header_info.max_frame_data_size > frame_packet_content_lengths[frame_count] ? header_info.max_frame_data_size : frame_packet_content_lengths[frame_count];
+    header_info.total_frame_data_size = header_info.total_frame_data_size + frame_packet_content_lengths[frame_count];
     frame_count++;
     header_info.frame_count = frame_count;
 
@@ -374,6 +393,7 @@ IA_ERRORCODE impegh_mp4_multiplex()
     }
   } while (1);
 
+  impegh_create_stts_entries(&header_info);
 
   error = impegh_mp4_mux(&header_info);
   if (error)
@@ -382,15 +402,31 @@ IA_ERRORCODE impegh_mp4_multiplex()
   }
   /* Reset to 0 for next file */
   frame_count = 0;
-  if (frame_lengths)
+  if (frame_packet_content_lengths)
   {
-    free(frame_lengths);
+    free(frame_packet_content_lengths);
   }
 
   if (frame_header_lengths)
   {
     free(frame_header_lengths);
   }
+
+  if (header_info.audio_truncation_lengths)
+  {
+    free(header_info.audio_truncation_lengths);
+  }
+  if (header_info.stts_entries_sample_count)
+  {
+    free(header_info.stts_entries_sample_count);
+    header_info.stts_entries_sample_count = NULL;
+  }
+  if (header_info.stts_entries_sample_delta)
+  {
+    free(header_info.stts_entries_sample_delta);
+    header_info.stts_entries_sample_delta = NULL;
+  }
+
   if (arr)
   {
     free(arr);

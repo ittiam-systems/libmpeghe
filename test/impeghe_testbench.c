@@ -1543,6 +1543,9 @@ static VOID impehge_print_config_params(ia_input_config *pstr_input_config,
 IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
 {
   UWORD32 *ia_stsz_size = NULL;
+  UWORD32 ia_stts_entries = 0;
+  UWORD32 *ia_stts_entries_sample_count = NULL;
+  UWORD32 *ia_stts_entries_sample_delta = NULL;
 
   LOOPIDX frame_count = 0;
 
@@ -2084,6 +2087,20 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
     memset(ia_stsz_size, 0, (expected_frame_count + 2) * sizeof(WORD32));
   }
 
+  /* Create STTS entries */
+
+  // NOTE: hardcoding number of stts entries to 1 since we are not writing audio truncation packets currently.
+  ia_stts_entries = 1;
+
+  ia_stts_entries_sample_count = malloc_global(ia_stts_entries * sizeof(WORD32), 0);
+  ia_stts_entries_sample_delta = malloc_global(ia_stts_entries * sizeof(WORD32), 0);
+  memset(ia_stts_entries_sample_count, 0, ia_stts_entries * sizeof(WORD32));
+  memset(ia_stts_entries_sample_delta, 0, ia_stts_entries * sizeof(WORD32));
+
+  // NOTE: since there are no audio truncation packets, stts count would be = stsz entries (expected frame count)
+  ia_stts_entries_sample_count[0] = expected_frame_count;
+  ia_stts_entries_sample_delta[0] = 1024;
+
   /*Write o/p File headers if any*/
   if (op_fmt == RAW_MHAS)
   {
@@ -2108,6 +2125,9 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
     mp4_writer_io.meta_info.movie_time_scale = pstr_in_cfg->aud_ch_pcm_cfg[0].sample_rate;
     mp4_writer_io.meta_info.playTimeInSamples[0] = play_time_in_samples;
     mp4_writer_io.meta_info.ia_mp4_stsz_size = ia_stsz_size;
+    mp4_writer_io.meta_info.ia_mp4_stts_entries = ia_stts_entries;
+    mp4_writer_io.meta_info.ia_mp4_stts_entries_sample_count = ia_stts_entries_sample_count;
+    mp4_writer_io.meta_info.ia_mp4_stts_entries_sample_delta = ia_stts_entries_sample_delta;
 
     // init size
     mp4_writer_io.mdat_size = 0;
@@ -2368,6 +2388,14 @@ clean_return:
   if (ia_stsz_size)
   {
     free(ia_stsz_size);
+  }
+  if (ia_stts_entries_sample_count)
+  {
+    free(ia_stts_entries_sample_count);
+  }
+  if (ia_stts_entries_sample_delta)
+  {
+    free(ia_stts_entries_sample_delta);
   }
 
   return IA_NO_ERROR;

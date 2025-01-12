@@ -358,16 +358,11 @@ static WORD32 is_lang_present(WORD32 arr[], WORD32 size, WORD32 val) {
 
 WORD32 impegh_find_unique_language(ia_mae_data_struct *mae_data, WORD32 *descr_language)
 {
-  WORD32 group_desc_data_language_cnt = 0;
-  WORD32 switch_group_desc_data_language_cnt = 0;
-  WORD32 group_preset_desc_data_language_cnt = 0;
-
   WORD32 unique_group_desc_data_language_cnt = 0;
   WORD32 unique_switch_group_desc_data_language_cnt = 0;
   WORD32 unique_group_preset_desc_data_language_cnt = 0;
 
   WORD32 num_descr_languages = 0;
-  WORD32 desc_data_language[16] = { 0 };
   WORD32 group_desc_data_language[16] = { 0 };
   WORD32 switch_group_desc_data_languag[16] = {0};
   WORD32 group_preset_desc_data_language[16] = { 0 };
@@ -1294,7 +1289,6 @@ VOID impegh_create_init_bit_buf(ia_bit_buf_struct *it_bit_buff, UWORD8 *ptr_bit_
 
 IA_ERRORCODE impegh_audio_scene_info_process(ia_bit_buf_struct *ptr_bit_buf, packet_info *header_info)
 {
-  WORD32 tmp = 0, tmp_value = 0;
   ia_bit_buf_struct ptr_maeg_buf;
   ia_bit_buf_struct ptr_maes_buf;
   ia_bit_buf_struct ptr_maep_buf;
@@ -1511,7 +1505,7 @@ WORD32 FrameworkConfig3d(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *
   pstr_FrameworkConfig3d_data = &audio_config_data->FrameworkConfig3d_data;
   //Signals3d()
   {
-    int grp, signalGroupType_grp_prev = 0;
+    int grp = 0;
     WORD32 escap_buffer_bist;
     int sigIdx = 0;
     pstr_FrameworkConfig3d_data->numAudioChannels = 0;
@@ -1608,9 +1602,8 @@ WORD32 mpegh3daSingleChannelElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpe
 
 WORD32 mpegh3daChannelPairElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh3daCoreConfig *mpegh3daCoreConfig_data, WORD32 total_channels)
 {
-  WORD32 stereoConfigIndex;
   WORD32 nBits;
-  WORD32 val;
+  WORD32 val = 0;
   switch (total_channels - 1)
   {
   case 15:
@@ -1644,19 +1637,6 @@ WORD32 mpegh3daChannelPairElementConfig(ia_bit_buf_struct *ptr_bit_buf, ia_mpegh
   {
     mpegh3daCoreConfig_data->igfIndependentTiling = impegh_read_bits_buf(ptr_bit_buf, 1);
   }
-  //add this block here
-  if (0)//(sbrRatioIndex > 0) 
-  {
-    //SbrConfig();
-  }
-  else
-  {
-    stereoConfigIndex = 0;
-  }
-  //if (stereoConfigIndex > 0) 
-  //{
-  //  Mps212Config(stereoConfigIndex);
-  //}
 
   mpegh3daCoreConfig_data->qceIndex = impegh_read_bits_buf(ptr_bit_buf, 2);
   if (mpegh3daCoreConfig_data->qceIndex > 0)
@@ -2078,7 +2058,6 @@ VOID ia_write_mhaD_dat(ia_bit_buf_struct *ptr_bit_buf, ia_3d_audio_cnfg_data *au
 
 IA_ERRORCODE impegh_3d_audio_config_data_process(ia_bit_buf_struct *ptr_bit_buf, packet_info *header_info)
 {
-  WORD32 tmp = 0, tmp_value = 0;
   ia_bit_buf_struct ptr_mhaD_buf;
   ia_bit_buf_struct ptr_mhaP_buf;
   ia_3d_audio_cnfg_data* audio_config_data = NULL;
@@ -2199,6 +2178,14 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
         header_info->config_packet_start_position += ((packet_info_bits + 7) >> 3) + packet_length;
       }
     }
+    else if (MHAS_PAC_TYP_AUDIOTRUNCATION == packet_type)
+    {
+      impegh_read_bits_buf(ptr_bit_buf, 1);  // isActive
+      impegh_read_bits_buf(ptr_bit_buf, 1);  // ati_reserved
+      impegh_read_bits_buf(ptr_bit_buf, 1);  // truncFromBegin
+      header_info->current_audio_truncation_length = impegh_read_bits_buf(ptr_bit_buf, 13);  // nTruncSamples
+      header_info->audio_truncation_packet_bits = packet_info_bits + 16;
+    }
     else if (MHAS_PAC_TYP_AUDIOSCENEINFO == packet_type)
     {
 
@@ -2265,7 +2252,7 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
     }
     if ((MHAS_PAC_TYP_MPEGH3DACFG != packet_type) &&
         (MHAS_PAC_TYP_MPEGH3DAFRAME != packet_type) && (MHAS_PAC_TYP_SYNC != packet_type) &&
-        (MHAS_PAC_TYP_AUDIOSCENEINFO != packet_type))
+        (MHAS_PAC_TYP_AUDIOSCENEINFO != packet_type) && (MHAS_PAC_TYP_AUDIOTRUNCATION != packet_type))
     {
       tmp = packet_length << 3;
       impegh_read_bits_buf(ptr_bit_buf, tmp);
@@ -2287,16 +2274,16 @@ IA_ERRORCODE impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info 
 
 IA_ERRORCODE impegh_file_parse(ia_bit_buf_struct *ptr_bit_buf)
 {
-  IA_ERRORCODE error = IA_NO_ERROR;
   WORD32 packet_type, packet_lbl, packet_length, tmp;
-  WORD32 bit_cnt_temp = 0;
   WORD32 bits_used;
   do
   {
-    bit_cnt_temp = ptr_bit_buf->cnt_bits;
     packet_type = impegh_read_escape_value(ptr_bit_buf, 3, 8, 8, &bits_used);
     packet_lbl = impegh_read_escape_value(ptr_bit_buf, 2, 8, 32, &bits_used);
     packet_length = impegh_read_escape_value(ptr_bit_buf, 11, 24, 24, &bits_used);
+
+    (void)packet_type;
+    (void)packet_lbl;
 
     tmp = packet_length << 3;
     tmp = impegh_read_bits_buf(ptr_bit_buf, tmp);
@@ -2304,4 +2291,29 @@ IA_ERRORCODE impegh_file_parse(ia_bit_buf_struct *ptr_bit_buf)
   } while(MHAS_PAC_TYP_MPEGH3DAFRAME != packet_type);
 
   return IA_NO_ERROR;
+}
+
+void impegh_create_stts_entries(packet_info *header_info)
+{
+  UWORD32 sample_count = 1;
+  UWORD32 index = 0;
+
+  for (int j = 1; j < header_info->frame_count; j++)
+  {
+    if (header_info->audio_truncation_lengths[j] == header_info->audio_truncation_lengths[j - 1])
+    {
+      sample_count++;
+    }
+    else
+    {
+      header_info->stts_entries_sample_count[index] = sample_count;
+      header_info->stts_entries_sample_delta[index] = 1024 - header_info->audio_truncation_lengths[j - 1];
+      index++;
+      sample_count = 1;  // reset counter
+    }
+  }
+  header_info->stts_entries_sample_count[index] = sample_count;
+  header_info->stts_entries_sample_delta[index] = 1024 - header_info->audio_truncation_lengths[header_info->frame_count - 1];
+  index++;
+  header_info->stts_entries = index;
 }

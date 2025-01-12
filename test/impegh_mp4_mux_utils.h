@@ -216,6 +216,12 @@ typedef struct packet_info
   WORD32 max_frame_data_size;
   WORD32 total_frame_data_size;
   WORD32 frame_count;
+  WORD32 audio_truncation_packet_bits;
+  WORD32 current_audio_truncation_length;
+  WORD32 *audio_truncation_lengths;
+  UWORD32 stts_entries;
+  UWORD32 *stts_entries_sample_count;
+  UWORD32 *stts_entries_sample_delta;
 } packet_info;
 
 typedef struct
@@ -658,5 +664,8 @@ WORD32 impegh_mhas_parse(ia_bit_buf_struct *ptr_bit_buf, ia_mhas_pac_info *ptr_p
                          packet_info *header_info);
 
 WORD32 impegh_file_parse(ia_bit_buf_struct *ptr_bit_buf);
+
+VOID impegh_create_stts_entries(packet_info *header_info);
+
 
 #endif

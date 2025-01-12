@@ -472,7 +472,7 @@ static WORD32 impeghe_mp4_write_stts(ia_mp4_writer_struct *pstr_mp4_writer_io, W
   WORD32 *ptr = (WORD32 *)ptr_buf;
   UWORD8 charbuf[10] = {'s', 't', 't', 's'};
   UWORD32 *data = (UWORD32 *)&charbuf[0];
-  WORD32 entry_count = 1;
+  WORD32 entry_count = pstr_mp4_writer_io->meta_info.ia_mp4_stts_entries;
 
   // box size
   *ptr++ = 0x0;
@@ -496,12 +496,12 @@ static WORD32 impeghe_mp4_write_stts(ia_mp4_writer_struct *pstr_mp4_writer_io, W
   for (i = 0; i < entry_count; i++)
   {
     // sample_count
-    box_type = impeghe_mp4_rev32(pstr_mp4_writer_io->meta_info.ia_mp4_stsz_entries);
+    box_type = impeghe_mp4_rev32(pstr_mp4_writer_io->meta_info.ia_mp4_stts_entries_sample_count[i]);
     *ptr++ = box_type;
     bytes_used += 4;
 
     // sample_delta = 1024 = frame size
-    box_type = impeghe_mp4_rev32(1024);
+    box_type = impeghe_mp4_rev32(pstr_mp4_writer_io->meta_info.ia_mp4_stts_entries_sample_delta[i]);
     *ptr++ = box_type;
     bytes_used += 4;
   }

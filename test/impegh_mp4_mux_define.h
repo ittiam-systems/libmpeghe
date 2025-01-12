@@ -66,7 +66,7 @@ typedef enum impeghe_op_fmts
 /*****************************************************************************/
 FILE *g_pf_inp;
 FILE *g_pf_out;
-WORD32 *frame_lengths;
+WORD32 *frame_packet_content_lengths;
 WORD32 *frame_header_lengths;
 WORD32 frame_count = 0;
 impeghe_op_fmts op_fmt = MP4_MHM1;
