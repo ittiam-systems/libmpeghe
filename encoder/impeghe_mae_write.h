@@ -283,6 +283,6 @@ WORD32 impeghe_mae_asi_write(ia_bit_buf_struct *it_bit_buf, ia_mae_audio_scene_i
                              WORD32 *ptr_bit_cnt);
 
 WORD32 impeghe_mhas_write_asi(ia_bit_buf_struct *it_bit_buff,
-                              UWORD8 *data, UWORD32 num_bytes);
+                              UWORD8 *data, UWORD32 num_bytes, WORD32 packet_lbl);
 
 #endif /*IMPEGHE_MAE_WRITE_H*/

@@ -288,6 +288,13 @@ static VOID impeghe_check_config_params(ia_input_config *pstr_input_config)
       pstr_input_config->str_ec_info_struct.ec_count = 0;
     }
   }
+  if (pstr_input_config->num_preroll_frames < 0 ||
+    pstr_input_config->num_preroll_frames > MAX_PREROLL_FRAMES) {
+    pstr_input_config->num_preroll_frames = DEFAULT_NUM_PREROLL_FRAMES;
+  }
+  if (pstr_input_config->random_access_interval < MIN_RAP_INTERVAL_IN_MS) {
+    pstr_input_config->random_access_interval = DEFAULT_RAP_INTERVAL_IN_MS;
+  }
 }
 
 /**
@@ -419,6 +426,17 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   }
   p_obj_mpeghe->config.bit_rate = pstr_input_config->bitrate;
   p_obj_mpeghe->config.enhanced_noise_filling = pstr_input_config->enhanced_noise_filling;
+  p_obj_mpeghe->config.random_access_interval =
+    (WORD32)ceil((pstr_input_config->random_access_interval / 1000.0f) *
+    (pstr_input_config->sample_rate / p_obj_mpeghe->config.in_frame_length));
+
+  if (p_obj_mpeghe->config.random_access_interval)
+  {
+    p_obj_mpeghe->config.preroll_flag = 1;
+  }
+  p_obj_mpeghe->config.packet_lbl = pstr_input_config->packet_lbl;
+
+  p_obj_mpeghe->config.num_preroll_frames = pstr_input_config->num_preroll_frames;
   p_obj_mpeghe->config.igf_start_freq = pstr_input_config->igf_start_freq;
   p_obj_mpeghe->config.igf_stop_freq = pstr_input_config->igf_stop_freq;
   p_obj_mpeghe->config.igf_after_tns_synth = pstr_input_config->igf_after_tns_synth;
@@ -1274,6 +1292,7 @@ static VOID impeghe_set_default_config(ia_mpeghe_api_struct *p_obj_mpeghe)
   p_obj_mpeghe->config.in_frame_length = FRAME_LEN_LONG;
   p_obj_mpeghe->config.cc_resamp_fac_down = 1;
   p_obj_mpeghe->config.cc_resamp_fac_up = 1;
+  p_obj_mpeghe->config.is_first_frame = USAC_FIRST_FRAME_FLAG_DEFAULT_VALUE;
   return;
 }
 
@@ -1812,11 +1831,11 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
 
       if (p_obj_mpeghe->config.crc16 == 1)
       {
-        impeghe_mhas_write_crc_header(ptr_asc_bit_buf, MHAS_PAC_TYP_CRC16, crc_len, crc_val);
+        impeghe_mhas_write_crc_header(ptr_asc_bit_buf, MHAS_PAC_TYP_CRC16, crc_len, crc_val, p_obj_mpeghe->config.packet_lbl);
       }
       else
       {
-        impeghe_mhas_write_crc_header(ptr_asc_bit_buf, MHAS_PAC_TYP_CRC32, crc_len, crc_val);
+        impeghe_mhas_write_crc_header(ptr_asc_bit_buf, MHAS_PAC_TYP_CRC32, crc_len, crc_val, p_obj_mpeghe->config.packet_lbl);
       }
     }
     else if (p_obj_mpeghe->config.global_crc16 == 1 || p_obj_mpeghe->config.global_crc32 == 1)
@@ -1842,15 +1861,15 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
       if (p_obj_mpeghe->config.global_crc16 == 1)
       {
         impeghe_mhas_write_global_crc_header(ptr_asc_bit_buf, MHAS_PAC_TYP_GLOBAL_CRC16, crc_len,
-                                             crc_val, 0, 1);
+                                             crc_val, 0, 1, p_obj_mpeghe->config.packet_lbl);
       }
       else
       {
         impeghe_mhas_write_global_crc_header(ptr_asc_bit_buf, MHAS_PAC_TYP_GLOBAL_CRC32, crc_len,
-                                             crc_val, 0, 1);
+                                             crc_val, 0, 1, p_obj_mpeghe->config.packet_lbl);
       }
     }
-    impeghe_mhas_write_cfg_only_header(ptr_asc_bit_buf, num_bits);
+    impeghe_mhas_write_cfg_only_header(ptr_asc_bit_buf, num_bits, p_obj_mpeghe->config.packet_lbl);
   }
 
   impeghe_get_audiospecific_config_bytes(
@@ -1879,7 +1898,7 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
     {
       return err_code;
     }
-    impeghe_mhas_write_asi( ptr_asc_bit_buf, p_obj_mpeghe->pp_mem[IA_MEMTYPE_SCRATCH], num_bytes);
+    impeghe_mhas_write_asi( ptr_asc_bit_buf, p_obj_mpeghe->pp_mem[IA_MEMTYPE_SCRATCH], num_bytes, pstr_input_config->packet_lbl);
     pstr_output_config->i_dec_len = (ptr_asc_bit_buf->cnt_bits + 7) / 8;
     byte_allign_bits = (8 - (ptr_asc_bit_buf->cnt_bits & 7));
     if ((ptr_asc_bit_buf->cnt_bits & 7))
@@ -1920,15 +1939,48 @@ IA_ERRORCODE impeghe_execute(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_out
   {
     p_obj_mpeghe->config.str_ec_config_struct.ec_active = 0;
   }
-  err_code = impeghe_process(p_obj_mpeghe, &header_bytes);
-  if (err_code)
-  {
-    pstr_output_config->i_out_bytes = 0;
-    return err_code;
-  }
 
-  p_obj_mpeghe->p_state_mpeghe->ui_bytes_consumed = 0;
-  pstr_output_config->i_out_bytes = p_obj_mpeghe->p_state_mpeghe->i_out_bytes;
+  ia_usac_encoder_config_struct *usac_config = &p_obj_mpeghe->config;
+  if (usac_config->iframes_interval <= usac_config->num_preroll_frames) {
+    p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.usac_independency_flg = 1;
+    if (usac_config->iframes_interval == usac_config->num_preroll_frames &&
+      usac_config->is_first_frame == 0) {
+      usac_config->is_last_ipf = 1;
+    }
+  }
+  else {
+  p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.usac_independency_flg = 0;
+  }
+  if (p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.frame_count >
+    usac_config->num_preroll_frames) {
+    if (usac_config->iframes_interval <= usac_config->num_preroll_frames) {
+      p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.usac_independency_flg = 1;
+    }
+    else {
+      p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.usac_independency_flg = 0;
+    }
+  }
+  {
+    err_code = impeghe_process(p_obj_mpeghe, &header_bytes);
+    if (err_code)
+    {
+      pstr_output_config->i_out_bytes = 0;
+      return err_code;
+    }
+
+    p_obj_mpeghe->p_state_mpeghe->ui_bytes_consumed = 0;
+    pstr_output_config->i_out_bytes = p_obj_mpeghe->p_state_mpeghe->i_out_bytes;
+
+    usac_config->iframes_interval++;
+    if ((1 > p_obj_mpeghe->p_state_mpeghe->ui_num_inp_received - 1) && (usac_config->use_drc_element)) {
+      usac_config->iframes_interval--;
+      p_obj_mpeghe->p_state_mpeghe->ui_num_inp_received++;
+    }
+    if (usac_config->iframes_interval == (usac_config->random_access_interval -
+      usac_config->num_preroll_frames)) {
+      usac_config->iframes_interval = 0;
+    }
+  }
   return err_code;
 }
 
@@ -2093,7 +2145,8 @@ IA_ERRORCODE impeghe_enc_fill_mem_tables(ia_mpeghe_api_struct *p_obj_mpeghe)
   /* output */
   {
     ptr_mem_info = &p_obj_mpeghe->p_mem_info_mpeghe[IA_MEMTYPE_OUTPUT];
-    ptr_mem_info->ui_size = (MAX_CHANNEL_BITS / 8) * p_obj_mpeghe->config.channels;
+    ptr_mem_info->ui_size =
+        (MAX_PREROLL_FRAMES + 1) * (MAX_CHANNEL_BITS / 8) * p_obj_mpeghe->config.channels + MAX_PREROLL_CONFIG_SIZE;;
     ptr_mem_info->ui_alignment = 1;
     ptr_mem_info->ui_type = IA_MEMTYPE_OUTPUT;
     ptr_mem_info->ui_priority = IA_MEMPRIORITY_ANYWHERE;
@@ -2147,8 +2200,158 @@ IA_ERRORCODE impeghe_initialize(ia_mpeghe_api_struct *p_obj_mpeghe)
     return error;
   }
   p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.frame_count = 0;
-
+  pstr_usac_config->encoder_delay = 1600;
+  pstr_usac_config->is_last_ipf = 1;
   return IA_NO_ERROR;
+}
+
+/**
+ *  impeghe_write_audio_preroll_data
+ *
+ *  \brief Write pre-roll audio data
+ *
+ *  \param [in,out]  p_obj_mpeghe  Pointer to API structure
+ *  \param [unused]  it_bit_buff   Pointer to bit-buffer structure
+ *
+ *  \return VOID
+ *
+ */
+static VOID impeghe_write_audio_preroll_data(ia_mpeghe_api_struct *p_obj_mpeghe,
+                                             ia_bit_buf_struct *it_bit_buff)
+{
+  ia_usac_encoder_config_struct *pstr_usac_config = &p_obj_mpeghe->config;
+  ia_usac_data_struct *pstr_usac_data = &p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data;
+  ia_usac_enc_state_struct *pstr_enc_state = p_obj_mpeghe->p_state_mpeghe;
+  WORD32 i, j, padding_bits;
+  
+  if (pstr_usac_config->is_last_ipf)
+  {
+    if (pstr_usac_config->iframes_interval == pstr_usac_config->num_preroll_frames)
+    {
+      WORD32 config_len = 0, num_bits = 0, au_len = 0, config_len_bits = 0;
+      WORD32 bytes_to_write;
+      UWORD8 *ptr_out = (UWORD8 *)p_obj_mpeghe->pp_mem[IA_MEMTYPE_OUTPUT];
+      WORD32 max_output_size =
+        ((MAX_CHANNEL_BITS / 8) * pstr_usac_config->channels) * MAX_PREROLL_FRAMES + MAX_PREROLL_CONFIG_SIZE;
+      UWORD8 *out_data = ptr_out + max_output_size;
+      UWORD8 residual_bits = 0, residual_data = 0;
+      memmove(ptr_out + max_output_size, ptr_out, pstr_enc_state->i_out_bytes);
+      impeghe_reset_bit_buffer(it_bit_buff);
+      pstr_usac_config->is_last_ipf = 0;
+
+      config_len_bits = impeghe_get_audiospecific_config_bytes(it_bit_buff, &p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.str_scratch, &p_obj_mpeghe->config.audio_specific_config);
+      config_len = (config_len_bits + 7) >> 3;
+      num_bits = impeghe_write_escape_value(it_bit_buff, config_len, 4, 4, 8);
+      num_bits += (config_len * 8); // config data bits
+      num_bits++;                   // apply-crossfade
+      num_bits++;                   // apr-reserved
+      num_bits += impeghe_write_escape_value(it_bit_buff, pstr_usac_config->num_preroll_frames,
+        2, 4, 0); // bits for number of preroll frames
+      
+      for (i = 0; i < pstr_usac_config->num_preroll_frames; i++) {
+        num_bits += impeghe_write_escape_value(it_bit_buff,
+          pstr_enc_state->str_usac_enc_data.prev_out_bytes[i], 16, 16, 0);
+        au_len += pstr_enc_state->str_usac_enc_data.prev_out_bytes[i];
+      }
+      impeghe_reset_bit_buffer(it_bit_buff);
+      // total bytes to write
+      bytes_to_write = (num_bits + 7) >> 3;
+      impeghe_write_bits_buf(it_bit_buff, pstr_usac_data->usac_independency_flg,
+        1);                 // usacIndependencyFlag for current frame
+      impeghe_write_bits_buf(it_bit_buff, 1, 1); // usacExtElementPresent
+      impeghe_write_bits_buf(it_bit_buff, 0, 1); // usacExtElementUseDefaultLength
+
+      if (au_len + bytes_to_write >= MAXIMUM_VALUE_8BIT) {
+        impeghe_write_escape_value(it_bit_buff, au_len + bytes_to_write + 2, 8, 16, 0);
+      }
+      else {
+        impeghe_write_bits_buf(it_bit_buff, au_len + bytes_to_write, 8);
+      }
+
+      impeghe_write_escape_value(it_bit_buff, config_len, 4, 4, 8); // configLen
+      
+      impeghe_get_audiospecific_config_bytes(it_bit_buff,
+        &p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.str_scratch, &p_obj_mpeghe->config.audio_specific_config); //Config
+      
+      if (config_len_bits % 8) {
+        impeghe_write_bits_buf(it_bit_buff, 0, (config_len << 3) - config_len_bits);
+      }
+
+      impeghe_write_bits_buf(it_bit_buff, 0, 1); // applyCrossfade
+      impeghe_write_bits_buf(it_bit_buff, 0, 1); // apr_reserved
+      impeghe_write_escape_value(it_bit_buff, pstr_usac_config->num_preroll_frames, 2, 4, 0); // numPreRollFrames
+      for (i = 0; i < pstr_usac_config->num_preroll_frames; i++) {
+        au_len = pstr_enc_state->str_usac_enc_data.prev_out_bytes[i];
+
+        if (pstr_usac_config->iframes_interval != 0) {
+          out_data = pstr_enc_state->str_usac_enc_data.prev_out_data[i];
+        }
+
+        // auLen
+        impeghe_write_escape_value(it_bit_buff, au_len, 16, 16, 0);
+
+        // AccessUnit
+        for (j = 0; j < au_len; j++) {
+          impeghe_write_bits_buf(it_bit_buff, *out_data, 8);
+          out_data++;
+        }
+      }
+
+      if (num_bits % 8) {
+        impeghe_write_bits_buf(it_bit_buff, 0, (bytes_to_write << 3) - num_bits);
+      }
+      // current frame
+      au_len = pstr_enc_state->i_out_bits >> 3;
+      residual_bits = pstr_enc_state->i_out_bits - (au_len << 3);
+      out_data = ptr_out + max_output_size;
+      for (j = 0; j < au_len; j++) {
+        impeghe_write_bits_buf(it_bit_buff, *out_data, 8);
+        out_data++;
+      }
+      residual_data = *out_data >> (8 - residual_bits);
+      impeghe_write_bits_buf(it_bit_buff, residual_data, residual_bits);
+
+      padding_bits = 8 - (it_bit_buff->cnt_bits & 7);
+      if (padding_bits > 0 && padding_bits < 8) {
+        ptr_out[it_bit_buff->cnt_bits >> 3] =
+          (WORD8)((UWORD32)ptr_out[it_bit_buff->cnt_bits >> 3]) & (0xFF << padding_bits);
+      }
+      p_obj_mpeghe->p_state_mpeghe->i_out_bytes = (it_bit_buff->cnt_bits + 7) >> 3;
+      pstr_usac_config->preroll_idx++;
+
+      if (!pstr_usac_config->is_first_frame) {
+        pstr_usac_config->preroll_idx = pstr_usac_config->num_preroll_frames + 1;
+      }
+      if (pstr_usac_config->is_first_frame) {
+        pstr_usac_config->is_first_frame = 0;
+      }
+    }
+    else
+    {
+      if (pstr_usac_config->preroll_idx < pstr_usac_config->num_preroll_frames)
+      {
+        WORD32 *ptr_prev_out_bytes =
+            p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.prev_out_bytes;
+        WORD32 pr_idx = pstr_usac_config->preroll_idx;
+        UWORD8 *ptr_out = (UWORD8 *)p_obj_mpeghe->pp_mem[IA_MEMTYPE_OUTPUT];
+        ptr_prev_out_bytes[pr_idx] = p_obj_mpeghe->p_state_mpeghe->i_out_bytes;
+        memcpy(p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data.prev_out_data[pr_idx++], ptr_out,
+               p_obj_mpeghe->p_state_mpeghe->i_out_bytes);
+        pstr_usac_config->preroll_idx = pr_idx;
+        pstr_enc_state->i_out_bytes = 0;
+      }
+    }
+  }
+  else
+  {
+    if (pstr_usac_config->num_preroll_frames) {
+      p_obj_mpeghe->p_state_mpeghe->str_usac_enc_data
+        .prev_out_bytes[pstr_usac_config->num_preroll_frames - 1] =
+        p_obj_mpeghe->p_state_mpeghe->i_out_bytes;
+    }
+    pstr_usac_config->preroll_idx = pstr_usac_config->num_preroll_frames + 1;
+  }
+  return;
 }
 
 /**
@@ -2223,7 +2426,7 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
       /* write earcon header */
       bit_cnt = impeghe_mhas_write_earcon_header(p_obj_mpeghe->config.ptr_mhas_bit_buf,
                                                  MHAS_PAC_TYP_EARCON,
-                                                 p_obj_mpeghe->p_state_mpeghe->i_out_bytes * 8);
+                                                 p_obj_mpeghe->p_state_mpeghe->i_out_bytes * 8, p_obj_mpeghe->config.packet_lbl);
       memmove((ptr_out + (bit_cnt >> 3)), ptr_out, p_obj_mpeghe->p_state_mpeghe->i_out_bytes);
       memcpy(ptr_out, p_obj_mpeghe->config.ptr_mhas_bit_buf->ptr_bit_buf_base, (bit_cnt >> 3));
       p_obj_mpeghe->p_state_mpeghe->i_out_bytes += (bit_cnt) >> 3;
@@ -2252,7 +2455,7 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
 
       /* write pcm config header */
       bit_cnt = impeghe_mhas_write_earcon_header(p_obj_mpeghe->config.ptr_mhas_bit_buf,
-                                                 MHAS_PAC_TYP_PCM_CONFIG, packet_bytes * 8);
+                                                 MHAS_PAC_TYP_PCM_CONFIG, packet_bytes * 8, p_obj_mpeghe->config.packet_lbl);
       memmove((ptr_out + (bit_cnt >> 3)), ptr_out, packet_bytes);
       memcpy(ptr_out, p_obj_mpeghe->config.ptr_mhas_bit_buf->ptr_bit_buf_base, (bit_cnt >> 3));
       p_obj_mpeghe->p_state_mpeghe->i_out_bytes += (bit_cnt) >> 3;
@@ -2280,7 +2483,7 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
 
     /*pcm payload packet header*/
     bit_cnt = impeghe_mhas_write_earcon_header(p_obj_mpeghe->config.ptr_mhas_bit_buf,
-                                               MHAS_PAC_TYP_PCM_DATA, packet_bytes * 8);
+                                               MHAS_PAC_TYP_PCM_DATA, packet_bytes * 8, p_obj_mpeghe->config.packet_lbl);
     memmove((ptr_out + (bit_cnt >> 3)), ptr_out, packet_bytes);
     memcpy(ptr_out, p_obj_mpeghe->config.ptr_mhas_bit_buf->ptr_bit_buf_base, (bit_cnt >> 3));
     p_obj_mpeghe->p_state_mpeghe->i_out_bytes += (bit_cnt + 7) >> 3;
@@ -2555,7 +2758,14 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
   p_obj_mpeghe->p_state_mpeghe->i_out_bytes = (padding_bits > 0 && padding_bits < 8)
                                                   ? (it_bit_buff->cnt_bits + padding_bits) >> 3
                                                   : it_bit_buff->cnt_bits >> 3;
-  if (p_obj_mpeghe->config.mhas_pkt == 1)
+  p_obj_mpeghe->p_state_mpeghe->i_out_bits = it_bit_buff->cnt_bits;
+
+  impeghe_write_audio_preroll_data(p_obj_mpeghe, it_bit_buff);
+
+  if (p_obj_mpeghe->config.mhas_pkt == 1 &&
+      ((p_state->str_usac_enc_data.frame_count == 0 &&
+        pstr_usac_config->iframes_interval == pstr_usac_config->num_preroll_frames) ||
+       (p_state->str_usac_enc_data.frame_count > 0)))
   {
     UWORD32 crc_val = 0;
     WORD32 crc_len = 0;
@@ -2580,13 +2790,22 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
       }
     }
     WORD32 bit_cnt;
+    WORD32 packet_type = MHAS_PAC_TYP_MPEGH3DAFRAME;
     UWORD8 *ptr_out = (UWORD8 *)p_obj_mpeghe->pp_mem[IA_MEMTYPE_OUTPUT];
 
     impeghe_reset_bit_buffer(p_obj_mpeghe->config.ptr_mhas_bit_buf);
-
+    if (pstr_usac_config->is_last_ipf)
+    {
+      packet_type = MHAS_PAC_TYP_MPEGH3DACFG;
+    }
+    else
+    {
+      packet_type = MHAS_PAC_TYP_MPEGH3DAFRAME;
+    }
     /* write mhas frame */
     bit_cnt = impeghe_mhas_write_frame_header(p_obj_mpeghe->config.ptr_mhas_bit_buf,
-                                              p_obj_mpeghe->p_state_mpeghe->i_out_bytes * 8);
+                                              p_obj_mpeghe->p_state_mpeghe->i_out_bytes * 8
+                                              , packet_type, p_obj_mpeghe->config.packet_lbl);
 
     memmove((ptr_out + (bit_cnt >> 3)), ptr_out, p_obj_mpeghe->p_state_mpeghe->i_out_bytes);
 
@@ -2608,7 +2827,7 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
         ia_crc_bit_buf_str.cnt_bits = 0;
         impeghe_reset_bit_buffer(&ia_crc_bit_buf_str);
         bit_cnt = impeghe_mhas_write_crc_header(&ia_crc_bit_buf_str, MHAS_PAC_TYP_CRC16, crc_len,
-                                                crc_val);
+                                                crc_val, p_obj_mpeghe->config.packet_lbl);
         bytes_count = (bit_cnt + 7) >> 3;
         memmove((ptr_out + bytes_count), ptr_out, p_obj_mpeghe->p_state_mpeghe->i_out_bytes);
         memcpy(ptr_out, ia_crc_bit_buf_str.ptr_bit_buf_base, (bytes_count));
@@ -2624,16 +2843,14 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
         ia_crc_bit_buf_str.cnt_bits = 0;
         impeghe_reset_bit_buffer(&ia_crc_bit_buf_str);
         bit_cnt = impeghe_mhas_write_crc_header(&ia_crc_bit_buf_str, MHAS_PAC_TYP_CRC32, crc_len,
-                                                crc_val);
+                                                crc_val, p_obj_mpeghe->config.packet_lbl);
         bytes_count = (bit_cnt + 7) >> 3;
         memmove((ptr_out + bytes_count), ptr_out, p_obj_mpeghe->p_state_mpeghe->i_out_bytes);
         memcpy(ptr_out, ia_crc_bit_buf_str.ptr_bit_buf_base, (bytes_count));
         p_obj_mpeghe->p_state_mpeghe->i_out_bytes += bytes_count;
       }
     }
+    p_state->str_usac_enc_data.frame_count++;
   }
-
-  p_state->str_usac_enc_data.frame_count++;
-
   return IA_NO_ERROR;
 }

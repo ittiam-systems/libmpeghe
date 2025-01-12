@@ -1112,6 +1112,20 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
   pstr_asc_usac_config->usac_cfg_ext_present = 0;
   pstr_asc_usac_config->num_config_extensions = 0;
 
+  /* Add pre-roll extension element. */
+  {
+    ia_usac_enc_element_config_struct *pstr_usac_elem_config =
+      &(pstr_asc_usac_config->str_usac_element_config[pstr_asc_usac_config->num_elements]);
+    pstr_asc_usac_config->usac_element_type[pstr_asc_usac_config->num_elements] = ID_USAC_EXT;
+    pstr_usac_elem_config->usac_ext_ele_type = ID_EXT_ELE_AUDIOPREROLL;
+    pstr_usac_elem_config->usac_ext_ele_dflt_len_present = 0;
+    pstr_usac_elem_config->usac_ext_ele_payload_present = 0;
+    pstr_usac_elem_config->usac_ext_ele_cfg_len = 0;
+    pstr_asc_usac_config->num_elements++;
+    pstr_usac_config->num_elements++;
+    pstr_usac_config->num_ext_elements++;
+  }
+
   pstr_asc->num_sig_grps =
       pstr_asc->num_ch_sig_groups + pstr_asc->num_obj_sig_groups + pstr_asc->num_hoa_sig_groups;
 
@@ -2366,8 +2380,7 @@ IA_ERRORCODE impeghe_core_coder_process(FLOAT32 **pptr_input,
   WORD32 ch_offset = pstr_asc->num_ch_idx_per_grp[0], ch_offset_idx = 0;
   WORD32 elem_idx_max = pstr_usac_config->num_elements - pstr_usac_config->num_ext_elements;
   WORD32 used_bits = 0;
-  usac_independency_flg = !(pstr_usac_data->usac_independency_flag_count %
-                            pstr_usac_data->usac_independency_flag_interval);
+  usac_independency_flg = pstr_usac_data->usac_independency_flg;
   len_frame = pstr_usac_config->ccfl;
   len_lpc0 = (LEN_LPC0 * len_frame) / FRAME_LEN_LONG;
   len_next_high_rate = (LEN_NEXT_HIGH_RATE * len_frame) / FRAME_LEN_LONG;
@@ -2406,13 +2419,15 @@ IA_ERRORCODE impeghe_core_coder_process(FLOAT32 **pptr_input,
 
   num_bits = 0;
 
-  impeghe_write_bits_buf(it_bit_buff, usac_independency_flg, 1);
-  num_bits++;
-
-
-  if (pstr_usac_config->use_drc_element == 1)
-  {
-    elem_idx_max -= 1;
+  if (pstr_usac_config->preroll_flag) {
+    if (pstr_usac_config->iframes_interval != pstr_usac_config->num_preroll_frames) {
+      impeghe_write_bits_buf(it_bit_buff, usac_independency_flg, 1);
+      num_bits++;
+    }
+  }
+  else {
+    impeghe_write_bits_buf(it_bit_buff, usac_independency_flg, 1);
+    num_bits++;
   }
 
   if (pstr_usac_data->core_mode[0] == CORE_MODE_FD)
@@ -2740,6 +2755,14 @@ IA_ERRORCODE impeghe_core_coder_process(FLOAT32 **pptr_input,
   }
 
   //*********************************************************************************************
+  if (pstr_usac_config->preroll_flag)
+  {
+    if (pstr_usac_config->iframes_interval != pstr_usac_config->num_preroll_frames)
+    {
+      impeghe_write_bits_buf(it_bit_buff, 0, 1); //extension element present
+      num_bits++;
+    }
+  }
   ch_offset_idx = 0;
   ch_offset = pstr_asc->num_ch_idx_per_grp[0];
   ch_el_idx = 0;

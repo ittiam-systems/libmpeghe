@@ -364,6 +364,10 @@ typedef struct
   FLAG use_downmix_ext_config;
   ia_mpeghe_ext_cfg_downmix_input_struct str_ext_cfg_downmix_input;
   ia_ec_info_struct str_ec_info_struct;
+  //pre-roll / IPF parameters.
+  WORD32 random_access_interval;
+  WORD32 num_preroll_frames;
+  WORD32 packet_lbl;
 } ia_input_config;
 
 typedef struct
@@ -461,5 +465,8 @@ typedef struct
 #define CONFIG_PROFILE_BL_LVL1 (0x10)
 #define CONFIG_PROFILE_BL_LVL2 (0x11)
 #define CONFIG_PROFILE_BL_LVL3 (0x12)
+
+#define DEFAULT_RAP_INTERVAL_IN_MS (2000)
+#define DEFAULT_PACKET_LABEL (1)
 
 #endif /* IMPEGHE_MEMORY_STANDARDS_H */

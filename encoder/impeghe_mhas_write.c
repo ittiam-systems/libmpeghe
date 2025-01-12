@@ -285,21 +285,22 @@ WORD32 impeghe_write_ec_pkt(ia_bit_buf_struct *it_bit_buff,
  *  \param [out] it_bit_buff	Pointer to bit-buffer structure
  *  \param [in]  pkt_type		Packet type
  *  \param [in]  num_bits		Number of bits
+ *  \param [in]  packet_lbl		Packet label
  *
  *  \return WORD32	Number of bits written
  */
 WORD32 impeghe_mhas_write_earcon_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_type,
-                                        UWORD32 num_bits)
+                                        UWORD32 num_bits, WORD32 packet_lbl)
 {
   WORD32 bit_cnt = 0;
   ia_mhas_pac_info pkt_info_tmp;
   UWORD8 mhas_sync_word = 0xA5;
   pkt_info_tmp.packet_type = MHAS_PAC_TYP_SYNC;
-  pkt_info_tmp.packet_lbl = 0;
+  pkt_info_tmp.packet_lbl = 0;  //sync label has no meaning can be 0
   bit_cnt = impeghe_write_mhas_pkt(it_bit_buff, &pkt_info_tmp, &mhas_sync_word, 8);
   /* write MHAS_PAC_TYP_EARCON */
   pkt_info_tmp.packet_type = pkt_type;
-  pkt_info_tmp.packet_lbl = 0;
+  pkt_info_tmp.packet_lbl = packet_lbl;
   pkt_info_tmp.packet_length = (num_bits + 7) >> 3;
 
   bit_cnt += impeghe_write_mhas_pkt_header(&pkt_info_tmp, it_bit_buff);
@@ -316,17 +317,18 @@ WORD32 impeghe_mhas_write_earcon_header(ia_bit_buf_struct *it_bit_buff, WORD32 p
  *  \param [in]     pkt_type      CRC MHAS Packet Type
  *  \param [in]     crc_len       Num of bits for CRC Value
  *  \param [in]     crc_val       CRC value
+ *  \param [in]     packet_lbl    Packet label
  *
  *  \return WORD32  Number of bits written
  *
  */
 WORD32 impeghe_mhas_write_crc_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_type,
-                                     WORD32 crc_len, UWORD32 crc_val)
+                                     WORD32 crc_len, UWORD32 crc_val, WORD32 packet_lbl)
 {
   WORD32 bit_cnt = 0;
   ia_mhas_pac_info pkt_info_tmp;
   pkt_info_tmp.packet_type = pkt_type;
-  pkt_info_tmp.packet_lbl = 1;
+  pkt_info_tmp.packet_lbl = packet_lbl;
   bit_cnt = impeghe_write_crc_pkt(it_bit_buff, &pkt_info_tmp, (crc_val), crc_len);
   return bit_cnt;
 }
@@ -342,6 +344,7 @@ WORD32 impeghe_mhas_write_crc_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_
  *  \param [in]     crc_val                 CRC value
  *  \param [in]     global_crc_type         Global CRC Type
  *  \param [in]     num_protected_packets   Number of Protected Packets by Global CRC
+ *  \param [in]     packet_lbl              Packet label
  *
  *  \return WORD32  Number of bits written
  *
@@ -349,12 +352,13 @@ WORD32 impeghe_mhas_write_crc_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_
 WORD32 impeghe_mhas_write_global_crc_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_type,
                                             WORD32 crc_len, UWORD32 crc_val,
                                             UWORD32 global_crc_type,
-                                            UWORD32 num_protected_packets)
+                                            UWORD32 num_protected_packets,
+                                            WORD32 packet_lbl)
 {
   WORD32 bit_cnt = 0;
   ia_mhas_pac_info pkt_info_tmp;
   pkt_info_tmp.packet_type = pkt_type;
-  pkt_info_tmp.packet_lbl = 1;
+  pkt_info_tmp.packet_lbl = packet_lbl;
   pkt_info_tmp.packet_length =
       (crc_len + 8 + 7) >> 3; // 8 bits for global_crc_type and num_protected_packets
 
@@ -395,7 +399,7 @@ WORD32 impeghe_mhas_write_sync_header(ia_bit_buf_struct *it_bit_buff)
   /* write MHAS_PAC_TYP_SYNC PKT */
   UWORD8 mhas_sync_word = 0xA5;
   pkt_info_tmp.packet_type = MHAS_PAC_TYP_SYNC;
-  pkt_info_tmp.packet_lbl = 0;
+  pkt_info_tmp.packet_lbl = 0; //sync label has no meaning can be 0
   pkt_info_tmp.packet_length = 1;
 
   bit_cnt = impeghe_write_mhas_pkt_header(&pkt_info_tmp, it_bit_buff);
@@ -412,18 +416,19 @@ WORD32 impeghe_mhas_write_sync_header(ia_bit_buf_struct *it_bit_buff)
  *
  *  \param [out]    it_bit_buff   Pointer to bit-buffer structure
  *  \param [in]     num_bits      Number of bits of config data for packet length
+ *  \param [in]     packet_lbl    Packet label
  *
  *  \return WORD32  Number of bits written
  *
  */
-WORD32 impeghe_mhas_write_cfg_only_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits)
+WORD32 impeghe_mhas_write_cfg_only_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits, WORD32 packet_lbl)
 {
   WORD32 bit_cnt = 0;
   ia_mhas_pac_info pkt_info_tmp;
 
   /* write MHAS_PAC_TYP_MPEGH3DACFG */
   pkt_info_tmp.packet_type = MHAS_PAC_TYP_MPEGH3DACFG;
-  pkt_info_tmp.packet_lbl = 1;
+  pkt_info_tmp.packet_lbl = packet_lbl;
   pkt_info_tmp.packet_length = (num_bits + 7) >> 3;
 
   bit_cnt = impeghe_write_mhas_pkt_header(&pkt_info_tmp, it_bit_buff);
@@ -438,17 +443,20 @@ WORD32 impeghe_mhas_write_cfg_only_header(ia_bit_buf_struct *it_bit_buff, UWORD3
  *
  *  \param [out] it_bit_buff Pointer to bit-buffer structure
  *  \param [in]  num_bits	 Number of bits to be written
+ *  \param [in]  packet_type	Packet type
+ *  \param [in]  packet_label	 Packet label
  *
  *  \return WORD32 Number of bits written
  */
-WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits)
+WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits
+                                       , WORD32 packet_type, WORD32 packet_label)
 {
   WORD32 bit_cnt = 0;
   ia_mhas_pac_info pkt_info_tmp;
 
   /* write MHAS_PAC_TYP_MPEGH3DAFRAME */
-  pkt_info_tmp.packet_type = MHAS_PAC_TYP_MPEGH3DAFRAME;
-  pkt_info_tmp.packet_lbl = 1;
+  pkt_info_tmp.packet_type = packet_type;
+  pkt_info_tmp.packet_lbl = packet_label;
   pkt_info_tmp.packet_length = (num_bits + 7) >> 3;
   bit_cnt += impeghe_write_mhas_pkt_header(&pkt_info_tmp, it_bit_buff);
 
@@ -456,12 +464,11 @@ WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 n
 }
 
 WORD32 impeghe_mhas_write_asi(ia_bit_buf_struct *it_bit_buff,
-                              UWORD8 *data, UWORD32 num_bytes)
+                              UWORD8 *data, UWORD32 num_bytes, WORD32 packet_lbl)
 {
   UWORD8 val;
   WORD32 i, bit_cnt = 0;
   ia_mhas_pac_info pkt_info_tmp;
-  WORD32 packet_lbl = 0;
 
   /* write MHAS_PAC_TYP_SYNC PKT */
   pkt_info_tmp.packet_type = MHAS_PAC_TYP_AUDIOSCENEINFO;

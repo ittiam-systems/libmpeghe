@@ -286,6 +286,16 @@ typedef struct
   ia_mpeghe_ext_cfg_downmix_input_struct str_ext_cfg_downmix_input;
   ia_sfb_params_struct str_sfb_prms;
   WORD32 fdp_enable;
+  //pre-roll / IPF frames
+  WORD32 random_access_interval;
+  WORD32 preroll_flag;
+  WORD32 num_preroll_frames;
+  WORD32 preroll_idx;
+  WORD32 is_last_ipf;
+  WORD32 is_first_frame;
+  WORD32 encoder_delay;
+
+  WORD32 packet_lbl;
 } ia_usac_encoder_config_struct;
 
 typedef struct
@@ -379,7 +389,9 @@ typedef struct
   FLOAT32 p_flpd_wsyn_buf[128 + LEN_FRAME];
   FLOAT32 p_flpd_temp_wsyn_buf[LEN_FRAME];
   FLOAT32 p_flpd_wsp_prev_buf[((MAX_PITCH1 / OPL_DECIM) + LEN_FRAME)];
-
+  WORD32 prev_out_bytes[MAX_PREROLL_FRAMES];
+  UWORD8 prev_out_data[MAX_PREROLL_FRAMES][MAX_OUTPUT_BYTES_PER_CH * MAX_TIME_CHANNELS];
+  WORD32 usac_independency_flg;
   WORD32 mct_ele_idx;
   WORD32 mct_ch_off;
   WORD32 obj_ele_idx;
@@ -474,18 +486,20 @@ WORD32 impeghe_write_pcm_config_pkt(ia_bit_buf_struct *it_bit_buff,
 WORD32 impeghe_write_ec_pkt(ia_bit_buf_struct *it_bit_buff,
                             ia_ec_config_struct *ptr_ec_config_struct);
 WORD32 impeghe_mhas_write_earcon_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_type,
-                                        UWORD32 num_bits);
+                                        UWORD32 num_bits, WORD32 packet_lbl);
 
 WORD32 impeghe_mhas_write_crc_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_type,
-                                     WORD32 crc_len, UWORD32 crc_val);
+                                     WORD32 crc_len, UWORD32 crc_val, WORD32 packet_lbl);
 WORD32 impeghe_mhas_write_global_crc_header(ia_bit_buf_struct *it_bit_buff, WORD32 pkt_type,
                                             WORD32 crc_len, UWORD32 crc_val,
                                             UWORD32 global_crc_type,
-                                            UWORD32 num_protected_packets);
+                                            UWORD32 num_protected_packets,
+                                            WORD32 packet_lbl);
 
 WORD32 impeghe_mhas_write_sync_header(ia_bit_buf_struct *it_bit_buff);
-WORD32 impeghe_mhas_write_cfg_only_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits);
+WORD32 impeghe_mhas_write_cfg_only_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits, WORD32 packet_lbl);
 
-WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits);
+WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits
+                                       , WORD32 packet_type, WORD32 packet_label);
 
 #endif /* IMPEGHE_MAIN_H */

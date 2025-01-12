@@ -151,6 +151,8 @@ Command line usage :
 [-cicp:<cicp_layout_index>]
 [-oam_file:<oam_file>]
 [-hoa_file:<first_hoa_file_name>]
+[-npf:<num_preroll_frames>]
+[-rap:<random_access_point>]
 
 where,
   <inputfile> is the input wav file name
@@ -194,6 +196,8 @@ where,
         If the parameter is not set or set to 0, default value is assigned based on number of input channels.
   <oam_file> file containing object metadata.
   <first_hoa_file_name> first hoa file name that ends with 00+.wav
+  <num_preroll_frames> is number of pre-roll frames. Default is 1.
+  <random_access_point> is the random access interval in milliseconds. Default is 2000.
 ```					 
 					 
 Sample CLI for Channel-based input: 

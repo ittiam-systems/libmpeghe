@@ -377,6 +377,9 @@ VOID impeghe_print_usage()
   printf("\n[-cicp:<cicp_layout_index>]");
   printf("\n[-oam_file:<oam_file>]");
   printf("\n[-hoa_file:<first_hoa_file_name>]");
+  printf("\n[-npf:<num_preroll_frames>]");
+  printf("\n[-rap:<random_access_point>]");
+  printf("\n[-packet_lbl:<packet_label>]");
   printf("\n\nwhere,");
   printf("\n<inputfile> is the input wav file name");
   printf("\n<outputfile> is the output MP4/MHAS file name");
@@ -420,6 +423,8 @@ VOID impeghe_print_usage()
          "number of input channels.");
   printf("\n<oam_file> file containing object metadata.");
   printf("\n<first_hoa_file_name> first hoa file name that ends with 00+.wav\n");
+  printf("\n<num_preroll_frames> is number of pre-roll frames");
+  printf("\n<random_access_point> is the random access interval in milliseconds");
 
   exit(1);
 }
@@ -682,6 +687,9 @@ static VOID impeghe_set_default_config_param(ia_input_config *pstr_input_config)
   memset(pstr_input_config->oam_skip_data, 0, sizeof(pstr_input_config->oam_skip_data));
   pstr_input_config->kernel = 0;
   pstr_input_config->asi_mhas = 0;
+  pstr_input_config->num_preroll_frames = 1;
+  pstr_input_config->random_access_interval = DEFAULT_RAP_INTERVAL_IN_MS;
+  pstr_input_config->packet_lbl = DEFAULT_PACKET_LABEL;
   return;
 }
 
@@ -776,6 +784,19 @@ IA_ERRORCODE impeghe_parse_config_param(WORD32 argc, pWORD8 argv[], pVOID ptr_en
       pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 6);
       pstr_enc_api->input_config.cicp_index = atoi(pb_arg_val);
     }
+    if (!strncmp((const char *)argv[i], "-npf:", 5)) {
+      pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 5);
+      pstr_enc_api->input_config.num_preroll_frames = atoi(pb_arg_val);
+    }
+    if (!strncmp((const char *)argv[i], "-rap:", 5)) {
+      pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 5);
+      pstr_enc_api->input_config.random_access_interval = atoi(pb_arg_val);
+    }
+    if (!strncmp((const char *)argv[i], "-packet_lbl:", 12)) {
+      pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 12);
+      pstr_enc_api->input_config.packet_lbl = atoi(pb_arg_val);
+    }
+    
   }
   return IA_NO_ERROR;
 }
@@ -2161,7 +2182,7 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
   while ((i_bytes_read) || (!u_is_last_frame_encoded))
   {
     u_is_last_frame_encoded =
-      (pstr_enc_api->input_config.use_drc_element) ? (i_bytes_read == 0) : 1;
+      (pstr_enc_api->input_config.use_drc_element || pstr_in_cfg->num_preroll_frames) ? (i_bytes_read == 0) : 1;
 
     if (pstr_enc_api->input_config.use_drc_element && !frame_count)
       u_is_last_frame_encoded = 0;
