@@ -351,9 +351,21 @@ static WORD32 impeghe_count_static_bits(ia_usac_data_struct *ptr_usac_data,
     stat_bits += (ptr_usac_data->mct_data_bit_cnt * channels) / (ptr_usac_config->channels - 1);
   }
 
-  if (ptr_usac_config->use_oam_element)
+  if (ptr_usac_config->use_oam_element[0])
   {
+#if 0
     stat_bits += (ptr_usac_data->oam_data_bit_cnt) / (ptr_usac_config->channels);
+#else
+    WORD32 num_objs = 0;
+    for(i = 0; i < ptr_usac_data->obj_ele_idx; i++)
+    {
+      num_objs += ptr_usac_config->num_objects[i];
+    }
+    if (num_objs)
+    {
+      stat_bits += ptr_usac_data->oam_data_bit_cnt / num_objs;
+    }
+#endif
   }
 
   return stat_bits;

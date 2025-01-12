@@ -207,7 +207,7 @@ typedef struct
   WORD32 bw_limit[USAC_MAX_ELEMENTS];
   WORD32 use_fill_element;
   WORD32 prof_level;
-  WORD32 use_oam_element;
+  WORD32 use_oam_element[MAX_NUM_SIG_GRPS];
   WORD32 use_hoa;
   WORD32 use_hoa_matrix;
   WORD32 cicp_index;
@@ -249,26 +249,28 @@ typedef struct
   WORD32 ui_pcm_wd_sz;
   ia_usac_audio_specific_config_struct audio_specific_config;
   WORD32 mct_mode;
-  WORD16 oam_version;
-  WORD16 has_dyn_obj_priority;
-  WORD16 has_uniform_spread;
-  WORD32 num_objects;
-  WORD32 num_channels;
+  WORD16 oam_version[MAX_NUM_SIG_GRPS];
+  WORD16 has_dyn_obj_priority[MAX_NUM_SIG_GRPS];
+  WORD16 has_uniform_spread[MAX_NUM_SIG_GRPS];
+  WORD32 num_objects[MAX_NUM_SIG_GRPS];
+  WORD32 num_obj_sig_groups;
+  WORD32 num_chn_sig_groups;
+
   WORD32 num_elements;
   WORD8 num_aud_elements;
   WORD8 num_hoa_elements;
   WORD8 num_oam_elements;
   WORD8 num_ext_elements;
-  WORD32 extra_objects;
-  FLAG oam_high_rate;
-  WORD32 oam_replace_radius;
-  FLAG oam_fixed_values[6];
-  FLAG oam_has_core_length;
-  FLAG oam_has_scrn_rel_objs;
-  FLAG oam_is_scrn_rel_obj[OAM_MAX_NUM_OBJECTS];
-  void *oam_data_hndl;
-  WORD32 (*oam_read_data)(void *oam_data_hndl, UWORD8 *buff, WORD32 bytes_to_read);
-  WORD32 (*oam_skip_data)(void *oam_data_hndl, WORD32 bytes_to_skip);
+  WORD32 extra_objects[MAX_NUM_SIG_GRPS];
+  FLAG oam_high_rate[MAX_NUM_SIG_GRPS];
+  WORD32 oam_replace_radius[MAX_NUM_SIG_GRPS];
+  FLAG oam_fixed_values[MAX_NUM_SIG_GRPS][6];
+  FLAG oam_has_core_length[MAX_NUM_SIG_GRPS];
+  FLAG oam_has_scrn_rel_objs[MAX_NUM_SIG_GRPS];
+  FLAG oam_is_scrn_rel_obj[MAX_NUM_SIG_GRPS];
+  void *oam_data_hndl[MAX_NUM_SIG_GRPS];
+  WORD32 (*oam_read_data[MAX_NUM_SIG_GRPS])(void *oam_data_hndl, UWORD8 *buff, WORD32 bytes_to_read);
+  WORD32 (*oam_skip_data[MAX_NUM_SIG_GRPS])(void *oam_data_hndl, WORD32 bytes_to_skip);
   WORD32 in_frame_length;
   WORD32 cc_resamp_fac_down;
   WORD32 cc_resamp_fac_up;
@@ -354,7 +356,7 @@ typedef struct
   UWORD32 ext_elem_config_len[MAX_EXTENSION_PAYLOADS];
   mct_data_t mct_data[MAX_CH_TYPE_SIG_GROUP];
   UWORD32 mct_data_bit_cnt;
-  ia_oam_enc_state_struct str_oam_state;
+  ia_oam_enc_state_struct str_oam_state[MAX_NUM_SIG_GRPS];
   UWORD32 oam_data_bit_cnt;
 
   ia_hoa_enc_str str_hoa_state;
@@ -377,12 +379,17 @@ typedef struct
   FLOAT32 p_flpd_wsyn_buf[128 + LEN_FRAME];
   FLOAT32 p_flpd_temp_wsyn_buf[LEN_FRAME];
   FLOAT32 p_flpd_wsp_prev_buf[((MAX_PITCH1 / OPL_DECIM) + LEN_FRAME)];
+
+  WORD32 mct_ele_idx;
+  WORD32 mct_ch_off;
+  WORD32 obj_ele_idx;
 } ia_usac_data_struct;
 
 typedef struct
 {
   ia_usac_encoder_config_struct *p_config;
   WORD32 i_out_bytes;
+  WORD32 i_out_bits;
   UWORD32 ui_in_bytes;
   UWORD32 ui_input_over;
   UWORD32 ui_init_done;

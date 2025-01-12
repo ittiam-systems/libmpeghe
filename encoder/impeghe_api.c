@@ -109,29 +109,34 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
  */
 static VOID impeghe_check_config_params(ia_input_config *pstr_input_config)
 {
-  if (pstr_input_config->aud_ch_pcm_cfg.n_channels > 0)
+  WORD32 num_groups = pstr_input_config->num_obj_sig_groups +
+                      pstr_input_config->num_hoa_sig_groups +
+                      pstr_input_config->num_ch_sig_groups;
+  for (WORD32 i = 0; i< num_groups; i++)
   {
-    if (pstr_input_config->bitrate < 32000 && pstr_input_config->aud_ch_pcm_cfg.n_channels == 1)
+    if (pstr_input_config->aud_ch_pcm_cfg[i].n_channels > 0)
+    {
+      if (pstr_input_config->bitrate < 32000 && pstr_input_config->aud_ch_pcm_cfg[i].n_channels == 1)
     {
       pstr_input_config->bitrate = 32000;
     }
     else if (pstr_input_config->bitrate < 64000 &&
-             pstr_input_config->aud_ch_pcm_cfg.n_channels == 2)
+               pstr_input_config->aud_ch_pcm_cfg[i].n_channels == 2)
     {
       pstr_input_config->bitrate = 64000;
     }
     else if (pstr_input_config->bitrate < 192000 &&
-             pstr_input_config->aud_ch_pcm_cfg.n_channels == 6)
+               pstr_input_config->aud_ch_pcm_cfg[i].n_channels == 6)
     {
       pstr_input_config->bitrate = 192000;
     }
     else if (pstr_input_config->bitrate < 256000 &&
-             pstr_input_config->aud_ch_pcm_cfg.n_channels == 8)
+               pstr_input_config->aud_ch_pcm_cfg[i].n_channels == 8)
     {
       pstr_input_config->bitrate = 256000;
     }
     else if (pstr_input_config->bitrate < 320000 &&
-             pstr_input_config->aud_ch_pcm_cfg.n_channels == 10)
+               pstr_input_config->aud_ch_pcm_cfg[i].n_channels == 10)
     {
       pstr_input_config->bitrate = 320000;
     }
@@ -142,6 +147,7 @@ static VOID impeghe_check_config_params(ia_input_config *pstr_input_config)
     {
       pstr_input_config->bitrate = 32000;
     }
+  }
   }
   if (pstr_input_config->tns_enable != 0 && pstr_input_config->tns_enable != 1)
   {
@@ -185,11 +191,14 @@ static VOID impeghe_check_config_params(ia_input_config *pstr_input_config)
   {
     pstr_input_config->cicp_index = 0;
   }
-  if (pstr_input_config->use_oam_element)
+  for (WORD32 i = 0; i < pstr_input_config->num_obj_sig_groups; i++)
   {
-    if (pstr_input_config->oam_high_rate != 0 && pstr_input_config->oam_high_rate != 1)
+    if (pstr_input_config->use_oam_element[i])
     {
-      pstr_input_config->oam_high_rate = 1;
+      if (pstr_input_config->oam_high_rate[i] != 0 && pstr_input_config->oam_high_rate[i] != 1)
+      {
+        pstr_input_config->oam_high_rate[i] = 1;
+      }
     }
   }
   if (pstr_input_config->use_hoa_element)
@@ -299,37 +308,41 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   LOOPIDX idx;
   LOOPIDX i, j;
   ia_usac_audio_specific_config_struct *pstr_asc = &p_obj_mpeghe->config.audio_specific_config;
+  WORD32 num_groups = pstr_input_config->num_obj_sig_groups +
+                      pstr_input_config->num_hoa_sig_groups +
+                      pstr_input_config->num_ch_sig_groups;
+  WORD32 num_core_chn = 0;
+  WORD32 num_st_objs = 0; // includes channels from channel based input and objects as well.
+
+  for (i = 0; i < pstr_input_config->num_ch_sig_groups; i++)
+  {
+    num_st_objs += pstr_input_config->num_ch_per_sig_grp[i];
+  }
+
+  for (i = 0; i < num_groups; i++)
+  {
+    num_core_chn += pstr_input_config->num_ch_per_sig_grp[i] +
+                    pstr_input_config->num_objects[i] +
+                    pstr_input_config->num_trans_ch[i];
+  }
 
   impeghe_check_config_params(pstr_input_config);
 
-  if((pstr_input_config->aud_ch_pcm_cfg.n_channels > 24) ||
-     (pstr_input_config->aud_ch_pcm_cfg.n_channels < 0))
+  if((num_core_chn > 56) || (num_core_chn < 0))
   {
     return IMPEGHE_CONFIG_FATAL_NUM_CHANNELS_UNSUPPORTED;
   }
 
-  if (pstr_input_config->aud_ch_pcm_cfg.n_channels > 0)
+  if (num_core_chn > 0)
   {
-    pstr_input_config->sample_rate = pstr_input_config->aud_ch_pcm_cfg.sample_rate;
-  }
-  else if (pstr_input_config->aud_obj_pcm_cfg.n_channels > 0)
-  {
-    pstr_input_config->sample_rate = pstr_input_config->aud_obj_pcm_cfg.sample_rate;
-  }
-  else if (pstr_input_config->hoa_pcm_cfg.n_channels > 0)
-  {
-    pstr_input_config->sample_rate = pstr_input_config->hoa_pcm_cfg.sample_rate;
+    pstr_input_config->sample_rate = pstr_input_config->aud_ch_pcm_cfg[0].sample_rate;
   }
 
-  if ((pstr_input_config->aud_obj_pcm_cfg.n_channels > 0) &&
-      (pstr_input_config->hoa_pcm_cfg.n_channels > 0))
+  if ((pstr_input_config->num_obj_sig_groups > 0) &&
+      (pstr_input_config->num_hoa_sig_groups > 0))
   {
-    // HOA and OAM of different sample rate not supported
-    if (pstr_input_config->aud_obj_pcm_cfg.sample_rate !=
-        pstr_input_config->hoa_pcm_cfg.sample_rate)
-    {
-      return (IMPEGHE_CONFIG_FATAL_SAMP_FREQ);
-    }
+
+    return (IMPEGHE_CONFIG_FATAL_SAMP_FREQ);
   }
 
   for (idx = 0;
@@ -348,32 +361,35 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
     }
   }
 
-  p_obj_mpeghe->config.num_objects = pstr_input_config->num_objects;
-  p_obj_mpeghe->config.num_channels = pstr_input_config->num_channels;
-  p_obj_mpeghe->config.extra_objects = pstr_input_config->extra_objects;
-
-  if (OAM_MAX_NUM_OBJECTS < p_obj_mpeghe->config.num_objects)
+  for (i = 0; i < MAX_NUM_SIG_GRPS; i++)
   {
-    p_obj_mpeghe->config.extra_objects = p_obj_mpeghe->config.num_objects - OAM_MAX_NUM_OBJECTS;
-    p_obj_mpeghe->config.num_objects = OAM_MAX_NUM_OBJECTS;
+    p_obj_mpeghe->config.num_objects[i]   = pstr_input_config->num_objects[i];
+    p_obj_mpeghe->config.extra_objects[i] = pstr_input_config->extra_objects[i];
+  }
+  p_obj_mpeghe->config.num_obj_sig_groups = pstr_input_config->num_obj_sig_groups;
+  p_obj_mpeghe->config.num_chn_sig_groups = pstr_input_config->num_ch_sig_groups;
+
+  for (idx = 0; idx < pstr_input_config->num_obj_sig_groups; idx++)
+  {
+    if (OAM_MAX_NUM_OBJECTS < p_obj_mpeghe->config.num_objects[idx])
+  {
+      p_obj_mpeghe->config.extra_objects[idx] = p_obj_mpeghe->config.num_objects[idx] - OAM_MAX_NUM_OBJECTS;
+      p_obj_mpeghe->config.num_objects[idx] = OAM_MAX_NUM_OBJECTS;
     error = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
   }
 
-  if (OAM_MAX_NUM_OBJECTS <
-      (p_obj_mpeghe->config.num_objects + p_obj_mpeghe->config.num_channels))
-  {
-    p_obj_mpeghe->config.extra_objects = p_obj_mpeghe->config.num_objects +
-                                         p_obj_mpeghe->config.num_channels - OAM_MAX_NUM_OBJECTS;
-    p_obj_mpeghe->config.num_objects = OAM_MAX_NUM_OBJECTS - p_obj_mpeghe->config.num_channels;
-    error = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
+
+    if (OAM_MAX_NUM_OBJECTS < p_obj_mpeghe->config.num_objects[idx])
+    {
+      p_obj_mpeghe->config.extra_objects[idx] = p_obj_mpeghe->config.num_objects[idx]
+                                           - OAM_MAX_NUM_OBJECTS;
+      p_obj_mpeghe->config.num_objects[idx] = OAM_MAX_NUM_OBJECTS;
+      error = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
+    }
+    p_obj_mpeghe->config.num_oam_ch += p_obj_mpeghe->config.num_objects[idx];
   }
 
-  p_obj_mpeghe->config.num_oam_ch =
-      p_obj_mpeghe->config.num_channels + p_obj_mpeghe->config.num_objects;
-
-  p_obj_mpeghe->config.channels = pstr_input_config->aud_ch_pcm_cfg.n_channels +
-                                  pstr_input_config->num_trans_ch +
-                                  p_obj_mpeghe->config.num_oam_ch;
+  p_obj_mpeghe->config.channels = num_core_chn;
 
   if ((pstr_input_config->bitrate >
        (((MAX_CHANNEL_BITS / FRAME_LEN_LONG) * pstr_input_config->sample_rate *
@@ -385,40 +401,21 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   {
     p_obj_mpeghe->config.audio_specific_config.num_ch_idx_per_grp[j] = j;
   }
-  WORD32 ch_offset_idx = 0;
   pstr_asc->num_ch_sig_groups = pstr_input_config->num_ch_sig_groups;
   for (i = 0; i < pstr_input_config->num_ch_sig_groups; i++)
   {
     pstr_asc->num_ch_per_sig_group[i] = pstr_input_config->num_ch_per_sig_grp[i];
-    for (j = 0; j < pstr_asc->num_ch_per_sig_group[i]; j++)
-    {
-      pstr_asc->num_ch_idx_per_grp[ch_offset_idx] =
-          pstr_input_config->num_ch_idx_per_grp[ch_offset_idx];
-      ch_offset_idx++;
-    }
   }
   pstr_asc->num_obj_sig_groups = pstr_input_config->num_obj_sig_groups;
   for (i = 0; i < pstr_input_config->num_obj_sig_groups; i++)
   {
-    pstr_asc->num_objs_per_sig_group[i] = pstr_input_config->num_objs_per_sig_grp[i];
-    for (j = 0; j < pstr_asc->num_objs_per_sig_group[i]; j++)
-    {
-      pstr_asc->num_ch_idx_per_grp[ch_offset_idx] =
-          pstr_input_config->num_ch_idx_per_grp[ch_offset_idx];
-      ch_offset_idx++;
-    }
+    pstr_asc->num_objs_per_sig_group[i] = pstr_input_config->num_objects[i];
   }
 
   pstr_asc->num_hoa_sig_groups = pstr_input_config->num_hoa_sig_groups;
   for (i = 0; i < pstr_input_config->num_hoa_sig_groups; i++)
   {
     pstr_asc->num_hoas_per_sig_group[i] = pstr_input_config->num_hoas_per_sig_grp[i];
-    for (j = 0; j < pstr_asc->num_hoas_per_sig_group[i]; j++)
-    {
-      pstr_asc->num_ch_idx_per_grp[ch_offset_idx] =
-          pstr_input_config->num_ch_idx_per_grp[ch_offset_idx];
-      ch_offset_idx++;
-    }
   }
   p_obj_mpeghe->config.bit_rate = pstr_input_config->bitrate;
   p_obj_mpeghe->config.enhanced_noise_filling = pstr_input_config->enhanced_noise_filling;
@@ -452,20 +449,16 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   }
   p_obj_mpeghe->config.sampling_rate = pstr_input_config->sample_rate;
   p_obj_mpeghe->config.native_sampling_rate = pstr_input_config->sample_rate;
-  p_obj_mpeghe->config.aud_ch = pstr_input_config->aud_ch_pcm_cfg.n_channels;
-  p_obj_mpeghe->config.num_trans_ch = pstr_input_config->num_trans_ch;
+  p_obj_mpeghe->config.aud_ch = num_st_objs;
+  p_obj_mpeghe->config.num_trans_ch = pstr_input_config->num_trans_ch[0];
 
   // Bitrate dirtribution among all element types
   // used for converting to 16 bit pcm format. So, aud_ch_pcm_cfg.n_channels = 0 when OAM is
   // present and vice versa
   // HOA does not need this conversion as hoa enc input is float
-  if (pstr_input_config->aud_ch_pcm_cfg.n_channels > 0)
+  if (num_core_chn > 0)
   {
-    p_obj_mpeghe->config.ui_pcm_wd_sz = pstr_input_config->aud_ch_pcm_cfg.pcm_sz;
-  }
-  else if (pstr_input_config->aud_obj_pcm_cfg.n_channels > 0)
-  {
-    p_obj_mpeghe->config.ui_pcm_wd_sz = pstr_input_config->aud_obj_pcm_cfg.pcm_sz;
+    p_obj_mpeghe->config.ui_pcm_wd_sz = pstr_input_config->aud_ch_pcm_cfg[0].pcm_sz;
   }
   p_obj_mpeghe->config.codec_mode = pstr_input_config->codec_mode;
 
@@ -524,8 +517,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   }
   if ((pstr_input_config->mct_mode < 0) || (pstr_input_config->mct_mode > 3) ||
       (p_obj_mpeghe->config.codec_mode != USAC_ONLY_FD) ||
-      ((pstr_input_config->aud_ch_pcm_cfg.n_channels < 3) &&
-       (p_obj_mpeghe->config.num_oam_ch < 3)))
+      ((num_core_chn < 3)))
   {
     p_obj_mpeghe->config.mct_mode = -1;
   }
@@ -540,9 +532,9 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   }
   p_obj_mpeghe->config.user_specified = pstr_input_config->user_specified_sig_grp;
   // OAM Params
-  p_obj_mpeghe->config.use_oam_element = pstr_input_config->use_oam_element;
+  memcpy(p_obj_mpeghe->config.use_oam_element, pstr_input_config->use_oam_element, sizeof(pstr_input_config->use_oam_element));
   p_obj_mpeghe->config.cicp_index = pstr_input_config->cicp_index;
-  if (pstr_input_config->use_oam_element)
+  if (pstr_input_config->use_oam_element[0])
   {
     // If OAM is in use, then ifile option is not valid
     if (pstr_input_config->use_hoa_element)
@@ -556,7 +548,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
     }
     else
     {
-      p_obj_mpeghe->config.oam_bitrate = p_obj_mpeghe->config.bit_rate;
+      p_obj_mpeghe->config.oam_bitrate = (p_obj_mpeghe->config.bit_rate * p_obj_mpeghe->config.num_oam_ch ) / p_obj_mpeghe->config.channels;
     }
   }
 
@@ -1034,44 +1026,39 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
       }
     }
   }
-  p_obj_mpeghe->config.oam_high_rate = pstr_input_config->oam_high_rate;
-  p_obj_mpeghe->config.oam_replace_radius = pstr_input_config->oam_replace_radius;
-  for (idx = 0; idx < 6; idx++)
-  {
-    p_obj_mpeghe->config.oam_fixed_values[idx] = pstr_input_config->oam_fixed_values[idx];
-  }
-  p_obj_mpeghe->config.oam_has_core_length = pstr_input_config->oam_has_core_length;
-  p_obj_mpeghe->config.oam_has_scrn_rel_objs = pstr_input_config->oam_has_scrn_rel_objs;
-  for (idx = 0; idx < OAM_MAX_NUM_OBJECTS; idx++)
-  {
-    p_obj_mpeghe->config.oam_is_scrn_rel_obj[idx] = pstr_input_config->oam_is_scrn_rel_obj[idx];
-  }
-  p_obj_mpeghe->config.oam_data_hndl = pstr_input_config->oam_data_hndl;
-  p_obj_mpeghe->config.oam_read_data = pstr_input_config->oam_read_data;
-  p_obj_mpeghe->config.oam_skip_data = pstr_input_config->oam_skip_data;
-  p_obj_mpeghe->config.oam_version = pstr_input_config->oam_version;
-  p_obj_mpeghe->config.has_dyn_obj_priority = pstr_input_config->has_dyn_obj_priority;
-  p_obj_mpeghe->config.has_uniform_spread = pstr_input_config->has_uniform_spread;
+  memcpy(p_obj_mpeghe->config.oam_high_rate, pstr_input_config->oam_high_rate, sizeof(pstr_input_config->oam_high_rate));
+  memcpy(p_obj_mpeghe->config.oam_replace_radius, pstr_input_config->oam_replace_radius, sizeof(pstr_input_config->oam_replace_radius));
+  memcpy(p_obj_mpeghe->config.oam_fixed_values, pstr_input_config->oam_fixed_values, sizeof(pstr_input_config->oam_fixed_values));
 
-  if (pstr_input_config->use_drc_element)
+  memcpy(p_obj_mpeghe->config.oam_has_core_length, pstr_input_config->oam_has_core_length, sizeof(p_obj_mpeghe->config.oam_has_core_length));
+  memcpy(p_obj_mpeghe->config.oam_has_scrn_rel_objs, pstr_input_config->oam_has_scrn_rel_objs,sizeof(p_obj_mpeghe->config.oam_has_scrn_rel_objs));
+  memcpy(p_obj_mpeghe->config.oam_is_scrn_rel_obj, pstr_input_config->oam_is_scrn_rel_obj, sizeof(p_obj_mpeghe->config.oam_is_scrn_rel_obj));
+  memcpy(p_obj_mpeghe->config.oam_data_hndl, pstr_input_config->oam_data_hndl, sizeof(pstr_input_config->oam_data_hndl));
+  memcpy(p_obj_mpeghe->config.oam_read_data, pstr_input_config->oam_read_data, sizeof(pstr_input_config->oam_read_data));
+  memcpy(p_obj_mpeghe->config.oam_skip_data, pstr_input_config->oam_skip_data, sizeof(pstr_input_config->oam_skip_data));
+  memcpy(p_obj_mpeghe->config.oam_version, pstr_input_config->oam_version, sizeof(pstr_input_config->oam_version));
+  memcpy(p_obj_mpeghe->config.has_dyn_obj_priority, pstr_input_config->has_dyn_obj_priority, sizeof(p_obj_mpeghe->config.has_dyn_obj_priority));
+  memcpy(p_obj_mpeghe->config.has_uniform_spread, pstr_input_config->has_uniform_spread, sizeof(pstr_input_config->has_uniform_spread));
+
   {
     pstr_input_config->str_drc_cfg.str_uni_drc_config.str_channel_layout.base_ch_count =
-        pstr_input_config->aud_ch_pcm_cfg.n_channels;
+        pstr_input_config->aud_ch_pcm_cfg[0].n_channels;
     pstr_input_config->str_drc_cfg.str_enc_params.sample_rate =
-        pstr_input_config->aud_ch_pcm_cfg.sample_rate;
-    if (pstr_input_config->use_oam_element)
+        pstr_input_config->aud_ch_pcm_cfg[0].sample_rate;
+    if (pstr_input_config->use_oam_element[0])
     {
       pstr_input_config->str_drc_cfg.str_uni_drc_config.str_channel_layout.base_ch_count +=
-          pstr_input_config->num_oam_ch;
+          pstr_input_config->num_oam_ch[0];
       pstr_input_config->str_drc_cfg.str_enc_params.sample_rate =
-          pstr_input_config->aud_obj_pcm_cfg.sample_rate;
+          pstr_input_config->aud_ch_pcm_cfg[0].sample_rate;
     }
-    if (pstr_input_config->use_hoa_element)
+
+    if (pstr_input_config->use_drc_element && pstr_input_config->use_hoa_element)
     {
       pstr_input_config->str_drc_cfg.str_uni_drc_config.str_channel_layout.base_ch_count +=
-          pstr_input_config->num_trans_ch;
+          pstr_input_config->num_trans_ch[0];
       pstr_input_config->str_drc_cfg.str_enc_params.sample_rate =
-          pstr_input_config->hoa_pcm_cfg.sample_rate;
+          pstr_input_config->aud_ch_pcm_cfg[0].sample_rate;
     }
     pstr_input_config->str_drc_cfg.str_uni_drc_config.sample_rate =
         pstr_input_config->str_drc_cfg.str_enc_params.sample_rate;
@@ -1111,7 +1098,6 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
 
   // DRC Params
   p_obj_mpeghe->config.use_drc_element = pstr_input_config->use_drc_element;
-  if (p_obj_mpeghe->config.use_drc_element != 0)
   {
     p_obj_mpeghe->config.str_drc_cfg = pstr_input_config->str_drc_cfg;
   }
@@ -1123,7 +1109,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
     p_obj_mpeghe->config.str_ext_cfg_downmix_input = pstr_input_config->str_ext_cfg_downmix_input;
   }
 
-  if ((pstr_input_config->use_oam_element) || (pstr_input_config->use_hoa_element))
+  if ((pstr_input_config->use_oam_element[0]) || (pstr_input_config->use_hoa_element))
   {
     p_obj_mpeghe->config.basic_bitrate =
         p_obj_mpeghe->config.aud_ch * MINIMUM_BITRATE_PER_CHANNEL;
@@ -1204,7 +1190,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
  */
 static VOID impeghe_set_default_config(ia_mpeghe_api_struct *p_obj_mpeghe)
 {
-  LOOPIDX idx;
+  LOOPIDX idx, grp;
 
   p_obj_mpeghe->config.ui_pcm_wd_sz = 16;
   memset(&p_obj_mpeghe->config.audio_specific_config, 0,
@@ -1237,22 +1223,26 @@ static VOID impeghe_set_default_config(ia_mpeghe_api_struct *p_obj_mpeghe)
 
   // OAM Params
   p_obj_mpeghe->config.cicp_index = 0;
-  p_obj_mpeghe->config.use_oam_element = 0;
-  p_obj_mpeghe->config.oam_high_rate = 1;
-  p_obj_mpeghe->config.oam_replace_radius = 0;
+  memset(p_obj_mpeghe->config.use_oam_element, 0, sizeof(p_obj_mpeghe->config.use_oam_element));
+  for (grp = 0; grp < MAX_NUM_SIG_GRPS; grp++)
+  {
+    p_obj_mpeghe->config.oam_high_rate[grp] = 1;
+    p_obj_mpeghe->config.oam_replace_radius[grp] = 0;
   for (idx = 0; idx < 6; idx++)
   {
-    p_obj_mpeghe->config.oam_fixed_values[idx] = 0;
+      p_obj_mpeghe->config.oam_fixed_values[grp][idx] = 0;
+    }
+    p_obj_mpeghe->config.oam_has_core_length[grp] = 0;
+    p_obj_mpeghe->config.oam_has_scrn_rel_objs[grp] = 0;
   }
-  p_obj_mpeghe->config.oam_has_core_length = 0;
-  p_obj_mpeghe->config.oam_has_scrn_rel_objs = 0;
+
   for (idx = 0; idx < OAM_MAX_NUM_OBJECTS; idx++)
   {
     p_obj_mpeghe->config.oam_is_scrn_rel_obj[idx] = 0;
   }
-  p_obj_mpeghe->config.oam_data_hndl = 0;
-  p_obj_mpeghe->config.oam_read_data = 0;
-  p_obj_mpeghe->config.oam_skip_data = 0;
+  memset(p_obj_mpeghe->config.oam_data_hndl, 0, sizeof(p_obj_mpeghe->config.oam_data_hndl));
+  memset(p_obj_mpeghe->config.oam_read_data, 0, sizeof(p_obj_mpeghe->config.oam_read_data));
+  memset(p_obj_mpeghe->config.oam_skip_data, 0, sizeof(p_obj_mpeghe->config.oam_skip_data));
 
   // DRC Params
   p_obj_mpeghe->config.use_drc_element = 0;
@@ -1518,7 +1508,6 @@ VOID impeghe_get_lib_id_strings(pVOID pv_output)
  *  num_ch_per_sig_grp[16]: Number of channels per signal group. //Not used
  *  num_ch_idx_per_grp[56]: Number of channels per group. //Not used
  *  num_obj_sig_groups: Number of object signal groups. //Not used
- *  num_objs_per_sig_grp[16]: Number of objects per signal group.. //Not used
  *  num_hoa_sig_groups: Number of HOA signal groups. //Not used
  *  num_hoas_per_sig_grp[16]: Number of HOA per signal group. //Not used
  *  enhanced_noise_filling: Flag that controls usage of IGF in encoding.
@@ -1642,18 +1631,13 @@ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
 
   if (1 == pstr_input_config->use_hoa_element)
   {
-    pstr_input_config->num_trans_ch = impeghe_hoa_calc_num_coders(pstr_input_config->bitrate, 0);
-
-    if (pstr_input_config->num_trans_ch >
-        ((pstr_input_config->hoa_order + 1) * (pstr_input_config->hoa_order + 1)))
-      pstr_input_config->num_trans_ch =
-          (pstr_input_config->hoa_order + 1) * (pstr_input_config->hoa_order + 1);
+    pstr_input_config->num_trans_ch[0] = impeghe_hoa_calc_num_coders(pstr_input_config->bitrate, 0);
 
     // HOA is always in FD_MODE. Need to check if this is needed.
     pstr_input_config->codec_mode = USAC_ONLY_FD;
   }
 
-  if (1 == pstr_input_config->use_oam_element)
+  if (1 == pstr_input_config->use_oam_element[0])
   {
     // OAM is always in FD mode.
     pstr_input_config->codec_mode = USAC_ONLY_FD;
@@ -1712,9 +1696,9 @@ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
   {
     return (IMPEGHE_CONFIG_FATAL_BITRATE);
   }
-  if (!(pstr_input_config->aud_ch_pcm_cfg.pcm_sz == 16 ||
-        pstr_input_config->aud_ch_pcm_cfg.pcm_sz == 24 ||
-        pstr_input_config->aud_ch_pcm_cfg.pcm_sz == 32))
+  if (!(pstr_input_config->aud_ch_pcm_cfg[0].pcm_sz == 16 ||
+        pstr_input_config->aud_ch_pcm_cfg[0].pcm_sz == 24 ||
+        pstr_input_config->aud_ch_pcm_cfg[0].pcm_sz == 32))
   {
     return IMPEGHE_CONFIG_FATAL_PCM_SIZE;
   }

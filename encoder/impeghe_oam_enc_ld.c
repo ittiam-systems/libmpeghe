@@ -953,7 +953,7 @@ WORD32 impeghe_obj_md_low_delay_enc(ia_oam_enc_state_struct *ptr_oam_enc_state, 
 
       if (ptr_oam_enc_state->sub_sample > 1)
       {
-        ptr_oam_enc_state->str_config.skip_data(ptr_oam_enc_state->str_config.data_hndl,
+        ptr_oam_enc_state->str_config.skip_data(ptr_oam_enc_state->str_config.data_hndl[0],
                                                 ptr_oam_enc_state->bytes_per_element *
                                                     ptr_oam_enc_state->str_config.num_objects *
                                                     (ptr_oam_enc_state->sub_sample - 1));

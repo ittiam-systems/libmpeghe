@@ -53,13 +53,12 @@ typedef struct
   WORD16 has_uniform_spread;
   WORD32 num_objects;
   WORD32 extra_objects;
-  WORD32 num_channels;
   WORD32 core_block_size;
   FLAG high_rate;
   WORD32 replace_radius;
   FLAG low_delay;
   FLAG fixed_values[6];
-  VOID *data_hndl;
+  VOID **data_hndl;
   WORD32 (*read_data)(VOID *read_data_hndl, UWORD8 *buff, WORD32 bytes_to_read);
   WORD32 (*skip_data)(VOID *data_hndl, WORD32 bytes_to_skip);
 } ia_oam_enc_config_struct;

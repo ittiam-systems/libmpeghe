@@ -545,15 +545,18 @@ impeghe_flex_spk_config(ia_bit_buf_struct *it_bit_buff,
  *
  */
 static WORD32 impeghe_encoder_config(ia_bit_buf_struct *it_bit_buff,
-                                     ia_usac_config_struct *pstr_usac_config)
+                                     ia_usac_config_struct *pstr_usac_config,
+                                     FLAG el_len_present)
 {
   WORD32 bit_cnt = 0;
   WORD8 elem_idx = 0;
+  WORD32 ch_el_idx = 0;
 
   bit_cnt +=
       impeghe_write_escape_value(it_bit_buff, pstr_usac_config->num_elements - 1, 4, 8, 16);
 
-  bit_cnt += impeghe_write_bits_buf(it_bit_buff, 0, 1);
+  pstr_usac_config->el_len_present = el_len_present;
+  bit_cnt += impeghe_write_bits_buf(it_bit_buff, el_len_present, 1);
 
   for (elem_idx = 0; elem_idx < pstr_usac_config->num_elements; elem_idx++)
   {
@@ -570,8 +573,8 @@ static WORD32 impeghe_encoder_config(ia_bit_buf_struct *it_bit_buff,
     case ID_USAC_CPE:
       str_usac_enc_conf =
           pstr_usac_config
-              ->str_usac_element_config[elem_idx - pstr_usac_config->num_ext_elements];
-
+              ->str_usac_element_config[ch_el_idx];
+      ch_el_idx++;
       temp = str_usac_enc_conf.tw_mdct;
       temp = (temp << 1) | str_usac_enc_conf.full_band_lpd;
       temp = (temp << 1) | str_usac_enc_conf.noise_filling;
@@ -604,6 +607,7 @@ static WORD32 impeghe_encoder_config(ia_bit_buf_struct *it_bit_buff,
       bit_cnt += impeghe_ext_element_config(it_bit_buff, &(str_usac_enc_conf));
       break;
     case ID_USAC_LFE:
+      ch_el_idx++;
       /* Do nothing */
       break;
     default:
@@ -634,6 +638,7 @@ WORD32 impeghe_get_audiospecific_config_bytes(
 {
   WORD32 bit_cnt = 0, i;
   ia_usac_config_struct *ptr_usac_config = &(pstr_audio_specific_config->str_usac_config);
+  ia_mae_audio_scene_info *pstr_mae_data = &(pstr_audio_specific_config->str_asi_info);
   WORD32 num_signal_groups = pstr_audio_specific_config->num_sig_grps;
 
   WORD32 group_type[16] = {0}, idx = 0, hoa_idx = 0, obj_idx = 0;
@@ -712,7 +717,18 @@ WORD32 impeghe_get_audiospecific_config_bytes(
     case 0:
       bit_cnt += impeghe_write_escape_value(
           it_bit_buff, pstr_audio_specific_config->num_ch_per_sig_group[idx++] - 1, 5, 8, 16);
-      bit_cnt += impeghe_write_bits_buf(it_bit_buff, 0, 1);
+      if (pstr_audio_specific_config->channel_configuration_grp[idx - 1] != pstr_audio_specific_config->channel_configuration)
+      {
+        bit_cnt += impeghe_write_bits_buf(it_bit_buff, 1, 1);
+        bit_cnt += impeghe_write_bits_buf(it_bit_buff, 0, 2);
+
+        bit_cnt +=
+            impeghe_write_bits_buf(it_bit_buff, pstr_audio_specific_config->channel_configuration_grp[idx - 1], 6);
+      }
+      else
+      {
+        bit_cnt += impeghe_write_bits_buf(it_bit_buff, 0, 1);
+      }
 
       break;
     case 1:
@@ -738,7 +754,8 @@ WORD32 impeghe_get_audiospecific_config_bytes(
     ptr_usac_config->usac_cfg_ext_present = 1;
     ptr_usac_config->num_config_extensions = 1;
   }
-  bit_cnt += impeghe_encoder_config(it_bit_buff, ptr_usac_config);
+  bit_cnt += impeghe_encoder_config(it_bit_buff, ptr_usac_config, 
+                                    (pstr_mae_data->asi_present) & (pstr_mae_data->num_switch_groups > 0));
 
   bit_cnt += impeghe_write_bits_buf(it_bit_buff, (ptr_usac_config->usac_cfg_ext_present), 1);
 

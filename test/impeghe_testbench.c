@@ -96,18 +96,19 @@ typedef enum impeghe_op_fmts
 /* Global variables                                                          */
 /*****************************************************************************/
 
-FILE *g_pf_inps[56], *g_pf_inp, *g_pf_out, *g_asi, *g_pf_meta, *g_pf_spk, *g_asi;
+FILE *g_pf_inp[56], *g_pf_out, *g_pf_meta, *g_pf_spk, *g_asi;
 FILE *g_pf_ec; // earcon inputfile
 WORD8 ec_present = 0;
 WORD32 array_ec[1024] = {0};
 WORD8 pb_oam_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
-WORD8 pb_oam_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+WORD8 pb_oam_file_name[32][IA_MAX_CMD_LINE_LENGTH] = { "" };
 WORD8 pb_drc_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
 impeghe_op_fmts op_fmt = RAW_MHAS;
+WORD32 g_num_ifiles = 0, g_num_oamfiles = 0, g_num_hoafiles = 0;
 
 pVOID g_ops_buf[32768];
 
-FILE *g_oam_inp = 0;
+FILE *g_oam_inp[MAX_NUM_SIG_GRPS] = {NULL};
 FILE *g_drc_inp = NULL;
 FILE *g_dmx_inp = NULL;
 WORD8 g_pb_hoa_input_file_names[MAX_HOA_IN_FILES][IA_MAX_CMD_LINE_LENGTH];
@@ -639,15 +640,13 @@ static VOID impeghe_set_default_config_param(ia_input_config *pstr_input_config)
 {
 
   LOOPIDX idx;
-  pstr_input_config->aud_ch_pcm_cfg.pcm_sz = 16;
-  pstr_input_config->aud_ch_pcm_cfg.sample_rate = 44100;
+  for (WORD32 i = 0; i < MAX_NUM_SIG_GRPS; i++)
+  {
+    pstr_input_config->aud_ch_pcm_cfg[i].pcm_sz = 16;
+    pstr_input_config->aud_ch_pcm_cfg[i].sample_rate = 44100;
+  }
 
-  pstr_input_config->aud_obj_pcm_cfg.pcm_sz = 16;
-  pstr_input_config->aud_obj_pcm_cfg.sample_rate = 44100;
-
-  pstr_input_config->hoa_pcm_cfg.pcm_sz = 16;
-  pstr_input_config->hoa_pcm_cfg.sample_rate = 44100;
-
+  pstr_input_config->num_aud_ch = 0;
   pstr_input_config->codec_mode = USAC_ONLY_FD;
   pstr_input_config->bitrate = 32000;
   pstr_input_config->fdp_enable = 0;
@@ -665,24 +664,22 @@ static VOID impeghe_set_default_config_param(ia_input_config *pstr_input_config)
   pstr_input_config->global_crc32 = 0;
   pstr_input_config->mct_mode = -1;
   // OAM Params
-  pstr_input_config->use_oam_element = 0;
+  memset(pstr_input_config->use_oam_element, 0, sizeof(pstr_input_config->use_oam_element));
   pstr_input_config->use_drc_element = 0;
   pstr_input_config->use_hoa_element = 0;
-  pstr_input_config->oam_high_rate = 1;
-  pstr_input_config->oam_replace_radius = 0;
-  for (idx = 0; idx < 6; idx++)
+  for (idx = 0; idx < MAX_NUM_SIG_GRPS; idx++)
   {
-    pstr_input_config->oam_fixed_values[idx] = 0;
+    pstr_input_config->oam_high_rate[idx] = 1;
   }
-  pstr_input_config->oam_has_core_length = 0;
-  pstr_input_config->oam_has_scrn_rel_objs = 0;
-  for (idx = 0; idx < OAM_MAX_NUM_OBJECTS; idx++)
-  {
-    pstr_input_config->oam_is_scrn_rel_obj[idx] = 0;
-  }
-  pstr_input_config->oam_data_hndl = 0;
-  pstr_input_config->oam_read_data = 0;
-  pstr_input_config->oam_skip_data = 0;
+  memset(pstr_input_config->oam_replace_radius, 0, sizeof(pstr_input_config->oam_replace_radius));
+  memset(pstr_input_config->oam_fixed_values, 0, sizeof(pstr_input_config->oam_fixed_values));
+  memset(pstr_input_config->oam_has_core_length, 0, sizeof(pstr_input_config->oam_has_core_length));
+  memset(pstr_input_config->oam_has_scrn_rel_objs, 0, sizeof(pstr_input_config->oam_has_scrn_rel_objs));
+  memset(pstr_input_config->oam_is_scrn_rel_obj, 0, sizeof(pstr_input_config->oam_is_scrn_rel_obj));
+
+  memset(pstr_input_config->oam_data_hndl, 0, sizeof(pstr_input_config->oam_data_hndl));
+  memset(pstr_input_config->oam_read_data, 0, sizeof(pstr_input_config->oam_read_data));
+  memset(pstr_input_config->oam_skip_data, 0, sizeof(pstr_input_config->oam_skip_data));
   pstr_input_config->kernel = 0;
   pstr_input_config->asi_mhas = 0;
   return;
@@ -753,28 +750,24 @@ IA_ERRORCODE impeghe_parse_config_param(WORD32 argc, pWORD8 argv[], pVOID ptr_en
     {
       LOOPIDX idx;
 
-      if (g_oam_inp != 0)
+      for (idx = 0; idx < MAX_NUM_SIG_GRPS; idx++)
       {
-        pstr_enc_api->input_config.oam_read_data = impeghe_read_oam_data;
-        pstr_enc_api->input_config.oam_skip_data = impeghe_skip_oam_data;
-        pstr_enc_api->input_config.oam_data_hndl = (VOID *)g_oam_inp;
-
-        pstr_enc_api->input_config.oam_high_rate = 1;
-        pstr_enc_api->input_config.oam_replace_radius = 0;
-        memcpy(pstr_enc_api->input_config.item_prefix, pb_oam_file_name, 64);
-        for (idx = 0; idx < 6; idx++)
+        if (g_oam_inp[idx] != 0)
         {
-          pstr_enc_api->input_config.oam_fixed_values[idx] = 0;
-        }
-        pstr_enc_api->input_config.oam_has_core_length = 0;
-        pstr_enc_api->input_config.oam_has_scrn_rel_objs = 0;
+          pstr_enc_api->input_config.oam_read_data[idx] = impeghe_read_oam_data;
+          pstr_enc_api->input_config.oam_skip_data[idx] = impeghe_skip_oam_data;
+          pstr_enc_api->input_config.oam_data_hndl[idx] = (VOID *)&g_oam_inp[idx];
 
-        for (idx = 0; idx < OAM_MAX_NUM_OBJECTS; idx++)
-        {
-          pstr_enc_api->input_config.oam_is_scrn_rel_obj[idx] = 0;
-        }
+          pstr_enc_api->input_config.oam_high_rate[idx] = 1;
+          pstr_enc_api->input_config.oam_replace_radius[idx] = 0;
+          memcpy(pstr_enc_api->input_config.item_prefix[idx], pb_oam_file_name[idx], 64);
+          memset(pstr_enc_api->input_config.oam_fixed_values[idx], 0, sizeof(pstr_enc_api->input_config.oam_fixed_values[idx]));
+          pstr_enc_api->input_config.oam_has_core_length[idx] = 0;
+          pstr_enc_api->input_config.oam_has_scrn_rel_objs[idx] = 0;
 
-        pstr_enc_api->input_config.use_oam_element = 1;
+          memset(pstr_enc_api->input_config.oam_is_scrn_rel_obj[idx], 0, sizeof(pstr_enc_api->input_config.oam_is_scrn_rel_obj[idx]));
+          pstr_enc_api->input_config.use_oam_element[idx] = pstr_enc_api->input_config.num_objects[idx] > 0 ? 1 : 0;
+        }
       }
     }
     /* CICP layout index */
@@ -881,13 +874,14 @@ pVOID malloc_global(UWORD32 size, UWORD32 alignment) { return malloc(size + alig
  *
  */
 static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr_in_cfg,
-                                            WORD32 *num_channels_to_encode)
+                                            WORD32 *num_channels_to_encode, WORD32 obj_sgi)
 {
   WORD32 idx;
   WORD32 bytes_read;
   UWORD8 temp_buff[OAM_CH_FILE_NAME_SIZE_BYTES];
   UWORD16 *ptr_16_temp_buff;
   WORD16 *ptr_16_word_temp_buff;
+  WORD16 ch_grp_idx = ptr_in_cfg->num_ch_sig_groups;
   const char object_idx[32][8] = {
       "000.wav", "001.wav", "002.wav", "003.wav", "004.wav", "005.wav", "006.wav", "007.wav",
       "008.wav", "009.wav", "010.wav", "011.wav", "012.wav", "013.wav", "014.wav", "015.wav",
@@ -911,45 +905,45 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
 
   /* OAM Header: version */
   ptr_16_word_temp_buff = ((WORD16 *)&temp_buff[OAM_HEADER_SIZE_BYTES]);
-  ptr_in_cfg->oam_version = *ptr_16_word_temp_buff;
-  if (ptr_in_cfg->oam_version > 4)
+  ptr_in_cfg->oam_version[obj_sgi] = *ptr_16_word_temp_buff;
+  if (ptr_in_cfg->oam_version[obj_sgi] > 4)
   {
     /* Invalid OAM header */
     return IMPEGHE_CONFIG_FATAL_OAM_INVALID_HEADER;
   }
 
-  if (ptr_in_cfg->oam_version > 2)
+  if (ptr_in_cfg->oam_version[obj_sgi] > 2)
   {
-    bytes_read = impeghe_fread(&ptr_in_cfg->has_dyn_obj_priority, 1, 2, oam_file);
+    bytes_read = impeghe_fread(&ptr_in_cfg->has_dyn_obj_priority[obj_sgi], 1, 2, oam_file);
     if (bytes_read != 2)
     {
       /* Invalid OAM header */
       return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
     }
 
-    if (ptr_in_cfg->has_dyn_obj_priority)
+    if (ptr_in_cfg->has_dyn_obj_priority[obj_sgi])
     {
-      ptr_in_cfg->has_dyn_obj_priority = 1;
+      ptr_in_cfg->has_dyn_obj_priority[obj_sgi] = 1;
     }
   }
 
-  if (ptr_in_cfg->oam_version > 3)
+  if (ptr_in_cfg->oam_version[obj_sgi] > 3)
   {
-    bytes_read = impeghe_fread(&ptr_in_cfg->has_uniform_spread, 1, 2, oam_file);
+    bytes_read = impeghe_fread(&ptr_in_cfg->has_uniform_spread[obj_sgi], 1, 2, oam_file);
     if (bytes_read != 2)
     {
       /* Invalid OAM header */
       return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
     }
 
-    if (ptr_in_cfg->has_uniform_spread)
+    if (ptr_in_cfg->has_uniform_spread[obj_sgi])
     {
-      ptr_in_cfg->has_uniform_spread = 1;
+      ptr_in_cfg->has_uniform_spread[obj_sgi] = 1;
     }
   }
   else
   {
-    ptr_in_cfg->has_uniform_spread = 1;
+    ptr_in_cfg->has_uniform_spread[obj_sgi] = 1;
   }
 
   /* OAM Header: num_channels and num_objects */
@@ -961,21 +955,21 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
   }
 
   ptr_16_temp_buff = ((UWORD16 *)temp_buff);
-  ptr_in_cfg->num_channels = *ptr_16_temp_buff;
+  ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx] = *ptr_16_temp_buff;
   ptr_16_temp_buff = ((UWORD16 *)(temp_buff + 2));
-  ptr_in_cfg->num_objects = *ptr_16_temp_buff;
+  ptr_in_cfg->num_objects[obj_sgi] = *ptr_16_temp_buff;
 
-  if (ptr_in_cfg->num_objects > 24)
+  if (ptr_in_cfg->num_objects[obj_sgi] > 24)
   {
-    ptr_in_cfg->extra_objects = ptr_in_cfg->num_objects - 24;
-    ptr_in_cfg->num_objects = 24;
+    ptr_in_cfg->extra_objects[obj_sgi] = ptr_in_cfg->num_objects[obj_sgi] - 24;
+    ptr_in_cfg->num_objects[obj_sgi] = 24;
     ptr_in_cfg->err_code = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
   }
 
-  if ((ptr_in_cfg->num_objects + ptr_in_cfg->num_channels) > 24)
+  if ((ptr_in_cfg->num_objects[obj_sgi] + ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx]) > 24)
   {
-    ptr_in_cfg->extra_objects = ptr_in_cfg->num_objects + ptr_in_cfg->num_channels - 24;
-    ptr_in_cfg->num_objects = 24 - ptr_in_cfg->num_channels;
+    ptr_in_cfg->extra_objects[obj_sgi] = ptr_in_cfg->num_objects[obj_sgi] + ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx] - 24;
+    ptr_in_cfg->num_objects[obj_sgi] = 24 - ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx];
     ptr_in_cfg->err_code = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
   }
 
@@ -988,7 +982,7 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
   }
 
   /* OAM Header: channel filenames */
-  for (idx = 0; idx < ptr_in_cfg->num_channels; idx++)
+  for (idx = 0; idx < ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx]; idx++)
   {
     UWORD8 item_name_buf[64] = {0};
     UWORD8 oam_file_path[300] = {0};
@@ -999,20 +993,32 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
       return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
     }
     memcpy(oam_file_path, pb_oam_file_path, strlen((const char *)pb_oam_file_path));
-    memcpy(item_name_buf, ptr_in_cfg->item_prefix, 6);
     strcat((char *)item_name_buf, (const char *)temp_buff);
     strncat((char *)oam_file_path, (char *)item_name_buf,
             strnlen((const char *)item_name_buf, 64));
-    g_pf_inps[idx] = fopen((const char *)oam_file_path, "rb");
-    if (NULL == g_pf_inps[idx])
+    g_pf_inp[g_num_ifiles] = fopen((const char *)oam_file_path, "rb");
+    if (NULL == g_pf_inp[g_num_ifiles])
     {
       printf("channel input file open failed\n");
       return -1;
     }
+    if (impeghe_wav_header_decode(g_pf_inp[g_num_ifiles], &ptr_in_cfg->aud_ch_pcm_cfg[g_num_ifiles]) ==
+        1)
+    {
+      fprintf(stdout, "Unable to Read Input WAV File\n");
+      return -1;
+    }
+    ptr_in_cfg->sample_rate = ptr_in_cfg->aud_ch_pcm_cfg[g_num_ifiles].sample_rate;
+    ptr_in_cfg->num_aud_ch += ptr_in_cfg->aud_ch_pcm_cfg[g_num_ifiles].n_channels;
+    g_num_ifiles++;
+  }
+  if (ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx] > 0)
+  {
+    ptr_in_cfg->num_ch_sig_groups++;
   }
 
   /* OAM Header: object describtions */
-  for (idx = 0; idx < ptr_in_cfg->num_objects; idx++)
+  for (idx = 0; idx < ptr_in_cfg->num_objects[obj_sgi]; idx++)
   {
     UWORD8 item_name_buf[64] = {0};
     UWORD8 oam_file_path[300] = {0};
@@ -1023,23 +1029,31 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
       return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
     }
     memcpy(oam_file_path, pb_oam_file_path, strlen((const char *)pb_oam_file_path));
-    memcpy(item_name_buf, ptr_in_cfg->item_prefix,
-           strlen((const char *)ptr_in_cfg->item_prefix) - 4);
+    memcpy(item_name_buf, ptr_in_cfg->item_prefix[obj_sgi],
+           strlen((const char *)ptr_in_cfg->item_prefix[obj_sgi]) - 4);
     strncat((char *)item_name_buf, "_", 1);
     strncat((char *)item_name_buf, object_idx[idx], 7);
     strncat((char *)oam_file_path, (char *)item_name_buf,
             strnlen((const char *)item_name_buf, 64));
-    g_pf_inps[ptr_in_cfg->num_channels + idx] = fopen((const char *)oam_file_path, "rb");
-    if (NULL == g_pf_inps[ptr_in_cfg->num_channels + idx])
+    g_pf_inp[g_num_ifiles] = fopen((const char *)oam_file_path, "rb");
+    if (NULL == g_pf_inp[g_num_ifiles])
     {
       fseek(oam_file, -OAM_OBJ_DESCRIPTION_SIZE_BYTES, SEEK_CUR);
-      ptr_in_cfg->extra_objects += ptr_in_cfg->num_objects - idx;
-      ptr_in_cfg->num_objects = idx > 24 ? 24 : idx;
+      ptr_in_cfg->extra_objects[obj_sgi] += ptr_in_cfg->num_objects[obj_sgi] - idx;
+      ptr_in_cfg->num_objects[obj_sgi] = idx > 24 ? 24 : idx;
       ptr_in_cfg->err_code = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
     }
+    if (impeghe_wav_header_decode(g_pf_inp[g_num_ifiles], &ptr_in_cfg->aud_ch_pcm_cfg[g_num_ifiles]) ==
+        1)
+    {
+      fprintf(stdout, "Unable to Read Input WAV File\n");
+      return -1;
+    }
+    ptr_in_cfg->num_aud_ch += ptr_in_cfg->aud_ch_pcm_cfg[g_num_ifiles].n_channels;
+    g_num_ifiles++;
   }
 
-  for (idx = 0; idx < ptr_in_cfg->extra_objects; idx++)
+  for (idx = 0; idx < ptr_in_cfg->extra_objects[obj_sgi]; idx++)
   {
     bytes_read = impeghe_fread(temp_buff, 1, OAM_OBJ_DESCRIPTION_SIZE_BYTES, oam_file);
     if (bytes_read != OAM_CH_FILE_NAME_SIZE_BYTES)
@@ -1048,8 +1062,13 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
       return IMPEGHE_CONFIG_FATAL_OAM_READ_FAILED;
     }
   }
+  if (ptr_in_cfg->num_objects[obj_sgi] > 0)
+  {
+    ptr_in_cfg->use_oam_element[obj_sgi] = 1;
+    ptr_in_cfg->num_obj_sig_groups++;
+  }
 
-  *num_channels_to_encode = ptr_in_cfg->num_channels + ptr_in_cfg->num_objects;
+  *num_channels_to_encode = ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx] + ptr_in_cfg->num_objects[obj_sgi];
 
   return 0;
 }
@@ -1077,7 +1096,7 @@ static VOID impehge_copy_config_params(ia_input_config *pstr_input_config,
   pstr_output_config->cplx_pred = pstr_input_config->cplx_pred;
   pstr_output_config->out_fmt = pstr_input_config->out_fmt;
   pstr_output_config->cicp_index = pstr_input_config->cicp_index;
-  pstr_output_config->oam_high_rate = pstr_input_config->oam_high_rate;
+  memcpy(pstr_output_config->oam_high_rate, pstr_input_config->oam_high_rate, sizeof(pstr_input_config->oam_high_rate));
   pstr_output_config->use_vec_est = pstr_input_config->use_vec_est;
   pstr_output_config->enhanced_noise_filling = pstr_input_config->enhanced_noise_filling;
   pstr_output_config->igf_after_tns_synth = pstr_input_config->igf_after_tns_synth;
@@ -1254,27 +1273,31 @@ static VOID impehge_print_config_params(ia_input_config *pstr_input_config,
     printf("\nCICP Layout Index (Invalid config value, setting to default) : %d",
            pstr_input_config->cicp_index);
   }
-  if (pstr_input_config->use_oam_element)
+  for (WORD32 idx = 0; idx < pstr_input_config->num_obj_sig_groups; idx++)
   {
-    printf("\nOAM : Enabled");
-    printf("\nOAM High Rate");
+    printf("\nOAM Signal Group: %d", idx);
+    if (pstr_input_config->use_oam_element[idx])
+    {
+      printf("\n\tOAM : Enabled");
+      printf("\n\tOAM High Rate");
 
-    if (pstr_input_config_prev->oam_high_rate != pstr_input_config->oam_high_rate)
+      if (pstr_input_config_prev->oam_high_rate[idx] != pstr_input_config->oam_high_rate[idx])
     {
       printf(" (Invalid config value, setting to default)");
     }
-    if (pstr_input_config->oam_high_rate == 0)
+      if (pstr_input_config->oam_high_rate[idx] == 0)
     {
       printf(" : Low - 0");
     }
-    else if (pstr_input_config->oam_high_rate == 1)
+      else if (pstr_input_config->oam_high_rate[idx] == 1)
     {
       printf(" : High - 1");
     }
   }
   else
   {
-    printf("\nOAM : Disabled");
+      printf("\n\tOAM : Disabled");
+    }
   }
 
   if (pstr_input_config->use_hoa_element)
@@ -1518,12 +1541,13 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
 
   /* Process initing done query variable */
   pWORD8 pb_inp_buf = NULL, pb_out_buf = NULL, pb_inp_hoa_buf = NULL;
-  WORD32 i_bytes_read = 0;
+  WORD32 i_bytes_read = 0, write_offset = 0;
 
   WORD32 input_size = 0;
   WORD32 input_hoa_size = 0;
-  WORD32 input_oam_size = 0;
   WORD32 expected_frame_count = 0;
+  WORD32 data_proc_length = 0;
+  WORD32 play_time_in_samples = 0;
   WORD32 start_offset_samples;
   ia_mp4_writer_struct mp4_writer_io = {0};
 
@@ -1554,6 +1578,11 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
 
   impeghe_set_default_config_param(&pstr_enc_api->input_config);
 
+  // The input files so far are considered different groups.
+  if (g_num_ifiles)
+  {
+    pstr_enc_api->input_config.num_ch_sig_groups += g_num_ifiles;
+  }
   /* ******************************************************************/
   /* Get the library name, library version and API version            */
   /* ******************************************************************/
@@ -1568,6 +1597,7 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
       return -1;
     }
     pstr_enc_api->input_config.use_hoa_element = 1;
+    pstr_enc_api->input_config.num_hoa_sig_groups += 1;
 
     // Default to use direction estimation
     if (-1 == pstr_enc_api->input_config.use_vec_est)
@@ -1692,41 +1722,35 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
   impeghe_parse_config_param(argc, argv, pstr_enc_api);
   if (pstr_enc_api->input_config.use_hoa_element)
   {
-    if (impeghe_wav_header_decode(g_pf_hoa_input[0], &pstr_enc_api->input_config.hoa_pcm_cfg) ==
+    if (impeghe_wav_header_decode(g_pf_hoa_input[0], &pstr_enc_api->input_config.aud_ch_pcm_cfg[0]) ==
         1)
     {
       fprintf(stdout, "Unable to Read Input WAV File\n");
       return -1;
     }
+    pstr_in_cfg->num_aud_ch += pstr_enc_api->input_config.aud_ch_pcm_cfg[0].n_channels;
   }
 
-  if (g_pf_inp)
+  for (i = 0; i < g_num_ifiles; i++)
   {
-    if (impeghe_wav_header_decode(g_pf_inp, &pstr_enc_api->input_config.aud_ch_pcm_cfg) == 1)
+    if (g_pf_inp[i])
+    {
+      if (impeghe_wav_header_decode(g_pf_inp[i], &pstr_enc_api->input_config.aud_ch_pcm_cfg[i]) == 1)
     {
       fprintf(stdout, "Unable to Read Input WAV File\n");
       return -1;
     }
   }
+    pstr_in_cfg->num_ch_per_sig_grp[i] = pstr_in_cfg->aud_ch_pcm_cfg[i].n_channels;
+    pstr_in_cfg->num_aud_ch += pstr_in_cfg->aud_ch_pcm_cfg[i].n_channels;
+  }
 
-  if (pstr_enc_api->input_config.use_oam_element == 1)
+  for (WORD32 idx = 0; idx < g_num_oamfiles; idx++)
   {
-    impeghe_read_oam_header(g_oam_inp, &pstr_enc_api->input_config, &num_channels_to_encode);
+    impeghe_read_oam_header(g_oam_inp[idx], &pstr_enc_api->input_config, &num_channels_to_encode, idx);
 
     _IA_HANDLE_ERROR(p_proc_err_info, (pWORD8) "", pstr_enc_api->input_config.err_code);
 
-    for (i = 0; i < num_channels_to_encode; i++)
-    {
-      if (impeghe_wav_header_decode(g_pf_inps[i], &pstr_enc_api->input_config.aud_obj_pcm_cfg) ==
-          1)
-      {
-        fprintf(stdout, "Unable to Read Input WAV File\n");
-        return -1;
-      }
-    }
-
-    pstr_enc_api->input_config.num_oam_ch = num_channels_to_encode;
-    pstr_enc_api->input_config.aud_obj_pcm_cfg.length *= num_channels_to_encode;
   }
 
   /*Downmix*/
@@ -1937,11 +1961,6 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
     }
   }
 
-  // n_channels indicates number of static channels.
-  if (NULL == g_pf_inp)
-  {
-    pstr_enc_api->input_config.aud_ch_pcm_cfg.n_channels = 0;
-  }
   if (ec_present)
   {
     pstr_enc_api->input_config.str_ec_info_struct.ec_present = ec_present;
@@ -2003,50 +2022,36 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
   impehge_print_config_params(pstr_in_cfg, pstr_in_cfg_prev);
 
   start_offset_samples = 1600;
-  input_size = pstr_out_cfg->in_frame_length * pstr_in_cfg->aud_ch_pcm_cfg.n_channels *
-               (pstr_in_cfg->aud_ch_pcm_cfg.pcm_sz >> 3);
+  input_size = pstr_out_cfg->in_frame_length * (pstr_in_cfg->aud_ch_pcm_cfg[0].pcm_sz >> 3);
+  input_hoa_size = input_size;
+
+  for (i = 0; i < g_num_ifiles; i++)
+  {
+    WORD32 num_bytes = pstr_in_cfg->aud_ch_pcm_cfg[i].length / pstr_in_cfg->aud_ch_pcm_cfg[i].n_channels;
+    WORD32 num_samples = num_bytes / (pstr_in_cfg->aud_ch_pcm_cfg[i].pcm_sz >> 3);
+    if (num_samples > data_proc_length)
+    {
+        data_proc_length = num_bytes;
+        play_time_in_samples = num_samples;
+    }
+  }
+
+  for (i = 0; i < g_num_hoafiles; i++)
+  {
+    WORD32 num_bytes = pstr_in_cfg->aud_ch_pcm_cfg[i].length / pstr_in_cfg->aud_ch_pcm_cfg[i].n_channels;
+    WORD32 num_samples = num_bytes / (pstr_in_cfg->aud_ch_pcm_cfg[i].pcm_sz >> 3);
+    if (num_samples > data_proc_length)
+    {
+        data_proc_length = num_bytes;
+        play_time_in_samples = num_samples;
+    }
+  }
+
   if (input_size)
   {
-    expected_frame_count = (pstr_in_cfg->aud_ch_pcm_cfg.length + (input_size - 1)) / input_size;
+    expected_frame_count = (data_proc_length + input_size - 1) / input_size;
   }
-
-  if (1 == pstr_enc_api->input_config.use_oam_element)
-  {
-    WORD32 num_oam_frames = 0;
-    input_oam_size = pstr_out_cfg->in_frame_length * num_channels_to_encode *
-                     (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3);
-
-    if (0 == input_size)
-    {
-      input_size = input_oam_size;
-      pstr_in_cfg->aud_ch_pcm_cfg.length = pstr_in_cfg->aud_obj_pcm_cfg.length;
-      pstr_in_cfg->aud_ch_pcm_cfg.sample_rate = pstr_in_cfg->aud_obj_pcm_cfg.sample_rate;
-    }
-
-    // ceil
-    num_oam_frames =
-        (pstr_in_cfg->aud_obj_pcm_cfg.length + (input_oam_size - 1)) / input_oam_size;
-    expected_frame_count =
-        (num_oam_frames > expected_frame_count) ? num_oam_frames : expected_frame_count;
-  }
-
-  if (1 == pstr_enc_api->input_config.use_hoa_element)
-  {
-    WORD32 num_hoa_frames = 0;
-    input_hoa_size = pstr_out_cfg->in_frame_length * (g_inp_hoa_config[0].pcm_sz >> 3);
-
-    if ((0 == input_size) || (0 != input_oam_size))
-    {
-      input_size = input_hoa_size;
-      pstr_in_cfg->aud_ch_pcm_cfg.length = g_inp_hoa_config[0].length;
-      pstr_in_cfg->aud_ch_pcm_cfg.sample_rate = g_inp_hoa_config[0].sample_rate;
-    }
-
-    // ceil
-    num_hoa_frames = (pstr_in_cfg->hoa_pcm_cfg.length + (input_hoa_size - 1)) / input_hoa_size;
-    expected_frame_count =
-        (num_hoa_frames > expected_frame_count) ? num_hoa_frames : expected_frame_count;
-  }
+  input_size *= pstr_in_cfg->num_aud_ch;
 
   if (ec_present)
   {
@@ -2078,11 +2083,9 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
     mp4_writer_io.meta_info.mhac_length = pstr_out_cfg->i_dec_len;
     mp4_writer_io.meta_info.g_track_count = 1;
     mp4_writer_io.meta_info.ia_mp4_stsz_entries = expected_frame_count;
-    mp4_writer_io.meta_info.media_time_scale = pstr_in_cfg->aud_ch_pcm_cfg.sample_rate;
-    mp4_writer_io.meta_info.movie_time_scale = pstr_in_cfg->aud_ch_pcm_cfg.sample_rate;
-    mp4_writer_io.meta_info.playTimeInSamples[0] =
-        pstr_in_cfg->aud_ch_pcm_cfg.length /
-        ((pstr_in_cfg->aud_ch_pcm_cfg.pcm_sz >> 3) * pstr_out_cfg->i_num_chan);
+    mp4_writer_io.meta_info.media_time_scale = pstr_in_cfg->aud_ch_pcm_cfg[0].sample_rate;
+    mp4_writer_io.meta_info.movie_time_scale = pstr_in_cfg->aud_ch_pcm_cfg[0].sample_rate;
+    mp4_writer_io.meta_info.playTimeInSamples[0] = play_time_in_samples;
     mp4_writer_io.meta_info.ia_mp4_stsz_size = ia_stsz_size;
 
     // init size
@@ -2109,23 +2112,29 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
     }
   }
 
-  if (pstr_in_cfg->use_oam_element == 1)
+
+  i_bytes_read = 0; write_offset = 0;
+  for (WORD32 ii = 0; ii < pstr_out_cfg->in_frame_length; ii++)
   {
-    WORD32 idx = 0;
-    i_bytes_read = 0;
-    for (WORD32 i = 0; i < 1024; i++)
+    for (WORD32 jj = 0; jj < g_num_ifiles; jj++)
     {
-      for (WORD32 j = 0; j < num_channels_to_encode; j++)
+      if (g_pf_inp[jj])
       {
-        i_bytes_read += impeghe_fread((pVOID)&pb_inp_buf[idx], sizeof(WORD8),
-                                      (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3), g_pf_inps[j]);
-        idx += (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3);
+        WORD32 pcm_wd_size = (pstr_in_cfg->aud_ch_pcm_cfg[jj].pcm_sz >> 3);
+        WORD32 f_channels = (pstr_in_cfg->aud_ch_pcm_cfg[jj].n_channels);
+        WORD32 bytes_to_read = f_channels * pcm_wd_size;
+        WORD32 ret_val = impeghe_fread((pVOID)&pb_inp_buf[write_offset],
+                                     sizeof(WORD8),
+                                     bytes_to_read,
+                                     g_pf_inp[jj]);
+        i_bytes_read += ret_val;
+        if (ret_val != bytes_to_read)
+        {
+          memset(&pb_inp_buf[i_bytes_read], 0, bytes_to_read - ret_val);
+        }
+        write_offset += bytes_to_read;
       }
     }
-  }
-  if (g_pf_inp)
-  {
-    i_bytes_read = impeghe_fread((pVOID)pb_inp_buf, sizeof(WORD8), input_size, g_pf_inp);
   }
 
   if (g_is_hoa_input)
@@ -2152,19 +2161,14 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
   while ((i_bytes_read) || (!u_is_last_frame_encoded))
   {
     u_is_last_frame_encoded =
-        (pstr_enc_api->input_config.use_drc_element) ? (i_bytes_read == 0) : 1;
+      (pstr_enc_api->input_config.use_drc_element) ? (i_bytes_read == 0) : 1;
+
+    if (pstr_enc_api->input_config.use_drc_element && !frame_count)
+      u_is_last_frame_encoded = 0;
     frame_count++;
 
-    if ((i_bytes_read != input_size) && (!g_is_hoa_input) && (pstr_in_cfg->use_oam_element != 1)
-
-    )
-    {
-      memset((pb_inp_buf + i_bytes_read), 0, (input_size - i_bytes_read));
-      // ITTIAM: Zero padding for the last frame
-    }
-
     // Reset Bytes read
-    i_bytes_read = 0;
+    i_bytes_read = 0; write_offset = 0;
 
     /*****************************************************************************/
     /* Perform Encoding of frame data */
@@ -2175,12 +2179,14 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
     _IA_HANDLE_ERROR(p_proc_err_info, (pWORD8) "", err_code);
 
     if (pstr_out_cfg->i_out_bytes)
+    {
       ia_stsz_size[frame_count - 1] = pstr_out_cfg->i_out_bytes;
-    else
-      frame_count--;
 
     impeghe_fwrite(pb_out_buf, g_pf_out, pstr_out_cfg->i_out_bytes);
     fflush(g_pf_out);
+    }
+    else
+      frame_count--;
 
     /*print the frame count on the stdout*/
     fprintf(stderr, "Frames Processed :%d\r", frame_count);
@@ -2212,34 +2218,27 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
         pstr_in_cfg->str_ec_info_struct.ec_active = 0;
       }
     }
-    if (pstr_in_cfg->use_oam_element == 1)
-    {
-      WORD32 idx = 0;
-      WORD32 bytes_read;
-      i_bytes_read = 0;
-      for (WORD32 i = 0; i < 1024; i++)
-      {
-        for (WORD32 j = 0; j < num_channels_to_encode; j++)
-        {
-          bytes_read = impeghe_fread((pVOID)&pb_inp_buf[idx], sizeof(WORD8),
-                                     (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3), g_pf_inps[j]);
-          i_bytes_read += bytes_read;
-          if (bytes_read != (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3))
-          {
-            memset(&pb_inp_buf[idx + bytes_read], 0, (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3));
 
-            if (feof(g_pf_inps[j]))
-            {
-              // fprintf(stderr, "EOF reached for OAM input\r");
-            }
+    i_bytes_read = 0;
+    write_offset = 0;
+    for (WORD32 jj = 0; jj < 1024; jj++)
+    {
+      for (WORD32 ii = 0; ii < g_num_ifiles; ii++)
+      {
+        WORD32 pcm_wd_size = (pstr_in_cfg->aud_ch_pcm_cfg[ii].pcm_sz >> 3);
+        WORD32 f_channels = (pstr_in_cfg->aud_ch_pcm_cfg[ii].n_channels);
+        WORD32 bytes_to_read = f_channels * pcm_wd_size;
+        if ((g_pf_inp[ii]) && (!pstr_in_cfg->str_ec_info_struct.ec_active))
+        {
+          WORD32 ret_val = impeghe_fread((pVOID)&pb_inp_buf[write_offset], sizeof(WORD8), bytes_to_read, g_pf_inp[ii]);
+          i_bytes_read += ret_val;
+          if (ret_val != bytes_to_read)
+          {
+            memset(&pb_inp_buf[write_offset], 0, bytes_to_read - ret_val);
           }
-          idx += (pstr_in_cfg->aud_obj_pcm_cfg.pcm_sz >> 3);
+          write_offset += bytes_to_read;
         }
       }
-    }
-    if ((g_pf_inp) && (!pstr_in_cfg->str_ec_info_struct.ec_active))
-    {
-      i_bytes_read = impeghe_fread((pVOID)pb_inp_buf, sizeof(WORD8), input_size, g_pf_inp);
     }
     if (g_is_hoa_input)
     {
@@ -2263,6 +2262,8 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
         {
           i_bytes_read = input_hoa_size;
         }
+        if (i_bytes_read == 0)
+          u_is_last_frame_encoded = 1;
       }
     }
 
@@ -2282,14 +2283,14 @@ clean_return:
     g_pf_ec = NULL;
   }
 
-  if (pstr_in_cfg->use_oam_element == 1)
+  if (pstr_in_cfg->use_oam_element[0] == 1)
   {
     for (i = 0; i < num_channels_to_encode; i++)
     {
-      if (g_pf_inps[i])
+      if (g_pf_inp[i])
       {
-        fclose(g_pf_inps[i]);
-        g_pf_inps[i] = NULL;
+        fclose(g_pf_inp[i]);
+        g_pf_inp[i] = NULL;
       }
     }
   }
@@ -2307,12 +2308,12 @@ clean_return:
 
     for (int idx = 0; idx < frame_count; idx++)
     {
-      mp4_writer_io.max_frame_data_size = mp4_writer_io.meta_info.ia_mp4_stsz_size[idx] > mp4_writer_io.max_frame_data_size ?
+      mp4_writer_io.max_frame_data_size = mp4_writer_io.meta_info.ia_mp4_stsz_size[idx] > (UWORD32)mp4_writer_io.max_frame_data_size ?
         mp4_writer_io.meta_info.ia_mp4_stsz_size[idx] : mp4_writer_io.max_frame_data_size;
       mp4_writer_io.total_frame_data_size += mp4_writer_io.meta_info.ia_mp4_stsz_size[idx];
     }
     mp4_writer_io.frame_count = frame_count;
-    mp4_writer_io.sampling_freq = pstr_in_cfg->aud_ch_pcm_cfg.sample_rate;
+    mp4_writer_io.sampling_freq = pstr_in_cfg->aud_ch_pcm_cfg[0].sample_rate;
     if (op_fmt == MP4_MHM1)
     {
       ia_stsz_size[0] += pstr_out_cfg->i_dec_len;
@@ -2324,8 +2325,8 @@ clean_return:
     mp4_writer_io.meta_info.startOffsetInSamples[0] = start_offset_samples;
     // playTimeInSamples
     mp4_writer_io.meta_info.playTimeInSamples[0] =
-        pstr_in_cfg->aud_ch_pcm_cfg.length /
-        ((pstr_in_cfg->aud_ch_pcm_cfg.pcm_sz >> 3) * pstr_out_cfg->i_num_chan);
+        pstr_in_cfg->aud_ch_pcm_cfg[0].length /
+        ((pstr_in_cfg->aud_ch_pcm_cfg[0].pcm_sz >> 3) * pstr_out_cfg->i_num_chan);
 
     // init size
     mp4_writer_io.mdat_size = 0;
@@ -2365,6 +2366,7 @@ clean_return:
 WORD32 main(WORD32 argc, char *argv[])
 {
   FILE *param_file_id = NULL;
+  pCHAR8 p_separator = ",";
   //  LOOPIDX i;
 
   WORD8 curr_cmd[IA_MAX_CMD_LINE_LENGTH];
@@ -2381,7 +2383,7 @@ WORD32 main(WORD32 argc, char *argv[])
 
   WORD8 pb_hoa_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
 
-  g_oam_inp = 0;
+  memset(g_oam_inp, 0, sizeof(g_oam_inp));
 
   impeghe_testbench_error_handler_init();
 
@@ -2411,6 +2413,11 @@ WORD32 main(WORD32 argc, char *argv[])
     /* Process one line at a time */
     while (fgets((char *)curr_cmd, IA_MAX_CMD_LINE_LENGTH, param_file_id))
     {
+      op_fmt = RAW_MHAS;
+      g_num_ifiles = 0;
+      g_num_oamfiles = 0;
+      g_num_hoafiles = 0;
+      memset(pb_oam_file_name, 0, sizeof(pb_oam_file_name));
       curpos = 0;
       fargc = 0;
       /* if it is not a param_file command and if */
@@ -2506,19 +2513,27 @@ WORD32 main(WORD32 argc, char *argv[])
 
           if (!strncmp((pCHAR8)fargv[i], "-ifile:", 7))
           {
+            WORD32 f =0;
+            pWORD8 p_file_name;
             pWORD8 pb_arg_val = fargv[i] + 7;
-            WORD8 pb_input_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
-            strcat((char *)pb_input_file_name, (const char *)pb_input_file_path);
-            strcat((char *)pb_input_file_name, (const char *)pb_arg_val);
-
-            g_pf_inp = NULL;
-            g_pf_inp = fopen((const char *)pb_input_file_name, "rb");
-            if (g_pf_inp == NULL)
+            p_file_name = (pWORD8)strtok((char *)pb_arg_val, p_separator);
+            while(p_file_name != NULL)
             {
-              err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
-              impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Input File", err_code);
+              WORD8 pb_input_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+              strcat((char *)pb_input_file_name, (const char *)pb_input_file_path);
+              strcat((char *)pb_input_file_name, (const char *)p_file_name);
+
+              g_pf_inp[f] = NULL;
+              g_pf_inp[f] = fopen((const char *)pb_input_file_name, "rb");
+              if (g_pf_inp[f] == NULL)
+              {
+                err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+                impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Input File", err_code);
+              }
+              file_count++;
+              f++; g_num_ifiles++;
+              p_file_name = (pWORD8)strtok(NULL, p_separator);
             }
-            file_count++;
           }
 
           if (!strncmp((pCHAR8)fargv[i], "-ofile:", 7))
@@ -2540,22 +2555,31 @@ WORD32 main(WORD32 argc, char *argv[])
 
           if (!strncmp((pCHAR8)fargv[i], "-oam_file:", 10))
           {
+            WORD32 f = 0;
+            pWORD8 p_file_name;
             pWORD8 pb_arg_val = fargv[i] + 10;
-            WORD8 pb_oam_file_local[IA_MAX_CMD_LINE_LENGTH] = "";
 
-            memcpy(pb_oam_file_name, pb_arg_val, strlen((const char *)pb_arg_val));
+            p_file_name = (pWORD8)strtok((char *)pb_arg_val, p_separator);
+            while(p_file_name != NULL)
+            {
+              WORD8 pb_oam_file_local[IA_MAX_CMD_LINE_LENGTH] = "";
+              memcpy(pb_oam_file_name[f], p_file_name, strlen((const char *)pb_arg_val));
 
-            strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_path);
-            strcat((char *)pb_oam_file_local, (const char *)pb_arg_val);
+              strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_path);
+              strcat((char *)pb_oam_file_local, (const char *)pb_arg_val);
 
-            g_oam_inp = NULL;
-            g_oam_inp = fopen((const char *)pb_oam_file_local, "rb");
-            if (g_oam_inp == NULL)
+              g_oam_inp[f] = NULL;
+              g_oam_inp[f] = fopen((const char *)pb_oam_file_local, "rb");
+            if (g_oam_inp[f] == NULL)
             {
               err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
               impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "OAM File", err_code);
             }
-            file_count++;
+              f++;
+              file_count++;
+              g_num_oamfiles++;
+              p_file_name = (pWORD8)strtok(NULL, p_separator);
+            }
           }
           /* hoa related */
           if (!strncmp((pCHAR8)fargv[i], "-hoa_file:", 10))
@@ -2565,6 +2589,7 @@ WORD32 main(WORD32 argc, char *argv[])
             strcat((char *)g_pb_hoa_input_file_names[0], (const char *)pb_arg_val);
 
             g_is_hoa_input = 1;
+            g_num_hoafiles++;
             file_count++;
           }
           if (!strncmp((pCHAR8)fargv[i], "-iasi:", 6))
@@ -2599,24 +2624,24 @@ WORD32 main(WORD32 argc, char *argv[])
                                 err_code);
         }
         if (err_code == IA_NO_ERROR)
-          impeghe_main_process(fargc, pargv);
+          impeghe_main_process(fargc, (pWORD8 *)pargv);
 
-        if (g_pf_inp)
+        for (i = 0; i < g_num_ifiles; i++)
         {
-          fclose(g_pf_inp);
-          g_pf_inp = NULL;
+          if (g_pf_inp[i])
+          {
+            fclose(g_pf_inp[i]);
+            g_pf_inp[i] = NULL;
+          }
         }
 
-        if (g_pf_meta)
+        for (i = 0; i < g_num_oamfiles; i++)
         {
-          fclose(g_pf_meta);
-          g_pf_meta = NULL;
-        }
-
-        if (g_oam_inp)
-        {
-          fclose(g_oam_inp);
-          g_oam_inp = NULL;
+          if (g_oam_inp[i])
+          {
+            fclose(g_oam_inp[i]);
+            g_oam_inp[i] = NULL;
+          }
         }
 
         if (g_drc_inp)
@@ -2679,26 +2704,35 @@ WORD32 main(WORD32 argc, char *argv[])
     WORD32 err_code = IA_NO_ERROR;
     WORD8 pb_output_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
     WORD32 file_count = 0;
+    g_num_ifiles = 0;
     for (i = 1; i < argc; i++)
     {
       printf("%s ", argv[i]);
 
       if (!strncmp((const char *)argv[i], "-ifile:", 7))
       {
+        WORD32 f = 0;
+        pWORD8 p_file_name;
         pWORD8 pb_arg_val = (pWORD8)argv[i] + 7;
-        WORD8 pb_input_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
-
-        strcat((char *)pb_input_file_name, (const char *)pb_input_file_path);
-        strcat((char *)pb_input_file_name, (const char *)pb_arg_val);
-
-        g_pf_inp = NULL;
-        g_pf_inp = fopen((const char *)pb_input_file_name, "rb");
-        if (g_pf_inp == NULL)
+        p_file_name = (pWORD8)strtok((char *)pb_arg_val, p_separator);
+        while(p_file_name != NULL)
         {
-          err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
-          impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Input File", err_code);
+          WORD8 pb_input_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+          strcat((char *)pb_input_file_name, (const char *)pb_input_file_path);
+          strcat((char *)pb_input_file_name, (const char *)p_file_name);
+
+          g_pf_inp[f] = NULL;
+          g_pf_inp[f] = fopen((const char *)pb_input_file_name, "rb");
+          if (g_pf_inp[f] == NULL)
+          {
+            err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+            impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Input File", err_code);
+          }
+          file_count++;
+          f++; g_num_ifiles++;
+          p_file_name = (pWORD8)strtok((char *)NULL, p_separator);
         }
-        file_count++;
       }
 
       if (!strncmp((const char *)argv[i], "-ofile:", 7))
@@ -2720,33 +2754,42 @@ WORD32 main(WORD32 argc, char *argv[])
 
       if (!strncmp((const char *)argv[i], "-oam_file:", 10))
       {
+        WORD32 f = 0;
+        pWORD8 p_file_name;
         pWORD8 pb_arg_val = (pWORD8)argv[i] + 10;
         WORD8 pb_oam_file_local[IA_MAX_CMD_LINE_LENGTH] = "";
         const char temp1 = '\\';
         const char temp2 = '/';
 
-        for (WORD32 i = (WORD32)strlen((char *)pb_arg_val) - 1; i >= 0; i--)
+        p_file_name = (pWORD8)strtok((char *)pb_arg_val, p_separator);
+        while(p_file_name != NULL)
         {
-          if ((!strncmp((const char *)&pb_arg_val[i], (const char *)&temp1, 1)) ||
-              (!strncmp((const char *)&pb_arg_val[i], (const char *)&temp2, 1)))
+          for (WORD32 i = (WORD32)strlen((char *)p_file_name) - 1; i >= 0; i--)
           {
-            memcpy(pb_oam_file_path, pb_arg_val, i + 1);
-            memcpy(pb_oam_file_name, pb_arg_val + i + 1, strlen((char *)pb_arg_val) - i - 1);
-            break;
+            if ((!strncmp((const char *)&p_file_name[i], (const char *)&temp1, 1)) ||
+                (!strncmp((const char *)&p_file_name[i], (const char *)&temp2, 1)))
+            {
+              memcpy(pb_oam_file_path, p_file_name, i + 1);
+              memcpy(pb_oam_file_name[f], p_file_name + i + 1, strlen((char *)p_file_name) - i - 1);
+              break;
+            }
           }
-        }
 
-        strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_path);
-        strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_name);
+          strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_path);
+          strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_name[f]);
 
-        g_oam_inp = NULL;
-        g_oam_inp = fopen((const char *)pb_oam_file_local, "rb");
-        if (g_oam_inp == NULL)
-        {
-          err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
-          impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "OAM File", err_code);
+          g_oam_inp[f] = NULL;
+          g_oam_inp[f] = fopen((const char *)pb_oam_file_local, "rb");
+          if (g_oam_inp[f] == NULL)
+          {
+            err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+            impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "OAM File", err_code);
+          }
+          f++;
+          file_count++;
+          g_num_oamfiles++;
+          p_file_name = (pWORD8)strtok(NULL, p_separator);
         }
-        file_count++;
       }
       /* HOA related */
       if (!strncmp(argv[i], "-hoa_file:", 10))
@@ -2756,6 +2799,7 @@ WORD32 main(WORD32 argc, char *argv[])
         strcat((char *)g_pb_hoa_input_file_names[0], pb_arg_val);
 
         g_is_hoa_input = 1;
+        g_num_hoafiles++;
         file_count++;
       }
       if (!strncmp((pCHAR8)argv[i], "-iasi:", 6))
@@ -2796,10 +2840,13 @@ WORD32 main(WORD32 argc, char *argv[])
     if (err_code == IA_NO_ERROR)
       impeghe_main_process(argc - 1, (pWORD8 *)&argv[1]);
 
-    if (g_pf_inp)
+    for (i = 0; i < g_num_ifiles; i++)
     {
-      fclose(g_pf_inp);
-      g_pf_inp = NULL;
+      if (g_pf_inp[i])
+      {
+        fclose(g_pf_inp[i]);
+        g_pf_inp[i] = NULL;
+      }
     }
     if (g_pf_ec)
     {
@@ -2819,10 +2866,13 @@ WORD32 main(WORD32 argc, char *argv[])
       g_pf_out = NULL;
     }
 
-    if (g_oam_inp)
+    for (i = 0; i < g_num_oamfiles; i++)
     {
-      fclose(g_oam_inp);
-      g_oam_inp = NULL;
+      if (g_oam_inp[i])
+      {
+        fclose(g_oam_inp[i]);
+        g_oam_inp[i] = NULL;
+      }
     }
 
     if (g_drc_inp)
@@ -2854,11 +2904,6 @@ WORD32 main(WORD32 argc, char *argv[])
       }
     }
 
-    if (g_pf_meta)
-    {
-      fclose(g_pf_meta);
-      g_pf_meta = NULL;
-    }
     printf("\nEncoding process complete\n");
   }
 

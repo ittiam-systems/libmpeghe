@@ -76,7 +76,7 @@ IA_ERRORCODE impeghe_obj_md_read_frame(ia_oam_enc_state_struct *ptr_oam_enc_stat
   for (idx = 0; idx < pstr_oam_data->num_elements; idx++)
   {
     read_buff_offset = 0;
-    bytes_read = ptr_oam_enc_state->str_config.read_data(ptr_oam_enc_state->str_config.data_hndl,
+    bytes_read = ptr_oam_enc_state->str_config.read_data(ptr_oam_enc_state->str_config.data_hndl[0],
                                                          ptr_oam_enc_state->read_buff,
                                                          ptr_oam_enc_state->bytes_per_element);
     if (bytes_read != ptr_oam_enc_state->bytes_per_element)
@@ -146,7 +146,7 @@ IA_ERRORCODE impeghe_obj_md_read_frame(ia_oam_enc_state_struct *ptr_oam_enc_stat
   for (idx = 0; idx < ptr_oam_enc_state->str_config.extra_objects; idx++)
   {
     read_buff_offset = 0;
-    bytes_read = ptr_oam_enc_state->str_config.read_data(ptr_oam_enc_state->str_config.data_hndl,
+    bytes_read = ptr_oam_enc_state->str_config.read_data(ptr_oam_enc_state->str_config.data_hndl[0],
                                                          ptr_oam_enc_state->read_buff,
                                                          ptr_oam_enc_state->bytes_per_element);
     if (bytes_read != ptr_oam_enc_state->bytes_per_element)

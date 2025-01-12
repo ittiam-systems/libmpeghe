@@ -139,6 +139,7 @@ typedef struct
   UWORD8 usac_cfg_ext_info_buf[USAC_MAX_CONFIG_EXTENSIONS][MAX_CHANNEL_BITS / MAX_SHORT_WINDOWS];
   WORD32 num_out_channels;
   WORD32 num_signal_grp;
+  WORD32 el_len_present;
   ia_usac_enc_element_config_struct str_usac_element_config[USAC_MAX_ELEMENTS];
   ia_mpeghe_ext_element_config_union str_extn_element_config[USAC_MAX_CONFIG_EXTENSIONS];
 
@@ -151,6 +152,7 @@ typedef struct
   UWORD32 samp_frequency_index;
   UWORD32 sampling_frequency;
   UWORD32 channel_configuration;
+  UWORD32 channel_configuration_grp[MAX_NUM_SIG_GRPS];
   UWORD32 ext_audio_object_type;
   UWORD32 ext_samp_frequency_index;
   UWORD32 ext_sampling_frequency;
@@ -158,14 +160,13 @@ typedef struct
   ia_usac_config_struct str_usac_config;
   ia_mae_audio_scene_info str_asi_info;
   UWORD32 num_audio_objs;
-  UWORD32 num_audio_chs;
   UWORD32 num_audio_channels;
   WORD32 num_ch_sig_groups;
   WORD32 num_sig_grps;
-  WORD32 num_ch_per_sig_group[16];
+  WORD32 num_ch_per_sig_group[MAX_NUM_SIG_GRPS];
   WORD32 num_ch_idx_per_grp[MAX_TIME_CHANNELS];
   WORD32 num_obj_sig_groups;
-  WORD32 num_objs_per_sig_group[16];
+  WORD32 num_objs_per_sig_group[MAX_NUM_SIG_GRPS];
   WORD32 num_hoa_sig_groups;
   WORD32 num_hoas_per_sig_group[16];
   UWORD32 num_hoa_transport_channels;
