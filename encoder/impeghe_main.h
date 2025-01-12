@@ -286,6 +286,8 @@ typedef struct
   ia_mpeghe_ext_cfg_downmix_input_struct str_ext_cfg_downmix_input;
   ia_sfb_params_struct str_sfb_prms;
   WORD32 fdp_enable;
+  ia_drc_internal_config str_internal_drc_cfg;
+  WORD32 use_measured_loudness;
   //pre-roll / IPF frames
   WORD32 random_access_interval;
   WORD32 preroll_flag;

@@ -4147,10 +4147,6 @@ IA_ERRORCODE impeghe_drc_write_uni_drc_config(ia_drc_enc_state *pstr_drc_state,
       return (err_code);
     }
   }
-
-  bit_cnt_local +=
-      impeghe_write_bits_buf(it_bit_buf, pstr_uni_drc_config->loudness_info_set_present, 1);
-  if (pstr_uni_drc_config->loudness_info_set_present == 1)
   {
     err_code = impeghe_drc_write_loudness_info_set(pstr_drc_state, it_bit_buf, &bit_cnt_local);
     if (err_code & IA_FATAL_ERROR)
@@ -4160,6 +4156,29 @@ IA_ERRORCODE impeghe_drc_write_uni_drc_config(ia_drc_enc_state *pstr_drc_state,
   }
 
   *ptr_bit_cnt += bit_cnt_local;
+
+  return err_code;
+}
+
+/**
+ *  impeghe_drc_write_measured_loudness_info
+ *
+ *  \brief Writes Measured loudness information to bit-buffer
+ *
+ *  \param [in,out] pstr_drc_state		Pointer to DRC encoder state structure
+ *
+ *  \return IA_ERRORCODE Error code
+ */
+IA_ERRORCODE impeghe_drc_write_measured_loudness_info(ia_drc_enc_state *pstr_drc_state) {
+
+  IA_ERRORCODE err_code = IA_NO_ERROR;
+  ia_bit_buf_struct *it_bit_buf_lis = &pstr_drc_state->str_bit_buf_cfg_ext;
+  WORD32 bit_cnt_lis = 0;
+  err_code = impeghe_drc_write_loudness_info_set(pstr_drc_state, it_bit_buf_lis, &bit_cnt_lis);
+  if (err_code & IA_FATAL_ERROR) {
+    return (err_code);
+  }
+  pstr_drc_state->drc_config_ext_data_size_bit = bit_cnt_lis;
 
   return err_code;
 }

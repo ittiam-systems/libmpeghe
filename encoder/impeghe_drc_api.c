@@ -32,6 +32,7 @@
 ---------------------------------------------------------------
 */
 
+#include <string.h>
 #include "impeghe_error_standards.h"
 #include "impeghe_type_def.h"
 #include "impeghe_bitbuffer.h"
@@ -168,6 +169,42 @@ IA_ERRORCODE impeghe_drc_enc_init(VOID *pstr_drc_state, VOID *ptr_drc_scratch,
 
   pstr_drc_state_local->drc_config_data_size_bit = bit_count;
 
+  return err_code;
+}
+
+/**
+ *  impeghe_loudness_info_init
+ *
+ *  \brief Initialize loudness for encoder
+ *
+ *  \param [out] pstr_drc_state  Pointer to DRC encoder state structure
+ *  \param [in] ptr_drc_scratch  Pointer to DRC scratch memory
+ *  \param [in] pstr_inp_config  Pointer to DRC input config structure
+ *
+ *  \return IA_ERRORCODE Error code
+ */
+IA_ERRORCODE impeghe_loudness_info_init(VOID *pstr_drc_state, VOID *ptr_drc_scratch,
+  ia_drc_input_config *pstr_inp_config)
+{
+  IA_ERRORCODE err_code = IA_NO_ERROR;
+  ia_drc_enc_state *pstr_drc_state_local = pstr_drc_state;
+
+  jmp_buf drc_enc_init_jmp_buf;
+  err_code = setjmp(drc_enc_init_jmp_buf);
+  if (err_code != IA_NO_ERROR)
+  {
+    return IMPEGHE_INIT_FATAL_INSUFFICIENT_DRC_WRITE_BUFFER_SIZE;
+  }
+
+  impeghe_create_bit_buffer(&pstr_drc_state_local->str_bit_buf_cfg_ext,
+    pstr_drc_state_local->bit_buf_base_cfg_ext,
+    sizeof(pstr_drc_state_local->bit_buf_base_cfg_ext));
+
+  memcpy(&pstr_drc_state_local->str_gain_enc.str_loudness_info_set,
+    &pstr_inp_config->str_enc_loudness_info_set,
+    sizeof(ia_drc_loudness_info_set_struct));
+
+  err_code = impeghe_drc_write_measured_loudness_info(pstr_drc_state_local);
   return err_code;
 }
 

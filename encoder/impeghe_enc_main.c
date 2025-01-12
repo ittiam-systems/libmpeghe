@@ -1195,7 +1195,8 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     {
       return err_code;
     }
-
+    if (pstr_usac_config->use_drc_element) 
+    {
     ia_usac_enc_element_config_struct *pstr_usac_elem_config =
         &(pstr_asc_usac_config->str_usac_element_config[pstr_asc_usac_config->num_elements]);
     pstr_asc_usac_config->usac_element_type[pstr_asc_usac_config->num_elements] = ID_USAC_EXT;
@@ -1207,6 +1208,17 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
         (pstr_usac_data->str_drc_state.drc_config_data_size_bit + 7) >> 3;
 
     pstr_asc_usac_config->num_elements++;
+  }
+  }
+  else
+  {
+    if (!pstr_usac_config->use_hoa){
+      err_code = impeghe_loudness_info_init(&pstr_usac_data->str_drc_state, pstr_usac_state->drc_scratch,
+        &pstr_usac_config->str_drc_cfg);
+      if (err_code) {
+        return err_code;
+      }
+    }
   }
 
   if (pstr_usac_config->use_downmix_ext_config)
@@ -1266,11 +1278,13 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     pstr_asc_usac_config->num_config_extensions++;
     pstr_asc_usac_config->usac_cfg_ext_present = 1;
   }
-  if (pstr_usac_config->use_drc_element) // For Loudness
+  if (!pstr_usac_config->use_hoa || pstr_usac_config->use_drc_element) // For Loudness
   {
     pstr_asc_usac_config->usac_config_ext_type[pstr_asc_usac_config->num_config_extensions] =
         ID_CONFIG_EXT_LOUDNESS_INFO;
-    pstr_asc_usac_config->usac_config_ext_len[pstr_asc_usac_config->num_config_extensions] = 1;
+    pstr_asc_usac_config->usac_config_ext_len[pstr_asc_usac_config->num_config_extensions] = pstr_usac_config->use_hoa ? 1 : (pstr_usac_data->str_drc_state.drc_config_ext_data_size_bit + 7) >> 3;
+    pstr_asc_usac_config->usac_config_ext_buf[pstr_asc_usac_config->num_config_extensions] =
+      pstr_usac_data->str_drc_state.bit_buf_base_cfg_ext;
     pstr_asc_usac_config->num_config_extensions++;
     pstr_asc_usac_config->usac_cfg_ext_present = 1;
   }

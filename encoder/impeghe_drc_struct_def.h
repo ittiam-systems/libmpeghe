@@ -52,6 +52,7 @@ typedef struct
   WORD32 drc_config_data_size_bit;
   UWORD8 bit_buf_base_cfg_ext[MAX_DRC_PAYLOAD_BYTES];
   ia_bit_buf_struct str_bit_buf_cfg_ext;
+  WORD32 drc_config_ext_data_size_bit;
   UWORD8 bit_buf_base_cfg_tmp[MAX_DRC_PAYLOAD_BYTES];
   ia_bit_buf_struct str_bit_buf_cfg_tmp;
 

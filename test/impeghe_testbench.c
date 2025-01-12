@@ -56,6 +56,7 @@
 #include "impeghe_mp4_writer.h"
 
 WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file);
+WORD32 impeghe_read_loudness(void *pstr_asi_config, FILE *file);
 VOID impeghe_error_handler_init();
 VOID impeghe_testbench_error_handler_init();
 
@@ -96,7 +97,7 @@ typedef enum impeghe_op_fmts
 /* Global variables                                                          */
 /*****************************************************************************/
 
-FILE *g_pf_inp[56], *g_pf_out, *g_pf_meta, *g_pf_spk, *g_asi;
+FILE *g_pf_inp[56], *g_pf_out, *g_pf_spk, *g_asi, *g_loudness;
 FILE *g_pf_ec; // earcon inputfile
 WORD8 ec_present = 0;
 WORD32 array_ec[1024] = {0};
@@ -372,6 +373,7 @@ VOID impeghe_print_usage()
   printf("\n[options] can be,");
   printf("\n[-br:<bitrate>]");
   printf("\n[-iasi:<asi_file>]");
+  printf("\n[-iloudness:<loudness_file>]");
   printf("\n[-mhas_asi:<asi_mhas>]");
   printf("\n[-op_fmt:<output_format>]");
   printf("\n[-cicp:<cicp_layout_index>]");
@@ -394,6 +396,7 @@ VOID impeghe_print_usage()
   printf("\n<asi_file> is the asi text file name");
   printf("\n<asi_mhas> is the flag to enable or disable writing ASI to mhas packet.");
   printf("\n           If set to 0 ASI will be written as config extension element.");
+  printf("\n<loudness_file> is the loudness xml file name");
   printf("\n<output_format> is the output format. (1 - MHAS, 2 - MHA1, 3 - MHM1). Default is "
          "1 (MHAS)");
   printf("\n<cicp_layout_index> is the channel configuration index. Range: 1 to 20 except 8 "
@@ -730,6 +733,11 @@ IA_ERRORCODE impeghe_parse_config_param(WORD32 argc, pWORD8 argv[], pVOID ptr_en
     if (!strncmp((pCHAR8)argv[i], "-iasi:", 6))
     {
         pstr_enc_api->input_config.asi_enable = 1;
+    }
+    /* Loudness info configuration file */
+    if (!strncmp((pCHAR8)argv[i], "-iloudness:", 11))
+    {
+        pstr_enc_api->input_config.loudness_enable = 1;
     }
     /* Flag to enable / diable writing ASI to mhas packet */
     if (!strncmp((pCHAR8)argv[i], "-mhas_asi:", 10))
@@ -2015,6 +2023,14 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
   err_code = impeghe_create((pVOID)pstr_in_cfg, (pVOID)pstr_out_cfg);
   _IA_HANDLE_ERROR(p_proc_err_info, (pWORD8) "", err_code);
 
+  if (pstr_enc_api->input_config.loudness_enable == 1)
+  {
+    if (impeghe_read_loudness(&pstr_in_cfg->str_drc_cfg, g_loudness) != 0)
+    {
+      fprintf(stdout, "Loudness file reading failed\n");
+    }
+  }
+
   impeghe_display_id_message(pstr_out_cfg->p_lib_name, pstr_out_cfg->p_version_num);
 
   pv_ia_process_api_obj = pstr_out_cfg->pv_ia_process_api_obj;
@@ -2657,6 +2673,22 @@ WORD32 main(WORD32 argc, char *argv[])
               impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
             }
           }
+          if (!strncmp((pCHAR8)fargv[i], "-iloudness:", 11))
+          {
+            pWORD8 pb_arg_val = fargv[i] + 11;
+            CHAR8 pb_loudness_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+            strcat((char *)pb_loudness_file_name, (const char *)pb_input_file_path);
+            strcat((char *)pb_loudness_file_name, (const char *)pb_arg_val);
+
+            g_loudness = NULL;
+            g_loudness = fopen((const char *)pb_loudness_file_name, "rt");
+            if (g_loudness == NULL)
+            {
+              err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+              impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Loudness File", err_code);
+            }
+          }
           /*op fmt*/
           if (!strncmp((pCHAR8)fargv[i], "-op_fmt:", 8))
           {
@@ -2767,7 +2799,6 @@ WORD32 main(WORD32 argc, char *argv[])
         while(p_file_name != NULL)
         {
           WORD8 pb_input_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
-
           strcat((char *)pb_input_file_name, (const char *)pb_input_file_path);
           strcat((char *)pb_input_file_name, (const char *)p_file_name);
 
@@ -2865,6 +2896,22 @@ WORD32 main(WORD32 argc, char *argv[])
         {
           err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
           impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
+        }
+      }
+      if (!strncmp((pCHAR8)argv[i], "-iloudness:", 11))
+      {
+        pCHAR8 pb_arg_val = argv[i] + 11;
+        CHAR8 pb_loudness_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+        strcat((char *)pb_loudness_file_name, (const char *)pb_input_file_path);
+        strcat((char *)pb_loudness_file_name, (const char *)pb_arg_val);
+
+        g_loudness = NULL;
+        g_loudness = fopen((const char *)pb_loudness_file_name, "rt");
+        if (g_loudness == NULL)
+        {
+          err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+          impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Loudness File", err_code);
         }
       }
       /*op fmt*/

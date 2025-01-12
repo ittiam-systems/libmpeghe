@@ -298,6 +298,80 @@ static VOID impeghe_check_config_params(ia_input_config *pstr_input_config)
 }
 
 /**
+ *  impeghe_config_drc_parameters
+ *
+ *  \brief Set the loudness configurations as per application's settings and user information
+ *
+ *  \param [out]	p_obj_mpeghe		Pointer to API structure
+ *  \param [in]		pstr_input_config	Pointer to received input configuration structure
+ *
+ *  \return IA_ERRORCODE Error code
+ *
+ */
+static void impeghe_config_drc_parameters(ia_mpeghe_api_struct *pstr_api_struct, ia_input_config *pstr_input_config) {
+  ia_drc_input_config *pstr_drc_cfg;
+  pstr_drc_cfg = (ia_drc_input_config *)&pstr_input_config->str_drc_cfg;
+
+  ia_drc_internal_config *pstr_internal_drc_cfg = &pstr_api_struct->config.str_internal_drc_cfg;
+
+  ia_drc_loudness_info_set_struct * pstr_enc_loudness_info_set = &pstr_drc_cfg->str_enc_loudness_info_set;
+  ia_drc_loudness_info_set_struct * pstr_enc_internal_loudness_info_set = &pstr_internal_drc_cfg->str_enc_loudness_info_set;
+
+  WORD32 n;
+  WORD32 i, k = 0;
+
+  i = pstr_enc_loudness_info_set->loudness_info_count;
+  pstr_enc_loudness_info_set->loudness_info_count =
+    MIN(pstr_enc_loudness_info_set->loudness_info_count + pstr_enc_internal_loudness_info_set->loudness_info_count, MAX_LOUDNESS_INFO_COUNT);
+
+  for (n = i; n < pstr_enc_loudness_info_set->loudness_info_count; n++, k++) {
+    memcpy(&pstr_enc_loudness_info_set->str_loudness_info[n], &pstr_enc_internal_loudness_info_set->str_loudness_info[k], sizeof(ia_drc_loudness_info_struct));
+  }
+  i = pstr_enc_loudness_info_set->loudness_info_album_count;
+  k = 0;
+  pstr_enc_loudness_info_set->loudness_info_album_count =
+    MIN(pstr_enc_loudness_info_set->loudness_info_album_count + pstr_enc_internal_loudness_info_set->loudness_info_album_count, MAX_LOUDNESS_INFO_COUNT);
+  for (n = i; n < pstr_enc_loudness_info_set->loudness_info_album_count; n++, k++) {
+    memcpy(&pstr_enc_loudness_info_set->str_loudness_info_album[n], &pstr_enc_internal_loudness_info_set->str_loudness_info_album[k], sizeof(ia_drc_loudness_info_struct));
+  }
+}
+
+/**
+ *  impeghe_get_measured_loudness_info
+ *
+ *  \brief Set the measured loudness configurations as per application's settings
+ *
+ *  \param [out]	p_obj_mpeghe		Pointer to API structure
+ *  \param [in]		pstr_input_config	Pointer to received input configuration structure
+ *
+ *  \return IA_ERRORCODE Error code
+ *
+ */
+static void impeghe_get_measured_loudness_info(ia_mpeghe_api_struct *pstr_api_struct, ia_input_config *pstr_input_config)
+{
+  ia_drc_input_config *pstr_internal_drc_cfg;
+  if (!pstr_input_config->use_measured_loudness) {
+    pstr_internal_drc_cfg = (ia_drc_input_config *)&pstr_api_struct->config.str_internal_drc_cfg;
+  }
+  else {
+    pstr_internal_drc_cfg = &pstr_api_struct->config.str_drc_cfg;
+  }
+  memset(pstr_internal_drc_cfg, 0, sizeof(ia_drc_input_config));
+  ia_drc_uni_drc_config_struct *pstr_uni_drc_config = &pstr_internal_drc_cfg->str_uni_drc_config;
+  {
+    pstr_input_config->str_drc_cfg.str_enc_params.frame_size = 1024;
+    pstr_input_config->str_drc_cfg.str_enc_params.delay_mode = DELAY_MODE_REGULAR_DELAY;
+
+    pstr_internal_drc_cfg->str_enc_params.frame_size = pstr_input_config->str_drc_cfg.str_enc_params.frame_size;
+    pstr_internal_drc_cfg->str_enc_params.delay_mode = DELAY_MODE_REGULAR_DELAY;
+
+    pstr_uni_drc_config->str_drc_coefficients_uni_drc->drc_frame_size = pstr_input_config->str_drc_cfg.str_enc_params.frame_size;
+    pstr_uni_drc_config->sample_rate_present = 1;
+    pstr_uni_drc_config->str_drc_coefficients_uni_drc->drc_frame_size_present = 0;
+  }
+}
+
+/**
  *  impeghe_set_config_params
  *
  *  \brief Set the configurations as per application's settings
@@ -1676,6 +1750,23 @@ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
 
   memset(p_obj_mpeghe, 0, sizeof(*p_obj_mpeghe));
 
+  if (pstr_input_config->use_hoa_element == 0) {
+    if (pstr_input_config->use_drc_element == 0) {
+      pstr_input_config->use_measured_loudness = 1;
+    }
+    else {
+      pstr_input_config->use_measured_loudness = 0;
+    }
+    impeghe_get_measured_loudness_info(p_obj_mpeghe, pstr_input_config);
+
+    if (!pstr_input_config->use_measured_loudness)
+      impeghe_config_drc_parameters(p_obj_mpeghe, pstr_input_config);
+
+    if (pstr_input_config->use_measured_loudness) {
+      memcpy(&pstr_input_config->str_drc_cfg, &p_obj_mpeghe->config.str_drc_cfg, sizeof(ia_drc_input_config));
+    }
+  }
+
   impeghe_set_default_config(p_obj_mpeghe);
 
   err_code = impeghe_set_config_params(p_obj_mpeghe, pstr_input_config);
@@ -1707,6 +1798,9 @@ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
   pstr_output_config->malloc_count++;
 
   p_obj_mpeghe->config.ccfl = 1024;
+  if (pstr_input_config->use_measured_loudness) {
+    p_obj_mpeghe->config.use_measured_loudness = 1;
+  }
   impeghe_enc_fill_mem_tables(p_obj_mpeghe);
   impeghe_alloc_and_assign_mem(p_obj_mpeghe, pstr_output_config);
   if ((pstr_input_config->bitrate >=
@@ -1751,8 +1845,15 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
   }
   p_obj_mpeghe->p_state_mpeghe->impegh_jmp_buf = &api_init_jmp_buf;
 
+  if (pstr_input_config->use_measured_loudness) {
+    p_obj_mpeghe->config.use_measured_loudness = 1;
+  }
   /* Set config pointer in api obj */
   p_obj_mpeghe->p_state_mpeghe->p_config = &p_obj_mpeghe->config;
+
+  /* Copy input loudness information into mpegh object */
+  memcpy(&p_obj_mpeghe->config.str_drc_cfg.str_enc_loudness_info_set, &pstr_input_config->str_drc_cfg.str_enc_loudness_info_set, sizeof(pstr_input_config->str_drc_cfg.str_enc_loudness_info_set));
+
   err_code = impeghe_initialize(p_obj_mpeghe);
   if (err_code)
     return err_code;

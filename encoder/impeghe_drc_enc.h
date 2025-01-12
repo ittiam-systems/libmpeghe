@@ -51,4 +51,6 @@ IA_ERRORCODE impeghe_drc_write_uni_drc_config(ia_drc_enc_state *pstr_drc_state,
 
 VOID impeghe_drc_write_uni_drc_gain(ia_drc_enc_state *pstr_drc_state, WORD32 *ptr_bit_cnt);
 
+IA_ERRORCODE impeghe_drc_write_measured_loudness_info(ia_drc_enc_state *pstr_drc_state);
+
 #endif /*IMPEGHE_DRC_ENC_H*/

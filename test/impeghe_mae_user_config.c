@@ -71,7 +71,203 @@
     }                                                                              \
   } while (1);
 
+#define LOUDNESS_TAG                "<loudness>"
+#define LOUDNESS_END_TAG            "</loudness>"
+#define LOUDNESS_INFO_TYPE_TAG      "<loudness_info_type>"
+#define LOUDNESS_INFO_TYPE_END_TAG  "</loudness_info_type>"
+#define MAE_GROUP_ID_TAG            "<mae_group_id>"
+#define MAE_GROUP_ID_END_TAG        "</mae_group_id>"
+#define MAE_GROUP_PRESET_ID_TAG     "<mae_group_preset_id>"
+#define MAE_GROUP_PRESET_ID_END_TAG "</mae_group_preset_id>"
+#define SAMPLE_PEAK_LEVEL_TAG       "<sample_peak_level>"
+#define SAMPLE_PEAK_LEVEL_END_TAG   "</sample_peak_level>"
+#define TRUE_PEAK_LEVEL_TAG         "<true_peak_level>"
+#define TRUE_PEAK_LEVEL_END_TAG     "</true_peak_level>"
+#define MEASUREMENT_TAG             "<measurement>"
+#define MEASUREMENT_END_TAG         "</measurement>"
+#define METHOD_VAL_TAG              "<method_val>"
+#define METHOD_VAL_END_TAG          "</method_val>"
+#define METHOD_DEF_TAG              "<method_def>"
+#define METHOD_DEF_END_TAG          "</method_def>"
+#define MEASUREMENT_SYSTEM_TAG      "<measurement_system>"
+#define MEASUREMENT_SYSTEM_END_TAG  "</measurement_system>"
 
+#define TAG_VALUE_STRING_MAX_LEN    (256)
+typedef struct {
+  WORD8 group_id_present;
+  WORD32 group_id;
+  FLOAT32 method_val;
+  WORD16 method_def;
+  WORD16 measurement_system;
+} str_loudness_measurement;
+
+typedef struct {
+  WORD8 loudness_info_type;
+  WORD16 measurement_count;
+  WORD16 mae_group_id;
+  WORD16 mae_group_preset_id;
+  WORD8 sample_peak_level_present;
+  FLOAT32 sample_peak_level;
+  WORD8 true_peak_level_present;
+  FLOAT32 true_peak_level;
+  str_loudness_measurement measurements[MAX_MEASUREMENT_COUNT];
+} str_loudness_info;
+
+typedef struct {
+  WORD16 loudness_count;
+  str_loudness_info loudness_info[MAX_LOUDNESS_INFO_COUNT];
+} str_input_loudness_config;
+
+/**
+ *  extract_tag_value
+ *
+ *  \brief Extract the value between two tags. Will stop till the end of parent tag.
+ *
+ *  \param [in]     source      Start of input string.
+ *  \param [in]     start_tag   Pointer to string indicating start tag.
+ *  \param [in]     end_tag     Pointer to string indicating end tag.
+ *  \param [in]     parent_end  Pointer to the end of the parent tag.
+ *  \param [out]    result      Tag value as string.
+ *
+ *  \return WORD32  error code  0 -> No error, -1 -> Could not find tags / No tag value present.
+ *
+ */
+static WORD32 extract_tag_value(const CHAR8 *source, const CHAR8 *start_tag, const CHAR8 *end_tag, const CHAR8 *parent_end, CHAR8 *result) {
+  CHAR8 *start = strstr(source, start_tag);
+  if (start && start < parent_end) {
+    start += strlen(start_tag);
+    CHAR8 *end = strstr(start, end_tag);
+    if (end && end < parent_end) {
+      strncpy(result, start, end - start);
+      result[end - start] = '\0';
+      return 0;
+    }
+  }
+  return -1;
+}
+
+/**
+ *  impeghe_parse_loudness_xml
+ *
+ *  \brief Read loudness information from loudness XML File
+ *
+ *  \param [in]     file              File pointer to loudness XML file.
+ *  \param [out]    loudness_cfg      Pointer to loudness config.
+ *
+ *  \return WORD32  error code
+ *
+ */
+static WORD32 impeghe_parse_loudness_xml(FILE *file, str_input_loudness_config *loudness_cfg) {
+
+  WORD32 err;
+
+  fseek(file, 0, SEEK_END);
+  long file_size = ftell(file);
+  rewind(file);
+
+  pCHAR8 xml = (pCHAR8)malloc((file_size + 1) * sizeof(CHAR8));
+  if (!xml) {
+    printf("Error: Memory allocation failed\n");
+    fclose(file);
+    return -1;
+  }
+
+  if (fread(xml, sizeof(CHAR8), file_size, file) != file_size)
+  {
+    printf("Error: File reading failed\n");
+    fclose(file);
+    return -1;
+  }
+  xml[file_size] = '\0';
+
+  const CHAR8 *loudness_ptr = xml;
+  CHAR8 tag_value_string[TAG_VALUE_STRING_MAX_LEN];
+  WORD8 loudness_idx, measurement_idx;
+
+  loudness_idx = 0;
+  while ((loudness_ptr = strstr(loudness_ptr, LOUDNESS_TAG)) != NULL) {
+    loudness_ptr += strlen(LOUDNESS_TAG);
+    const CHAR8 *loudness_end_ptr = strstr(loudness_ptr, LOUDNESS_END_TAG);
+    WORD8 loudness_info_type = -1;
+
+    if (extract_tag_value(loudness_ptr, LOUDNESS_INFO_TYPE_TAG, LOUDNESS_INFO_TYPE_END_TAG, loudness_end_ptr, tag_value_string) == 0)
+    {
+      loudness_info_type = atoi(tag_value_string);
+    }
+
+    if (loudness_info_type == 1 || loudness_info_type == 2 )
+    {
+      err = extract_tag_value(loudness_ptr, MAE_GROUP_ID_TAG, MAE_GROUP_ID_END_TAG, loudness_end_ptr, tag_value_string);
+      if (err || tag_value_string[0] == '\0')
+      {
+        /* If loudness information is type 1 or 2, mae group ID should be present. */
+        return err;
+      }
+      loudness_cfg->loudness_info[loudness_idx].mae_group_id = atoi(tag_value_string);
+    }
+    else if (loudness_info_type == 3)
+    {
+      err = extract_tag_value(loudness_ptr, MAE_GROUP_PRESET_ID_TAG, MAE_GROUP_PRESET_ID_END_TAG, loudness_end_ptr, tag_value_string);
+      if (err || tag_value_string[0] == '\0')
+      {
+        /* If loudness information is type 3, mae group preset ID should be present. */
+        return err;
+      }
+      loudness_cfg->loudness_info[loudness_idx].mae_group_preset_id = atoi(tag_value_string);
+    }
+
+    loudness_cfg->loudness_info[loudness_idx].loudness_info_type = loudness_info_type;
+
+    if (extract_tag_value(loudness_ptr, SAMPLE_PEAK_LEVEL_TAG, SAMPLE_PEAK_LEVEL_END_TAG, loudness_end_ptr, tag_value_string) == 0)
+    {
+      loudness_cfg->loudness_info[loudness_idx].sample_peak_level = (float)atof(tag_value_string);
+      loudness_cfg->loudness_info[loudness_idx].sample_peak_level_present = 1;
+    }
+
+    if (extract_tag_value(loudness_ptr, TRUE_PEAK_LEVEL_TAG, TRUE_PEAK_LEVEL_END_TAG, loudness_end_ptr, tag_value_string) == 0)
+    {
+      loudness_cfg->loudness_info[loudness_idx].true_peak_level = (float)atof(tag_value_string);
+      loudness_cfg->loudness_info[loudness_idx].true_peak_level_present = 1;
+    }
+
+    const CHAR8 *measurement_ptr = loudness_ptr;
+    measurement_idx = 0;
+    while ((measurement_ptr = strstr(measurement_ptr, MEASUREMENT_TAG)) != NULL && (measurement_ptr < loudness_end_ptr)) {
+      measurement_ptr += strlen(MEASUREMENT_TAG);
+      const CHAR8 *measurement_end_ptr = strstr(measurement_ptr, MEASUREMENT_END_TAG);
+
+      loudness_cfg->loudness_info[loudness_idx].measurements[measurement_idx].group_id = -1;
+      loudness_cfg->loudness_info[loudness_idx].measurements[measurement_idx].group_id_present = 0;
+
+      if (extract_tag_value(measurement_ptr, METHOD_VAL_TAG, METHOD_VAL_END_TAG, measurement_end_ptr, tag_value_string) == 0) {
+        loudness_cfg->loudness_info[loudness_idx].measurements[measurement_idx].method_val = (FLOAT32)atof(tag_value_string);
+      }
+
+      if (extract_tag_value(measurement_ptr, METHOD_DEF_TAG, METHOD_DEF_END_TAG, measurement_end_ptr, tag_value_string) == 0) {
+        loudness_cfg->loudness_info[loudness_idx].measurements[measurement_idx].method_def = atoi(tag_value_string);
+      }
+
+      if (extract_tag_value(measurement_ptr, MEASUREMENT_SYSTEM_TAG, MEASUREMENT_SYSTEM_END_TAG, measurement_end_ptr, tag_value_string) == 0) {
+        loudness_cfg->loudness_info[loudness_idx].measurements[measurement_idx].measurement_system = atoi(tag_value_string);
+      }
+
+      measurement_idx++;
+      measurement_ptr = measurement_end_ptr;
+      if (measurement_ptr) {
+        measurement_ptr += strlen(MEASUREMENT_END_TAG);
+      }
+    }
+    loudness_cfg->loudness_info[loudness_idx].measurement_count = measurement_idx;
+    loudness_ptr = loudness_end_ptr;
+    loudness_idx++;
+  }
+
+  loudness_cfg->loudness_count = loudness_idx;
+
+  free(xml);
+
+  return 0;
+}
 
 /**
  *  impeghe_mae_read_csv_descr_data
@@ -1178,3 +1374,61 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
   return 0;
 }
 
+
+/**
+ *  impeghe_read_loudness
+ *
+ *  \brief Read loudness information elements
+ *
+ *  \param [out]    pstr_drc_config     pointer to DRC config structure
+ *  \param [in]     file                pointer to loudness input text file
+ *
+ *  \return WORD32       error code
+ *
+ */
+
+WORD32 impeghe_read_loudness(ia_drc_input_config *pstr_drc_config, FILE *file)
+{
+  str_input_loudness_config input_loudness_cfg;
+  memset((void *)&input_loudness_cfg, 0, sizeof(input_loudness_cfg));
+
+  impeghe_parse_loudness_xml(file, &input_loudness_cfg);
+
+  pstr_drc_config->str_enc_loudness_info_set.loudness_info_count = input_loudness_cfg.loudness_count;
+  for (int i = 0; i < input_loudness_cfg.loudness_count; i++)
+  {
+    pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].loudness_info_type = input_loudness_cfg.loudness_info[i].loudness_info_type;
+    pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].mae_group_id = -1;
+    pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].mae_group_preset_id = -1;
+    if (input_loudness_cfg.loudness_info[i].loudness_info_type == 1 || pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].loudness_info_type == 2)
+    {
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].mae_group_id = input_loudness_cfg.loudness_info[i].mae_group_id;
+    }
+    else if (input_loudness_cfg.loudness_info[i].loudness_info_type == 3) 
+    {
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].mae_group_preset_id = input_loudness_cfg.loudness_info[i].mae_group_preset_id;
+    }
+    pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].measurement_count = input_loudness_cfg.loudness_info[i].measurement_count;
+    pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].sample_peak_level_present = input_loudness_cfg.loudness_info[i].sample_peak_level_present;
+    if (input_loudness_cfg.loudness_info[i].sample_peak_level_present)
+    {
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].sample_peak_level = input_loudness_cfg.loudness_info[i].sample_peak_level;
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].sample_peak_level_present = 1;
+    }
+    if (input_loudness_cfg.loudness_info[i].true_peak_level_present)
+    {
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].true_peak_level = input_loudness_cfg.loudness_info[i].true_peak_level;
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].true_peak_level_present = 1;
+    }
+    for (int j = 0; j < input_loudness_cfg.loudness_info[i].measurement_count; j++)
+    {
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].str_loudness_measure[j].method_definition = input_loudness_cfg.loudness_info[i].measurements[j].method_def;
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].str_loudness_measure[j].method_value = input_loudness_cfg.loudness_info[i].measurements[j].method_val;
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].str_loudness_measure[j].measurement_system = input_loudness_cfg.loudness_info[i].measurements[j].measurement_system;
+      pstr_drc_config->str_enc_loudness_info_set.str_loudness_info[i].str_loudness_measure[j].reliability = RELIABILITY_UKNOWN;
+    }
+  }
+
+  fclose(file);
+  return 0;
+}

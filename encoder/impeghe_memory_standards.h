@@ -343,6 +343,7 @@ typedef struct
   WORD8 asi_enable;
   WORD8 asi_mhas;
   ia_asi_config str_asi_config;
+  WORD8 loudness_enable;
   WORD8 flexi_spk_enable;
   ia_flexi_spk_config str_flexi_spk_config;
   WORD32 use_hoa_element;
@@ -364,6 +365,7 @@ typedef struct
   FLAG use_downmix_ext_config;
   ia_mpeghe_ext_cfg_downmix_input_struct str_ext_cfg_downmix_input;
   ia_ec_info_struct str_ec_info_struct;
+  FLAG use_measured_loudness;
   //pre-roll / IPF parameters.
   WORD32 random_access_interval;
   WORD32 num_preroll_frames;
