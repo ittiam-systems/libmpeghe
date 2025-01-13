@@ -1,0 +1,2 @@
+Truncate_size:300
+Truncate_from_begin:1

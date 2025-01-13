@@ -463,6 +463,34 @@ WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 n
   return bit_cnt;
 }
 
+/**
+ *  impeghe_mhas_write_audio_truncate
+ *
+ *  \brief Writes MHAS audio truncate info
+ *
+ *  \param [out] it_bit_buff Pointer to bit-buffer structure
+ *  \param [in]  audio_info	 User audio truncate info
+ *  \param [in]  packet_label	 Packet label
+ *
+ *  \return WORD32 Number of bits written
+ */
+WORD32 impeghe_mhas_write_audio_truncate(ia_bit_buf_struct *it_bit_buff, ia_audio_truncate *audio_info, WORD32 packet_label)
+{
+  WORD32 bit_cnt = 0;
+  ia_mhas_pac_info pkt_info_tmp;
+
+  /* write MHAS_PAC_TYP_MPEGH3DAFRAME */
+  pkt_info_tmp.packet_type = MHAS_PAC_TYP_AUDIOTRUNCATION;
+  pkt_info_tmp.packet_lbl = packet_label;
+  pkt_info_tmp.packet_length = 2;//always 2 bytes
+  bit_cnt += impeghe_write_mhas_pkt_header(&pkt_info_tmp, it_bit_buff);
+  bit_cnt += impeghe_write_bits_buf(it_bit_buff, 1, 1);//isActive
+  bit_cnt += impeghe_write_bits_buf(it_bit_buff, 0, 1);//reserved
+  bit_cnt += impeghe_write_bits_buf(it_bit_buff, audio_info->truncation_from_begin, 1);//truncFromBegin
+  bit_cnt += impeghe_write_bits_buf(it_bit_buff, audio_info->truncation_length, 13);//nTruncSamples
+  return bit_cnt;
+}
+
 WORD32 impeghe_mhas_write_asi(ia_bit_buf_struct *it_bit_buff,
                               UWORD8 *data, UWORD32 num_bytes, WORD32 packet_lbl)
 {

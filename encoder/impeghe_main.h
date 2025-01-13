@@ -298,6 +298,7 @@ typedef struct
   WORD32 encoder_delay;
 
   WORD32 packet_lbl;
+  ia_audio_truncate auido_truncate_info;
 
   WORD32 asi_preset;
   WORD32 asi_mhas;
@@ -510,4 +511,5 @@ WORD32 impeghe_mhas_write_cfg_only_header(ia_bit_buf_struct *it_bit_buff, UWORD3
 WORD32 impeghe_mhas_write_frame_header(ia_bit_buf_struct *it_bit_buff, UWORD32 num_bits
                                        , WORD32 packet_type, WORD32 packet_label);
 
+WORD32 impeghe_mhas_write_audio_truncate(ia_bit_buf_struct *it_bit_buff, ia_audio_truncate *audio_info, WORD32 packet_label);
 #endif /* IMPEGHE_MAIN_H */

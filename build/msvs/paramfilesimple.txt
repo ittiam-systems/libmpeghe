@@ -28,7 +28,7 @@
 //HOA - 3rd Order example
 -hoa_file:Street3/street_3_00+.wav -ofile:street_3.mhas -op_fmt:1 -br:256000
 
-// Multipe Signal Groups with ASI test cases
+// Multipe Signal Groups with ASI, Loudness, Audio Truncation, DRC test cases
 //MHAS
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups.mhas -br:320000 -op_fmt:1
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi.mhas -br:320000 -iasi:2ch_grp.txt -op_fmt:1
@@ -41,6 +41,7 @@
 
 //MP4
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups.mp4 -br:320000 -op_fmt:3
+-ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_at.mp4 -iaudio_truncate:audio_truncate.txt -br:320000 -op_fmt:3
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi.mp4 -br:320000 -iasi:2ch_grp.txt -op_fmt:3
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi_pkt.mp4 -br:320000 -iasi:2ch_grp.txt -op_fmt:3 -mhas_asi:1
 -oam_file:sine_1k.oam,sine_2k.oam -ofile:sine_1k_2k_oam.mp4 -br:320000 -cicp:6 -op_fmt:3

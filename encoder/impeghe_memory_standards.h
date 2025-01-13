@@ -280,6 +280,12 @@ typedef struct
 
 typedef struct
 {
+  UWORD32 truncation_length;
+  UWORD32 truncation_from_begin;
+} ia_audio_truncate;
+
+typedef struct
+{
   WORD32 cplx_pred;
   WORD32 coding_mode;
   WORD32 fill_elem;
@@ -339,6 +345,9 @@ typedef struct
   WORD32 (*oam_skip_data[MAX_NUM_SIG_GRPS])(VOID *oam_data_hndl, WORD32 bytes_to_skip);
   WORD8 item_prefix[MAX_NUM_SIG_GRPS][64];
   IA_ERRORCODE err_code;
+
+  WORD8 audio_truncate_enable;
+  ia_audio_truncate str_audio_truncate;
 
   WORD8 asi_enable;
   WORD8 asi_mhas;

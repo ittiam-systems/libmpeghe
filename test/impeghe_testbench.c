@@ -56,6 +56,7 @@
 #include "impeghe_mp4_writer.h"
 
 WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file);
+WORD32 impeghe_read_audio_truncate(ia_audio_truncate *pstr_audio_truncate, FILE *file);
 WORD32 impeghe_read_loudness(void *pstr_asi_config, FILE *file);
 VOID impeghe_error_handler_init();
 VOID impeghe_testbench_error_handler_init();
@@ -97,7 +98,7 @@ typedef enum impeghe_op_fmts
 /* Global variables                                                          */
 /*****************************************************************************/
 
-FILE *g_pf_inp[56], *g_pf_out, *g_pf_spk, *g_asi, *g_loudness;
+FILE *g_pf_inp[56], *g_pf_out, *g_pf_spk, *g_asi, *g_loudness, *g_audio_truncate;
 FILE *g_pf_ec; // earcon inputfile
 WORD8 ec_present = 0;
 WORD32 array_ec[1024] = {0};
@@ -373,6 +374,7 @@ VOID impeghe_print_usage()
   printf("\n[options] can be,");
   printf("\n[-br:<bitrate>]");
   printf("\n[-iasi:<asi_file>]");
+  printf("\n[-iaudio_truncate:iaudio_truncate_file>]");
   printf("\n[-iloudness:<loudness_file>]");
   printf("\n[-mhas_asi:<asi_mhas>]");
   printf("\n[-mhas_loudness:<loudness_mhas>]");
@@ -395,6 +397,7 @@ VOID impeghe_print_usage()
          "\n \t256000 for 8-channel,"
          "\n \t320000 for 10-channel");
   printf("\n<asi_file> is the asi text file name");
+  printf("\n<iaudio_truncate_file> is the audio truncation text file name");
   printf("\n<asi_mhas> is the flag to enable or disable writing ASI to mhas packet.");
   printf("\n           If set to 0 ASI will be written as config extension element.");
   printf("\n<loudness_mhas> is the flag to enable or disable writing Loudnes to mhas packet.");
@@ -739,6 +742,11 @@ IA_ERRORCODE impeghe_parse_config_param(WORD32 argc, pWORD8 argv[], pVOID ptr_en
     if (!strncmp((pCHAR8)argv[i], "-iasi:", 6))
     {
         pstr_enc_api->input_config.asi_enable = 1;
+    }
+    /* Audio Truncation Info configuration file */
+    if (!strncmp((pCHAR8)argv[i], "-iaudio_truncate:", 17))
+    {
+      pstr_enc_api->input_config.audio_truncate_enable = 1;
     }
     /* Loudness info configuration file */
     if (!strncmp((pCHAR8)argv[i], "-iloudness:", 11))
@@ -2027,6 +2035,14 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
       fprintf(stdout, "asi file reading failed\n");
     }
   }
+  if (pstr_enc_api->input_config.audio_truncate_enable == 1)
+  {
+    if (impeghe_read_audio_truncate(&pstr_enc_api->input_config.str_audio_truncate, g_audio_truncate) != 0)
+    {
+      fprintf(stdout, "audio truncate file reading failed\n");
+    }
+  }
+
   pstr_out_cfg->malloc_xaac = &malloc_global;
 
   impehge_copy_config_params(pstr_in_cfg, pstr_in_cfg_prev);
@@ -2684,6 +2700,22 @@ WORD32 main(WORD32 argc, char *argv[])
               impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
             }
           }
+          if (!strncmp((pCHAR8)fargv[i], "-iaudio_truncate:", 17))
+          {
+            pCHAR8 pb_arg_val = fargv[i] + 17;
+            CHAR8 pb_audio_truncate_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+            strcat((char *)pb_audio_truncate_file_name, (const char *)pb_input_file_path);
+            strcat((char *)pb_audio_truncate_file_name, (const char *)pb_arg_val);
+
+            g_audio_truncate = NULL;
+            g_audio_truncate = fopen((const char *)pb_audio_truncate_file_name, "rt");
+            if (g_audio_truncate == NULL)
+            {
+              err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+              impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Audio truncate File", err_code);
+            }
+          }
           if (!strncmp((pCHAR8)fargv[i], "-iloudness:", 11))
           {
             pWORD8 pb_arg_val = fargv[i] + 11;
@@ -2907,6 +2939,22 @@ WORD32 main(WORD32 argc, char *argv[])
         {
           err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
           impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
+        }
+      }
+      if (!strncmp((pCHAR8)argv[i], "-iaudio_truncate:", 17))
+      {
+        pCHAR8 pb_arg_val = argv[i] + 17;
+        CHAR8 pb_audio_truncate_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+        strcat((char *)pb_audio_truncate_file_name, (const char *)pb_input_file_path);
+        strcat((char *)pb_audio_truncate_file_name, (const char *)pb_arg_val);
+
+        g_audio_truncate = NULL;
+        g_audio_truncate = fopen((const char *)pb_audio_truncate_file_name, "rt");
+        if (g_audio_truncate == NULL)
+        {
+          err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+          impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Audio Truncate File", err_code);
         }
       }
       if (!strncmp((pCHAR8)argv[i], "-iloudness:", 11))

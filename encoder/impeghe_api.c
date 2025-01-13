@@ -509,7 +509,10 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
     p_obj_mpeghe->config.preroll_flag = 1;
   }
   p_obj_mpeghe->config.packet_lbl = pstr_input_config->packet_lbl;
-
+  if (pstr_input_config->audio_truncate_enable)
+  {
+    memcpy(&p_obj_mpeghe->config.auido_truncate_info, &pstr_input_config->str_audio_truncate, sizeof(p_obj_mpeghe->config.auido_truncate_info));
+  }
   p_obj_mpeghe->config.num_preroll_frames = pstr_input_config->num_preroll_frames;
   p_obj_mpeghe->config.igf_start_freq = pstr_input_config->igf_start_freq;
   p_obj_mpeghe->config.igf_stop_freq = pstr_input_config->igf_stop_freq;
@@ -2045,6 +2048,14 @@ IA_ERRORCODE impeghe_init(pVOID p_ia_mpeghe_obj, pVOID pv_input, pVOID pv_output
       impeghe_write_bits_buf(ptr_asc_bit_buf, 0, (UWORD8)byte_allign_bits);
     }
 
+  }
+
+  /*Write audio truncate info*/
+  impeghe_mhas_write_audio_truncate(ptr_asc_bit_buf, &p_obj_mpeghe->config.auido_truncate_info, p_obj_mpeghe->config.packet_lbl);
+  if ((ptr_asc_bit_buf->cnt_bits & 7))
+  {
+    byte_allign_bits = (8 - (ptr_asc_bit_buf->cnt_bits & 7));
+    impeghe_write_bits_buf(ptr_asc_bit_buf, 0, (UWORD8)byte_allign_bits);
   }
 
   pstr_output_config->i_dec_len = (ptr_asc_bit_buf->cnt_bits + 7) / 8;

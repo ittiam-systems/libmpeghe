@@ -396,6 +396,52 @@ static VOID impeghe_mae_read_csv_char( pWORD32 ptr_out, pCHAR8 ptr_string, WORD3
 }
 
 /**
+ *  impeghe_read_audio_truncate
+ *
+ *  \brief Read audio truncation information
+ *
+ *  \param [out]    pstr_audio_truncate     pointer to audio truncation structure
+ *  \param [in]     file                    pointer to audio truncation input text file
+ *
+ *  \return WORD32       error code
+ *
+ */
+#define STRING_TRUNCATE_SIZE "Truncate_size:"
+#define STRING_TRUNCATE_FROM_BEGIN "Truncate_from_begin:"
+WORD32 impeghe_read_audio_truncate(ia_audio_truncate *pstr_audio_truncate, FILE *file)
+{
+
+  CHAR8 line[MAX_MAE_CONFIG_LINE_LEN];
+  WORD32 ii = 0;
+  WORD8 ch;
+  WORD32 num_positions = 0;
+  while ((ch = fgetc(file)) != EOF)
+  {
+    if (ch == '\n')
+      num_positions++;
+  }
+  fseek(file, 0, SEEK_SET);
+  memset(line, 0, MAX_MAE_CONFIG_LINE_LEN);
+  if (fgets((pCHAR8)line, MAX_MAE_CONFIG_LINE_LEN, file) != NULL)
+  {
+    ii++;
+  }
+  if (strncmp((pCHAR8)line, STRING_TRUNCATE_SIZE, strlen(STRING_TRUNCATE_SIZE)) == 0)
+  {
+    pstr_audio_truncate->truncation_length = (atoi((const pCHAR8)&line[strlen(STRING_TRUNCATE_SIZE)]));
+    READ_NEXT_LINE()
+  }
+  if (strncmp((pCHAR8)line, STRING_TRUNCATE_FROM_BEGIN, strlen(STRING_TRUNCATE_FROM_BEGIN)) == 0)
+  {
+    pstr_audio_truncate->truncation_from_begin = (atoi((const pCHAR8)&line[strlen(STRING_TRUNCATE_FROM_BEGIN)]));
+    READ_NEXT_LINE()
+  }
+  return 0;
+}
+
+
+
+/**
  *  impeghe_read_asi
  *
  *  \brief Read audio scene information elements
