@@ -75,7 +75,6 @@ extern ia_error_info_struct ia_mpeghe_error_info;
 #define MAX_HOA_IN_FILES 50
 #define MAX_VECTOR_SIZE 10
 #define PARAMFILE "paramfilesimple.txt"
-#define DRC_CONFIG_FILE "impeghe_drc_config_params.txt"
 
 /*****************************************************************************/
 /* Error codes for the testbench                                             */
@@ -106,6 +105,7 @@ WORD8 pb_oam_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
 WORD8 pb_oam_file_name[32][IA_MAX_CMD_LINE_LENGTH] = { "" };
 WORD8 pb_drc_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
 impeghe_op_fmts op_fmt = RAW_MHAS;
+WORD32 use_drc_element = 0;
 WORD32 g_num_ifiles = 0, g_num_oamfiles = 0, g_num_hoafiles = 0;
 
 pVOID g_ops_buf[32768];
@@ -376,6 +376,7 @@ VOID impeghe_print_usage()
   printf("\n[-iasi:<asi_file>]");
   printf("\n[-iaudio_truncate:iaudio_truncate_file>]");
   printf("\n[-iloudness:<loudness_file>]");
+  printf("\n[-idrc:<drc_file>]");
   printf("\n[-mhas_asi:<asi_mhas>]");
   printf("\n[-mhas_loudness:<loudness_mhas>]");
   printf("\n[-op_fmt:<output_format>]");
@@ -403,6 +404,7 @@ VOID impeghe_print_usage()
   printf("\n<loudness_mhas> is the flag to enable or disable writing Loudnes to mhas packet.");
   printf("\n           If set to 0 loudness will be written as config extension element.");
   printf("\n<loudness_file> is the loudness xml file name");
+  printf("\n<drc_file> is the drc txt file name");
   printf("\n<output_format> is the output format. (1 - MHAS, 2 - MHA1, 3 - MHM1). Default is "
          "1 (MHAS)");
   printf("\n<cicp_layout_index> is the channel configuration index. Range: 1 to 20 except 8 "
@@ -1377,9 +1379,7 @@ static VOID impehge_print_config_params(ia_input_config *pstr_input_config,
 
   if (pstr_input_config->use_drc_element)
   {
-    printf("\nDRC : Enabled");
-    printf("\nDRC Effects : ");
-    printf("Night, Noisy, Limited, Low level, Dialog, General, Expand, Artistic");
+    printf("\nDRC : Enabled");;
   }
   else
   {
@@ -1946,72 +1946,58 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
       printf("Error in Downmix config params file. Downmix will be disabled.\n");
     }
   }
+  pstr_enc_api->input_config.use_drc_element = use_drc_element;
   if (pstr_enc_api->input_config.use_drc_element == 1)
   {
     LOOPIDX k;
-    CHAR8 drc_config_file_name[IA_MAX_CMD_LINE_LENGTH];
-    strcpy(drc_config_file_name, (const char *)pb_drc_file_path);
-    strcat(drc_config_file_name, DRC_CONFIG_FILE);
-    g_drc_inp = fopen(drc_config_file_name, "rt");
+    memset(&pstr_enc_api->input_config.str_drc_cfg, 0, sizeof(ia_drc_input_config));
+    impeghe_read_drc_config_params(
+      g_drc_inp, &pstr_enc_api->input_config.str_drc_cfg.str_enc_params,
+      &pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config,
+      &pstr_enc_api->input_config.str_drc_cfg.str_enc_loudness_info_set,
+      &pstr_enc_api->input_config.str_drc_cfg.str_enc_gain_extension,
+      &pstr_enc_api->input_config.str_ext_cfg_downmix_input);
 
-    if (!g_drc_inp)
+    pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present = FALSE;
+    for (k = 0; k < pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
+      .drc_coefficients_uni_drc_count;
+      k++)
     {
-      printf("\nError in opening DRC configuration file\n\n");
-      pstr_enc_api->input_config.use_drc_element = 0;
-    }
-    if (g_drc_inp != 0)
-    {
-      memset(&pstr_enc_api->input_config.str_drc_cfg, 0, sizeof(ia_drc_input_config));
-      impeghe_read_drc_config_params(
-          g_drc_inp, &pstr_enc_api->input_config.str_drc_cfg.str_enc_params,
-          &pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config,
-          &pstr_enc_api->input_config.str_drc_cfg.str_enc_loudness_info_set,
-          &pstr_enc_api->input_config.str_drc_cfg.str_enc_gain_extension,
-          &pstr_enc_api->input_config.str_ext_cfg_downmix_input);
-
-      pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present = FALSE;
-      for (k = 0; k < pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
-                          .drc_coefficients_uni_drc_count;
-           k++)
+      if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
+        .str_drc_coefficients_uni_drc[k]
+        .drc_location == 1)
       {
         if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
-                .str_drc_coefficients_uni_drc[k]
-                .drc_location == 1)
+          .str_drc_coefficients_uni_drc[k]
+          .gain_set_count > 0)
         {
-          if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
-                  .str_drc_coefficients_uni_drc[k]
-                  .gain_set_count > 0)
+          pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present = TRUE;
+          break;
+        }
+      }
+    }
+
+    if (pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present == FALSE)
+    {
+      for (k = 0; k < pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
+        .str_uni_drc_config_ext.drc_coefficients_uni_drc_v1_count;
+        k++)
+      {
+        if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config.str_uni_drc_config_ext
+          .str_drc_coefficients_uni_drc_v1[k]
+          .drc_location == 1)
+        {
+          if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config.str_uni_drc_config_ext
+            .str_drc_coefficients_uni_drc_v1[k]
+            .gain_sequence_count > 0)
           {
             pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present = TRUE;
             break;
           }
         }
       }
-
-      if (pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present == FALSE)
-      {
-        for (k = 0; k < pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config
-                            .str_uni_drc_config_ext.drc_coefficients_uni_drc_v1_count;
-             k++)
-        {
-          if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config.str_uni_drc_config_ext
-                  .str_drc_coefficients_uni_drc_v1[k]
-                  .drc_location == 1)
-          {
-            if (pstr_enc_api->input_config.str_drc_cfg.str_uni_drc_config.str_uni_drc_config_ext
-                    .str_drc_coefficients_uni_drc_v1[k]
-                    .gain_sequence_count > 0)
-            {
-              pstr_enc_api->input_config.str_drc_cfg.str_enc_params.gain_sequence_present = TRUE;
-              break;
-            }
-          }
-        }
-      }
-      pstr_enc_api->input_config.use_drc_element = 1;
     }
   }
-
   if (ec_present)
   {
     pstr_enc_api->input_config.str_ec_info_struct.ec_present = ec_present;
@@ -2423,6 +2409,7 @@ clean_return:
   }
 
   pstr_enc_api->input_config.use_drc_element = 0;
+  use_drc_element = 0;
 
   if (pstr_enc_api)
   {
@@ -2700,6 +2687,24 @@ WORD32 main(WORD32 argc, char *argv[])
               impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
             }
           }
+          if (!strncmp((pCHAR8)fargv[i], "-idrc:", 6))
+          {
+            pCHAR8 pb_arg_val = fargv[i] + 6;
+            CHAR8 pb_drc_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+            strcat((char *)pb_drc_file_name, (const char *)pb_input_file_path);
+            strcat((char *)pb_drc_file_name, (const char *)pb_arg_val);
+
+            g_drc_inp = NULL;
+            g_drc_inp = fopen((const char *)pb_drc_file_name, "rt");
+            if (g_drc_inp == NULL)
+            {
+              err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+              impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "DRC File", err_code);
+            }
+            use_drc_element = 1;
+
+          }
           if (!strncmp((pCHAR8)fargv[i], "-iaudio_truncate:", 17))
           {
             pCHAR8 pb_arg_val = fargv[i] + 17;
@@ -2940,6 +2945,23 @@ WORD32 main(WORD32 argc, char *argv[])
           err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
           impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "ASI File", err_code);
         }
+      }
+      if (!strncmp((pCHAR8)argv[i], "-idrc:", 6))
+      {
+        pCHAR8 pb_arg_val = argv[i] + 6;
+        CHAR8 pb_drc_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
+
+        strcat((char *)pb_drc_file_name, (const char *)pb_input_file_path);
+        strcat((char *)pb_drc_file_name, (const char *)pb_arg_val);
+
+        g_drc_inp = NULL;
+        g_drc_inp = fopen((const char *)pb_drc_file_name, "rt");
+        if (g_asi == NULL)
+        {
+          err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
+          impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "DRC File", err_code);
+        }
+        use_drc_element = 1;
       }
       if (!strncmp((pCHAR8)argv[i], "-iaudio_truncate:", 17))
       {

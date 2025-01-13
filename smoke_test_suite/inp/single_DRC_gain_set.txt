@@ -1,0 +1,30 @@
+#####str_drc_instructions_uni_drc#####
+drc_instructions_uni_drc_count:1
+#n=0 (GENERAL_COMPR)
+downmix_id:0
+drc_set_effect:0x0020
+gain_set_channels:4
+gain_set_index:0
+gain_set_index:0
+gain_set_index:0
+gain_set_index:0
+num_drc_channel_groups:1
+drc_instructions_type:0
+#####str_drc_coefficients_uni_drc#####
+drc_coefficients_uni_drc_count:1
+#n=0
+gain_set_count:1
+#s=0
+band_count:1
+#gain parameters m=0
+nb_points:3
+x:-60.0
+y:-40.0
+x:-30.0
+y:-30.0
+x:0.0
+y:-20.0
+width:0.01
+attack:10.0
+decay:20.0
+#end gain parameters

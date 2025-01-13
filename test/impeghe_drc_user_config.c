@@ -204,9 +204,15 @@ VOID impeghe_read_drc_config_params(
 
     pstr_drc_instructions_uni_drc->limiter_peak_target_present = 0;
     pstr_drc_instructions_uni_drc->limiter_peak_target = 0.0f;
-    pstr_drc_instructions_uni_drc->drc_instructions_type = 0;
-    pstr_drc_instructions_uni_drc->mae_group_id = 0;
-    pstr_drc_instructions_uni_drc->mae_group_preset_id = 0;
+    pstr_drc_instructions_uni_drc->drc_instructions_type = impeghe_drc_get_integer_value(fp);
+    if (pstr_drc_instructions_uni_drc->drc_instructions_type == 2)
+    {
+      pstr_drc_instructions_uni_drc->mae_group_id = impeghe_drc_get_integer_value(fp);
+    }
+    else if (pstr_drc_instructions_uni_drc->drc_instructions_type == 3)
+    {
+      pstr_drc_instructions_uni_drc->mae_group_preset_id = impeghe_drc_get_integer_value(fp);
+    }
   }
 
   /***********  str_drc_coefficients_uni_drc  *************/

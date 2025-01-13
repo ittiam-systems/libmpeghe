@@ -147,7 +147,9 @@ Command line usage :
 [-br:<bitrate>]
 [-iasi:<asi_file>]
 [-mhas_asi:<asi_mhas>]
-[-iloudness:<loudness_xml>]
+[-iloudness:<loudness_file>]
+[-mhas_loudness:<loudness_mhas>]
+[-idrc:<drc_file>]
 [-op_fmt:<output_format>]
 [-cicp:<cicp_layout_index>]
 [-oam_file:<oam_file>]
@@ -170,6 +172,9 @@ where,
   <asi_mhas> is the flag to enable or disable writing ASI to mhas packet.
              If set to 0 ASI will be written as config extension element.
   <loudness_file> is the loudness xml file name.
+  <loudness_mhas> is the flag to enable or disable writing loudness to mhas packet.
+             If set to 0 loudness will be written as config extension element.
+  <drc_file> is the drc text file name.
   <output_format> is the output format. (Supported values: 1 - MHAS, 2 - MHA1, 3 - MHM1).
         Default is 1 (MHAS).
   <cicp_layout_index> is the channel configuration index. Range: 1 to 20 except 8
