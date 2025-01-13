@@ -540,6 +540,7 @@ impeghe_flex_spk_config(ia_bit_buf_struct *it_bit_buff,
  *
  *  \param [in,out]	it_bit_buff		Pointer to bit-buffer
  *  \param [in,out]	pstr_usac_config	Pointer to configuration structure
+ *  \param [in]	el_len_present	Element length present flag
  *
  *  \return WORD32	Number of bits written
  *
@@ -754,8 +755,8 @@ WORD32 impeghe_get_audiospecific_config_bytes(
     ptr_usac_config->usac_cfg_ext_present = 1;
     ptr_usac_config->num_config_extensions = 1;
   }
-  bit_cnt += impeghe_encoder_config(it_bit_buff, ptr_usac_config, 
-                                    (pstr_mae_data->asi_present) & (pstr_mae_data->num_switch_groups > 0));
+  bit_cnt += impeghe_encoder_config(it_bit_buff, ptr_usac_config,
+    (pstr_mae_data->asi_present) & (pstr_mae_data->num_switch_groups > 0));
 
   bit_cnt += impeghe_write_bits_buf(it_bit_buff, (ptr_usac_config->usac_cfg_ext_present), 1);
 

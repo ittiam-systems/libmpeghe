@@ -1270,7 +1270,7 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     pstr_asc_usac_config->num_config_extensions++;
     pstr_asc_usac_config->usac_cfg_ext_present = 1;
   } // TBD
-  if (pstr_asc->str_asi_info.asi_present && !pstr_asc->str_asi_info.asi_mhas)
+  if (pstr_usac_config->asi_preset && !pstr_usac_config->asi_mhas)
   {
     pstr_asc_usac_config->usac_config_ext_type[pstr_asc_usac_config->num_config_extensions] =
         ID_CONFIG_EXT_AUDIOSCENE_INFO;
@@ -1278,7 +1278,7 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     pstr_asc_usac_config->num_config_extensions++;
     pstr_asc_usac_config->usac_cfg_ext_present = 1;
   }
-  if (!pstr_usac_config->use_hoa || pstr_usac_config->use_drc_element) // For Loudness
+  if (pstr_usac_config->loudness_preset && !pstr_usac_config->loudness_mhas) // For Loudness
   {
     pstr_asc_usac_config->usac_config_ext_type[pstr_asc_usac_config->num_config_extensions] =
         ID_CONFIG_EXT_LOUDNESS_INFO;

@@ -242,9 +242,8 @@ typedef struct
   // asi - audio scene in for
   // mae - metadata audio element
   WORD32 ei_present; // element interaction data
-  WORD32 asi_present;
-  WORD32 asi_mhas;
   WORD32 asi_config_set;
+  WORD32 asi_present;
   WORD32 main_stream_flag;
   WORD32 asi_id_present;
   WORD32 asi_id;
@@ -284,5 +283,8 @@ WORD32 impeghe_mae_asi_write(ia_bit_buf_struct *it_bit_buf, ia_mae_audio_scene_i
 
 WORD32 impeghe_mhas_write_asi(ia_bit_buf_struct *it_bit_buff,
                               UWORD8 *data, UWORD32 num_bytes, WORD32 packet_lbl);
+
+WORD32 impeghe_mhas_write_loudness(ia_bit_buf_struct *it_bit_buff,
+  UWORD8 *data, UWORD32 num_bytes, WORD32 packet_lbl);
 
 #endif /*IMPEGHE_MAE_WRITE_H*/

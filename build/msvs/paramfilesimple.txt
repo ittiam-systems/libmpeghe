@@ -37,14 +37,18 @@
 -oam_file:sine_1k.oam,sine_2k.oam -ofile:sine_1k_2k_oam_asi.mhas -br:320000 -cicp:6 -op_fmt:1 -iasi:2obj_grp.txt
 -ifile:sine_6ch_16bit.wav -oam_file:sine_2k.oam -ofile:1ch_1obj.mhas -br:1024000 -cicp:6 -op_fmt:1
 -ifile:sine_6ch_16bit.wav -oam_file:sine_1k.oam,sine_2k.oam -ofile:1ch_2obj_asi.mhas -br:640000 -cicp:6 -op_fmt:1 -iasi:1ch_2obj_grp.txt
+-ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi_loudness.mhas -br:320000 -iasi:2ch_grp.txt -op_fmt:1 -iloudness:loudness_file.xml
 
 //MP4
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups.mp4 -br:320000 -op_fmt:3
 -ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi.mp4 -br:320000 -iasi:2ch_grp.txt -op_fmt:3
+-ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi_pkt.mp4 -br:320000 -iasi:2ch_grp.txt -op_fmt:3 -mhas_asi:1
 -oam_file:sine_1k.oam,sine_2k.oam -ofile:sine_1k_2k_oam.mp4 -br:320000 -cicp:6 -op_fmt:3
 -oam_file:sine_2k.oam,sine_1k.oam -ofile:sine_2k_1k_oam.mp4 -br:320000 -cicp:6 -op_fmt:3
 -oam_file:sine_1k.oam,sine_2k.oam -ofile:sine_1k_2k_oam_asi.mp4 -br:320000 -cicp:6 -op_fmt:3 -iasi:2obj_grp.txt
 -ifile:sine_6ch_16bit.wav -oam_file:sine_2k.oam -ofile:1ch_1obj.mp4 -br:1024000 -cicp:6 -op_fmt:3
 -ifile:sine_6ch_16bit.wav -oam_file:sine_1k.oam,sine_2k.oam -ofile:1ch_2obj_asi.mp4 -br:640000 -cicp:6 -op_fmt:3 -iasi:1ch_2obj_grp.txt
+-ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi_loudness.mp4 -br:320000 -iasi:2ch_grp.txt -op_fmt:3 -iloudness:loudness_file.xml 
+-ifile:silRtoneL.wav,toneLsilR.wav -ofile:2ChannelGroups_asi_pkt_loudness_pkt.mp4 -br:320000 -iasi:2ch_grp.txt -op_fmt:3 -iloudness:loudness_file.xml  -mhas_asi:1 -mhas_loudness:1
 
 @Stop

@@ -488,3 +488,29 @@ WORD32 impeghe_mhas_write_asi(ia_bit_buf_struct *it_bit_buff,
 
   return bit_cnt;
 }
+
+WORD32 impeghe_mhas_write_loudness(ia_bit_buf_struct *it_bit_buff,
+  UWORD8 *data, UWORD32 num_bytes, WORD32 packet_lbl)
+{
+  UWORD8 val;
+  WORD32 i, bit_cnt = 0;
+  ia_mhas_pac_info pkt_info_tmp;
+
+  /* write MHAS_PAC_TYP_SYNC PKT */
+  pkt_info_tmp.packet_type = MHAS_PAC_TYP_LOUDNESS;
+  pkt_info_tmp.packet_lbl = packet_lbl;
+  pkt_info_tmp.packet_length = num_bytes;
+
+  bit_cnt = impeghe_write_mhas_pkt_header(&pkt_info_tmp, it_bit_buff);
+  if (data != NULL)
+  {
+    for (i = 0; i < pkt_info_tmp.packet_length; i++)
+    {
+      val = data[i];
+      impeghe_write_bits_buf(it_bit_buff, val, 8);
+      bit_cnt += 8;
+    }
+  }
+
+  return bit_cnt;
+}

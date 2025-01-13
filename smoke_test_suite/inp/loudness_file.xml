@@ -1,0 +1,20 @@
+<loudness_config>
+    <loudness>
+        <loudness_info_type>1</loudness_info_type>
+        <mae_group_id>0</mae_group_id>
+        <measurement>
+            <method_val>-30.5</method_val>
+            <method_def>1</method_def>
+            <measurement_system>2</measurement_system>
+        </measurement>
+    </loudness>
+    <loudness>
+        <loudness_info_type>1</loudness_info_type>
+        <mae_group_id>1</mae_group_id>
+        <measurement>
+            <method_val>-10.5</method_val>
+            <method_def>1</method_def>
+            <measurement_system>2</measurement_system>
+        </measurement>
+    </loudness>
+</loudness_config>

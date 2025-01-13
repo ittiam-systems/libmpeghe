@@ -3976,7 +3976,7 @@ static IA_ERRORCODE impeghe_drc_write_loudness_info_set_extension(
  *
  *  \return IA_ERRORCODE Error code
  */
-static IA_ERRORCODE impeghe_drc_write_loudness_info_set(ia_drc_enc_state *pstr_drc_state,
+IA_ERRORCODE impeghe_drc_write_loudness_info_set(ia_drc_enc_state *pstr_drc_state,
                                                         ia_bit_buf_struct *it_bit_buf,
                                                         WORD32 *ptr_bit_cnt)
 {

@@ -344,6 +344,7 @@ typedef struct
   WORD8 asi_mhas;
   ia_asi_config str_asi_config;
   WORD8 loudness_enable;
+  WORD8 loudness_mhas;
   WORD8 flexi_spk_enable;
   ia_flexi_spk_config str_flexi_spk_config;
   WORD32 use_hoa_element;

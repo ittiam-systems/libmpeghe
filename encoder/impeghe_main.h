@@ -298,6 +298,12 @@ typedef struct
   WORD32 encoder_delay;
 
   WORD32 packet_lbl;
+
+  WORD32 asi_preset;
+  WORD32 asi_mhas;
+
+  WORD32 loudness_preset;
+  WORD32 loudness_mhas;
 } ia_usac_encoder_config_struct;
 
 typedef struct

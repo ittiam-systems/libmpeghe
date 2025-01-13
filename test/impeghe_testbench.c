@@ -375,6 +375,7 @@ VOID impeghe_print_usage()
   printf("\n[-iasi:<asi_file>]");
   printf("\n[-iloudness:<loudness_file>]");
   printf("\n[-mhas_asi:<asi_mhas>]");
+  printf("\n[-mhas_loudness:<loudness_mhas>]");
   printf("\n[-op_fmt:<output_format>]");
   printf("\n[-cicp:<cicp_layout_index>]");
   printf("\n[-oam_file:<oam_file>]");
@@ -396,6 +397,8 @@ VOID impeghe_print_usage()
   printf("\n<asi_file> is the asi text file name");
   printf("\n<asi_mhas> is the flag to enable or disable writing ASI to mhas packet.");
   printf("\n           If set to 0 ASI will be written as config extension element.");
+  printf("\n<loudness_mhas> is the flag to enable or disable writing Loudnes to mhas packet.");
+  printf("\n           If set to 0 loudness will be written as config extension element.");
   printf("\n<loudness_file> is the loudness xml file name");
   printf("\n<output_format> is the output format. (1 - MHAS, 2 - MHA1, 3 - MHM1). Default is "
          "1 (MHAS)");
@@ -689,7 +692,10 @@ static VOID impeghe_set_default_config_param(ia_input_config *pstr_input_config)
   memset(pstr_input_config->oam_read_data, 0, sizeof(pstr_input_config->oam_read_data));
   memset(pstr_input_config->oam_skip_data, 0, sizeof(pstr_input_config->oam_skip_data));
   pstr_input_config->kernel = 0;
+  pstr_input_config->asi_enable = 0;
   pstr_input_config->asi_mhas = 0;
+  pstr_input_config->loudness_enable = 0;
+  pstr_input_config->loudness_mhas = 0;
   pstr_input_config->num_preroll_frames = 1;
   pstr_input_config->random_access_interval = DEFAULT_RAP_INTERVAL_IN_MS;
   pstr_input_config->packet_lbl = DEFAULT_PACKET_LABEL;
@@ -744,6 +750,11 @@ IA_ERRORCODE impeghe_parse_config_param(WORD32 argc, pWORD8 argv[], pVOID ptr_en
     {
       pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 10);
       pstr_enc_api->input_config.asi_mhas = atoi(pb_arg_val);
+    }
+    if (!strncmp((pCHAR8)argv[i], "-mhas_loudness:", 15))
+    {
+      pCHAR8 pb_arg_val = (pCHAR8)(argv[i] + 15);
+      pstr_enc_api->input_config.loudness_mhas = atoi(pb_arg_val);
     }
     /*op fmt*/
     if (!strncmp((pCHAR8)argv[i], "-op_fmt:", 8))
@@ -2682,7 +2693,7 @@ WORD32 main(WORD32 argc, char *argv[])
             strcat((char *)pb_loudness_file_name, (const char *)pb_arg_val);
 
             g_loudness = NULL;
-            g_loudness = fopen((const char *)pb_loudness_file_name, "rt");
+            g_loudness = fopen((const char *)pb_loudness_file_name, "rb");
             if (g_loudness == NULL)
             {
               err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
@@ -2907,7 +2918,7 @@ WORD32 main(WORD32 argc, char *argv[])
         strcat((char *)pb_loudness_file_name, (const char *)pb_arg_val);
 
         g_loudness = NULL;
-        g_loudness = fopen((const char *)pb_loudness_file_name, "rt");
+        g_loudness = fopen((const char *)pb_loudness_file_name, "rb");
         if (g_loudness == NULL)
         {
           err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
