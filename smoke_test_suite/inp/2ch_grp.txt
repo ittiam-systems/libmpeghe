@@ -42,26 +42,26 @@ group_preset_definition.position_interact:0,0
 #Data sets
 num_data_sets:3
 data_type:0,1,5 
-num_grp_def_decription_blocks:2
-grp_def_decription_grp_id:0
-num_grp_def_decription_language:1
-grp_def_decription_languages:eng
-grp_def_decription_data_length:5
-grp_def_decription_data:2.0 A
-grp_def_decription_grp_id:1
-num_grp_def_decription_language:1
-grp_def_decription_languages:eng
-grp_def_decription_data_length:5
-grp_def_decription_data:2.0 B
-num_switch_grp_decription_blocks:1
-switch_grp_decription_grp_id:0
-num_switch_grp_decription_language:1
-switch_grp_decription_languages:eng
-switch_grp_decription_data_length:9
-switch_grp_decription_data:Selection
-num_preset_decription_blocks:1
-preset_decription_grp_id:0
-num_preset_decription_language:1
-preset_decription_languages:eng
-preset_decription_data_length:7
-preset_decription_data:Default
+num_grp_def_description_blocks:2
+grp_def_description_grp_id:0
+num_grp_def_description_language:1
+grp_def_description_languages:eng
+grp_def_description_data_length:5
+grp_def_description_data:2.0 A
+grp_def_description_grp_id:1
+num_grp_def_description_language:1
+grp_def_description_languages:eng
+grp_def_description_data_length:5
+grp_def_description_data:2.0 B
+num_switch_grp_description_blocks:1
+switch_grp_description_grp_id:0
+num_switch_grp_description_language:1
+switch_grp_description_languages:eng
+switch_grp_description_data_length:9
+switch_grp_description_data:Selection
+num_preset_description_blocks:1
+preset_description_grp_id:0
+num_preset_description_language:1
+preset_description_languages:eng
+preset_description_data_length:7
+preset_description_data:Default

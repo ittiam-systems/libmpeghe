@@ -193,57 +193,57 @@ The following table describes the `data_type` field. This occurs once at the sta
 The following table lists the different entries of group description data
 | **Sl. No.** | **Text File Entry** | **Description** | **Allowed values** |
 |-----|------|------|-----|
-| 1 | `num_grp_def_decription_blocks` | Number of description blocks to be written into the bit-stream. | `0` - `127` |
-| 2 | `grp_def_decription_grp_id` | Group IDs of the blocks corresponding to the description. | `0` - `127` |
-| 3 | `num_grp_def_decription_language` | Number of available languages for the description text | `1` - `16` - Maximum of 8 for LC level 4 encoder|
-| 4 | `grp_def_decription_languages` | A 3-character code  as  specified  by  ISO 639-2. EXAMPLE: French has 3-character code "fre", English has a 3-character code "eng". | - |
-| 5 | `grp_def_decription_data_length` | Length of the group description data that follows.| `1` - `256` |
-| 6 | `grp_def_decription_data` | A description of a metadata element group or a switch group, i.e. a string describing the content by a high-level description. The format shall follow UTF-8 according to ISO/IEC 10646. | - |
+| 1 | `num_grp_def_description_blocks` | Number of description blocks to be written into the bit-stream. | `0` - `127` |
+| 2 | `grp_def_description_grp_id` | Group IDs of the blocks corresponding to the description. | `0` - `127` |
+| 3 | `num_grp_def_description_language` | Number of available languages for the description text | `1` - `16` - Maximum of 8 for LC level 4 encoder|
+| 4 | `grp_def_description_languages` | A 3-character code  as  specified  by  ISO 639-2. EXAMPLE: French has 3-character code "fre", English has a 3-character code "eng". | - |
+| 5 | `grp_def_description_data_length` | Length of the group description data that follows.| `1` - `256` |
+| 6 | `grp_def_description_data` | A description of a metadata element group or a switch group, i.e. a string describing the content by a high-level description. The format shall follow UTF-8 according to ISO/IEC 10646. | - |
 
 ### 2.5.2 MAE Switch Group Description
 The following table lists the different entries of switch group description data
 | **Sl. No.** | **Text File Entry** | **Description** | **Allowed values** |
 |-----|------|------|-----|
-| 1 | `num_switch_grp_decription_blocks` | Number of switch group description blocks to be written into the bit-stream. | `0` - `127` |
-| 2 | `switch_grp_decription_grp_id` | Switch group IDs of the blocks corresponding to the description. | `0` - `31` |
-| 3 | `num_switch_grp_decription_language` | Number of available languages for the description text | `1` - `16` - Maximum of 8 for LC level 4 encoder|
-| 4 | `switch_grp_decription_languages` | A 3-character code  as  specified  by  ISO 639-2. EXAMPLE: French has 3-character code "fre", English has a 3-character code "eng". | - |
-| 5 | `switch_grp_decription_data_length` | Length of the group description data that follows.| `1` - `256` |
-| 6 | `switch_grp_decription_data` | A description of a metadata element group or a switch group, i.e. a string describing the content by a high-level description. The format shall follow UTF-8 according to ISO/IEC 10646. | - |
+| 1 | `num_switch_grp_description_blocks` | Number of switch group description blocks to be written into the bit-stream. | `0` - `127` |
+| 2 | `switch_grp_description_grp_id` | Switch group IDs of the blocks corresponding to the description. | `0` - `31` |
+| 3 | `num_switch_grp_description_language` | Number of available languages for the description text | `1` - `16` - Maximum of 8 for LC level 4 encoder|
+| 4 | `switch_grp_description_languages` | A 3-character code  as  specified  by  ISO 639-2. EXAMPLE: French has 3-character code "fre", English has a 3-character code "eng". | - |
+| 5 | `switch_grp_description_data_length` | Length of the group description data that follows.| `1` - `256` |
+| 6 | `switch_grp_description_data` | A description of a metadata element group or a switch group, i.e. a string describing the content by a high-level description. The format shall follow UTF-8 according to ISO/IEC 10646. | - |
 
 ### 2.5.3 MAE Preset Description
 The following table lists the different entries of preset description data
 | **Sl. No.** | **Text File Entry** | **Description** | **Allowed values** |
 |-----|------|------|-----|
-| 1 | `num_preset_decription_blocks` | Number of preset description blocks to be written into the bit-stream. | `0` - `127` |
-| 2 | `preset_decription_grp_id` | Preset IDs of the blocks corresponding to the description. | `0` - `31` |
-| 3 | `num_preset_decription_language` | Number of available languages for the description text | `1` - `16` - Maximum of 8 for LC level 4 encoder|
-| 4 | `preset_decription_languages` | A 3-character code  as  specified  by  ISO 639-2. EXAMPLE: French has 3-character code "fre", English has a 3-character code "eng". | - |
-| 5 | `preset_decription_data_length` | Length of the group description data that follows.| `1` - `256` |
-| 6 | `preset_decription_data` | A description of a metadata element group or a switch group, i.e. a string describing the content by a high-level description. The format shall follow UTF-8 according to ISO/IEC 10646. | - |
+| 1 | `num_preset_description_blocks` | Number of preset description blocks to be written into the bit-stream. | `0` - `127` |
+| 2 | `preset_description_grp_id` | Preset IDs of the blocks corresponding to the description. | `0` - `31` |
+| 3 | `num_preset_description_language` | Number of available languages for the description text | `1` - `16` - Maximum of 8 for LC level 4 encoder|
+| 4 | `preset_description_languages` | A 3-character code  as  specified  by  ISO 639-2. EXAMPLE: French has 3-character code "fre", English has a 3-character code "eng". | - |
+| 5 | `preset_description_data_length` | Length of the group description data that follows.| `1` - `256` |
+| 6 | `preset_description_data` | A description of a metadata element group or a switch group, i.e. a string describing the content by a high-level description. The format shall follow UTF-8 according to ISO/IEC 10646. | - |
 
 ### Example Usage:
 ```
 num_data_sets:3                        // Number of data sets
 data_type:0,1,5                        // 0-Group Description, 1- Switch Group description, 5-Preset description
-num_grp_def_decription_blocks:2        // Number of description blocks
-grp_def_decription_grp_id:0,1          // Group IDs referenced by the description block
-num_grp_def_decription_language:1,1    // Number of description languages for each block
-grp_def_decription_languages:eng,eng   // 3-character code for language description
-grp_def_decription_data_length:5,5     // Length of description data
-grp_def_decription_data:2.0 A,2.0 B    // Description data
-num_switch_grp_decription_blocks:1     // Number of switch group description blocks
-switch_grp_decription_grp_id:0         // Switch group IDs referenced by the description block
-num_switch_grp_decription_language:1   // Number of description languages for each block
-switch_grp_decription_languages:eng    // 3-character code for language description
-switch_grp_decription_data_length:9    // Length of description data
-switch_grp_decription_data:Selection   // Description data
-num_preset_decription_blocks:1         // Number of preset description blocks
-preset_decription_grp_id:0             // preset IDs referenced by the description block
-num_preset_decription_language:1       // Number of description languages for each block
-preset_decription_languages:eng        // 3-character code for language description
-preset_decription_data_length:7        // Length of description data
-preset_decription_data:Default         // Description data
+num_grp_def_description_blocks:2        // Number of description blocks
+grp_def_description_grp_id:0,1          // Group IDs referenced by the description block
+num_grp_def_description_language:1,1    // Number of description languages for each block
+grp_def_description_languages:eng,eng   // 3-character code for language description
+grp_def_description_data_length:5,5     // Length of description data
+grp_def_description_data:2.0 A,2.0 B    // Description data
+num_switch_grp_description_blocks:1     // Number of switch group description blocks
+switch_grp_description_grp_id:0         // Switch group IDs referenced by the description block
+num_switch_grp_description_language:1   // Number of description languages for each block
+switch_grp_description_languages:eng    // 3-character code for language description
+switch_grp_description_data_length:9    // Length of description data
+switch_grp_description_data:Selection   // Description data
+num_preset_description_blocks:1         // Number of preset description blocks
+preset_description_grp_id:0             // preset IDs referenced by the description block
+num_preset_description_language:1       // Number of description languages for each block
+preset_description_languages:eng        // 3-character code for language description
+preset_description_data_length:7        // Length of description data
+preset_description_data:Default         // Description data
 ```
 
 ### 2.5.4 MAE Content Data Blocks

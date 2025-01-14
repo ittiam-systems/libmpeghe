@@ -81,13 +81,13 @@ The following table lists further description of each element's tag value.
 | 2 |`loudness` | Encapsulates loudness information for one loudness block. | There can be one or more `loudness` blocks present in one `loudness_config` block. |
 | 3 |`loudness_info_type` | Allowed values: `0`, `1` or `2` | If not mentioned, defaults to `0`. Refer to [section 3.1](#31-loudness-info-type) for further details. |
 | 4 |`mae_group_id` | Allowed values: `0` to `127` | Mandatory tag when `loudness_info_type` is `1` or `2`  |
-| 4 |`mae_group_preset_id` | Allowed values: `0` to `31` | Mandatory tag when `loudness_info_type` is `3` |
-| 3 |`sample_peak_level` | Allowed values: `-107.0` to `20.0`. Step size: `0.0312` | Optional tag |
-| 3 |`true_peak_level` | Allowed values: `-107.0` to `20.0`. Step size: `0.0312` |  Optional tag
-| 5 |`measurement` | Encapsulates measurement information for current loudness block. | There can be one or more `measurement` blocks present in one `loudness` block. |
-| 6 |`method_val` | Value of loudness derived from the method definition. Range depends on the measurement system used. Refer to ISO/IEC 23003-4 for further details.| Mandatory tag |
-| 7 |`method_def` | Allowed values: `0` to `9` | Mandatory tag. Refer to [section 3.2](#32-method-definition) for further details. |
-| 7 |`measurement_system` | Allowed values: `0` to `11` | Mandatory tag. Refer to [section 3.3](#33-measurement-system) for further details. |
+| 5 |`mae_group_preset_id` | Allowed values: `0` to `31` | Mandatory tag when `loudness_info_type` is `3` |
+| 6 |`sample_peak_level` | Allowed values: `-107.0` to `20.0`. Step size: `0.0312` | Optional tag |
+| 7 |`true_peak_level` | Allowed values: `-107.0` to `20.0`. Step size: `0.0312` |  Optional tag
+| 8 |`measurement` | Encapsulates measurement information for current loudness block. | There can be one or more `measurement` blocks present in one `loudness` block. |
+| 9 |`method_val` | Value of loudness derived from the method definition. Range depends on the measurement system used. Refer to ISO/IEC 23003-4 for further details.| Mandatory tag |
+| 10 |`method_def` | Allowed values: `0` to `9` | Mandatory tag. Refer to [section 3.2](#32-method-definition) for further details. |
+| 11 |`measurement_system` | Allowed values: `0` to `11` | Mandatory tag. Refer to [section 3.3](#33-measurement-system) for further details. |
 
 
 ## 3.1 Loudness Info Type

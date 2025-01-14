@@ -743,6 +743,14 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                   pstr_asi_config->grp_preset_def_num_conditions[j]);
               READ_NEXT_LINE()
             }
+            if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT,
+              strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)) == 0)
+            {
+              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_disable_gain_interact[j][0],
+                &line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)],
+                pstr_asi_config->grp_preset_def_num_conditions[j]);
+              READ_NEXT_LINE()
+            }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_GAIN_FLAG,
                         strlen(STRING_GRP_PRESET_DEFN_GAIN_FLAG)) == 0)
             {
@@ -762,14 +770,6 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                   quant_fac, offset);
               READ_NEXT_LINE()
             }
-            if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT,
-                        strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)) == 0)
-            {
-              impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_disable_gain_interact[j][0],
-                  &line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_GAIN_INTRCT)],
-                  pstr_asi_config->grp_preset_def_num_conditions[j]);
-              READ_NEXT_LINE()
-            }
             if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT,
                         strlen(STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT)) == 0)
             {
@@ -778,11 +778,11 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                   pstr_asi_config->grp_preset_def_num_conditions[j]);
               READ_NEXT_LINE()
             }
-            if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT,
-                        strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)) == 0)
+            if (strncmp((pCHAR8)line, STRING_GRP_PRESET_DEFN_POSITION_FLAG,
+                        strlen(STRING_GRP_PRESET_DEFN_POSITION_FLAG)) == 0)
             {
               impeghe_mae_read_csv_char(&pstr_asi_config->grp_preset_def_position_interact[j][0],
-                  &line[strlen(STRING_GRP_PRESET_DEFN_DISABLE_POS_INTRCT)],
+                  &line[strlen(STRING_GRP_PRESET_DEFN_POSITION_FLAG)],
                   pstr_asi_config->grp_preset_def_num_conditions[j]);
               READ_NEXT_LINE()
             }

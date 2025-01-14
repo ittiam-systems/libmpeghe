@@ -2689,7 +2689,7 @@ WORD32 main(WORD32 argc, char *argv[])
           }
           if (!strncmp((pCHAR8)fargv[i], "-idrc:", 6))
           {
-            pCHAR8 pb_arg_val = fargv[i] + 6;
+            pWORD8 pb_arg_val = fargv[i] + 6;
             CHAR8 pb_drc_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
 
             strcat((char *)pb_drc_file_name, (const char *)pb_input_file_path);
@@ -2707,7 +2707,7 @@ WORD32 main(WORD32 argc, char *argv[])
           }
           if (!strncmp((pCHAR8)fargv[i], "-iaudio_truncate:", 17))
           {
-            pCHAR8 pb_arg_val = fargv[i] + 17;
+            pWORD8 pb_arg_val = fargv[i] + 17;
             CHAR8 pb_audio_truncate_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
 
             strcat((char *)pb_audio_truncate_file_name, (const char *)pb_input_file_path);
