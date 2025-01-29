@@ -2642,10 +2642,10 @@ WORD32 main(WORD32 argc, char *argv[])
             while(p_file_name != NULL)
             {
               WORD8 pb_oam_file_local[IA_MAX_CMD_LINE_LENGTH] = "";
-              memcpy(pb_oam_file_name[f], p_file_name, strlen((const char *)pb_arg_val));
+              memcpy(pb_oam_file_name[f], p_file_name, strlen((const char *)p_file_name));
 
               strcat((char *)pb_oam_file_local, (const char *)pb_oam_file_path);
-              strcat((char *)pb_oam_file_local, (const char *)pb_arg_val);
+              strcat((char *)pb_oam_file_local, (const char *)p_file_name);
 
               g_oam_inp[f] = NULL;
               g_oam_inp[f] = fopen((const char *)pb_oam_file_local, "rb");
@@ -2913,6 +2913,7 @@ WORD32 main(WORD32 argc, char *argv[])
             err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
             impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "OAM File", err_code);
           }
+          memset(pb_oam_file_local, 0, sizeof(pb_oam_file_local));  // Reset entire buffer
           f++;
           file_count++;
           g_num_oamfiles++;
