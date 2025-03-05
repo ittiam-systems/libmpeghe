@@ -1379,11 +1379,11 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
    * Store the element index at which channel audio elements end.
    */
   obj_ele_start = pstr_asc_usac_config->num_elements;
-  if (pstr_usac_config->use_oam_element[0] == 1)
+  if (pstr_asc->num_obj_sig_groups > 0)
   {
-    if (pstr_asc->num_obj_sig_groups > 0)
+    for (j = 0; j < pstr_asc->num_obj_sig_groups; j++)
     {
-      for (j = 0; j < pstr_asc->num_obj_sig_groups; j++)
+      if (pstr_usac_config->use_oam_element[j] == 1)
       {
         IA_ERRORCODE err_code = impeghe_add_oam_ext_element(pstr_usac_config, pstr_usac_state, j);
         if (err_code)
@@ -1393,45 +1393,12 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
         i++;
         for (k = 0; k < pstr_asc->num_objs_per_sig_group[j]; k++)
         {
-          if ((abs(pstr_asc->num_ch_idx_per_grp[ch_offset_idx] -
-                   pstr_asc->num_ch_idx_per_grp[ch_offset_idx + 1]) == 1) &&
-              (k < pstr_asc->num_objs_per_sig_group[j] - 1))
-          {
-            pstr_asc->num_ch_idx_per_grp[ch_offset_idx] =
-                min(pstr_asc->num_ch_idx_per_grp[ch_offset_idx],
-                    pstr_asc->num_ch_idx_per_grp[ch_offset_idx + 1]);
-            pstr_asc->num_ch_idx_per_grp[ch_offset_idx + 1] =
-                pstr_asc->num_ch_idx_per_grp[ch_offset_idx] + 1;
-
-            pstr_asc_usac_config->usac_element_type[i] = ID_USAC_CPE;
-            k++;
-            ch_offset_idx++;
-          }
-          else
-          {
-            pstr_asc_usac_config->usac_element_type[i] = ID_USAC_SCE;
-          }
+          pstr_asc_usac_config->usac_element_type[i] = ID_USAC_SCE;
           pstr_asc_usac_config->num_elements += 1;
           pstr_usac_config->num_oam_elements += 1;
           i++;
           ch_offset_idx++;
         }
-      }
-    }
-    else
-    {
-      pstr_usac_config->num_oam_elements = (pstr_usac_config->num_oam_ch / 2);
-      pstr_asc_usac_config->num_elements += pstr_usac_config->num_oam_elements;
-      for (; i < pstr_asc_usac_config->num_elements; i++)
-      {
-        pstr_asc_usac_config->usac_element_type[i] = ID_USAC_CPE;
-      }
-      if (pstr_usac_config->num_oam_ch & 0x01)
-      {
-        pstr_asc_usac_config->usac_element_type[i] = ID_USAC_SCE;
-        pstr_asc_usac_config->num_elements += 1;
-        pstr_usac_config->num_oam_elements += 1;
-        i++;
       }
     }
   }
