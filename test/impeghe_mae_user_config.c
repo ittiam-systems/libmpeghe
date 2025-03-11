@@ -1260,10 +1260,13 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                       READ_NEXT_LINE();
                   }
                     if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_GAIN, strlen(STRING_GRP_PR_EXT_GAIN)) == 0)
-                  {
-                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_gain[pr][j + 1][k],
-                              &line[strlen(STRING_GRP_PR_EXT_GAIN)],
-                              1);
+                    {
+                      FLOAT32 quant_fac = 0.5f;
+                      WORD32 offset = 191;
+                      impeghe_mae_read_csv_float(&pstr_asi_config->group_preset_gain[pr][j + 1][k],
+                        &line[strlen(STRING_GRP_PR_EXT_GAIN)],
+                        1,
+                        quant_fac, offset);
                       READ_NEXT_LINE();
                     }
                     if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_DISABLE_POS_INTERACT, strlen(STRING_GRP_PR_EXT_DISABLE_POS_INTERACT)) == 0)
@@ -1281,19 +1284,27 @@ WORD32 impeghe_read_asi(ia_asi_config *pstr_asi_config, FILE *file)
                       READ_NEXT_LINE();
                     }
                     if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_AZ_OFFSET, strlen(STRING_GRP_PR_EXT_AZ_OFFSET)) == 0)
-                  {
-                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_az_offset[pr][j + 1][k],
-                              &line[strlen(STRING_GRP_PR_EXT_AZ_OFFSET)],
-                              1);
+                    {
+                      FLOAT32 quant_fac = 1.5f;
+                      WORD32 offset = 127;
+                      impeghe_mae_read_csv_float(&pstr_asi_config->group_preset_az_offset[pr][j + 1][k],
+                        &line[strlen(STRING_GRP_PR_EXT_AZ_OFFSET)],
+                        1,
+                        quant_fac,
+                        offset);
                       READ_NEXT_LINE();
                     }
                     if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_EL_OFFSET, strlen(STRING_GRP_PR_EXT_EL_OFFSET)) == 0)
                     {
-                      impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_el_offset[pr][j + 1][k],
-                              &line[strlen(STRING_GRP_PR_EXT_EL_OFFSET)],
-                              1);
+                      FLOAT32 quant_fac = 3.0f;
+                      WORD32 offset = 31;
+                      impeghe_mae_read_csv_float(&pstr_asi_config->group_preset_el_offset[pr][j + 1][k],
+                        &line[strlen(STRING_GRP_PR_EXT_EL_OFFSET)],
+                        1,
+                        quant_fac,
+                        offset);
                       READ_NEXT_LINE();
-                  }
+                    }
                     if (strncmp((pCHAR8)line, STRING_GRP_PR_EXT_DIST_FACT, strlen(STRING_GRP_PR_EXT_DIST_FACT)) == 0)
                   {
                       impeghe_mae_read_csv_char(&pstr_asi_config->group_preset_dist_factor[pr][j + 1][k],
