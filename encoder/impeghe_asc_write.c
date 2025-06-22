@@ -733,6 +733,11 @@ WORD32 impeghe_get_audiospecific_config_bytes(
 
       break;
     case 1:
+      while (pstr_audio_specific_config->num_objs_per_sig_group[obj_idx] == 0 &&
+             obj_idx < pstr_audio_specific_config->num_obj_sig_groups)
+      {
+        obj_idx++;
+      }
       bit_cnt += impeghe_write_escape_value(
           it_bit_buff, pstr_audio_specific_config->num_objs_per_sig_group[obj_idx++] - 1, 5, 8,
           16);

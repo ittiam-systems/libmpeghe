@@ -99,6 +99,7 @@ typedef enum impeghe_op_fmts
 
 FILE *g_pf_inp[56], *g_pf_out, *g_pf_spk, *g_asi, *g_loudness, *g_audio_truncate;
 FILE *g_pf_ec; // earcon inputfile
+WORD32 g_ch_in_file_idx[56], g_oam_in_file_idx[56];
 WORD8 ec_present = 0;
 WORD32 array_ec[1024] = {0};
 WORD8 pb_oam_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
@@ -107,6 +108,7 @@ WORD8 pb_drc_file_path[IA_MAX_CMD_LINE_LENGTH] = "";
 impeghe_op_fmts op_fmt = RAW_MHAS;
 WORD32 use_drc_element = 0;
 WORD32 g_num_ifiles = 0, g_num_oamfiles = 0, g_num_hoafiles = 0;
+WORD32 g_num_ch_in_files, g_num_oam_in_files;
 
 pVOID g_ops_buf[32768];
 
@@ -1047,6 +1049,8 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
     strncat((char *)oam_file_path, (char *)item_name_buf,
             strnlen((const char *)item_name_buf, 64));
     g_pf_inp[g_num_ifiles] = fopen((const char *)oam_file_path, "rb");
+    g_ch_in_file_idx[g_num_ch_in_files] = g_num_ifiles;
+    g_num_ch_in_files++;
     if (NULL == g_pf_inp[g_num_ifiles])
     {
       printf("channel input file open failed\n");
@@ -1086,6 +1090,8 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
     strncat((char *)oam_file_path, (char *)item_name_buf,
             strnlen((const char *)item_name_buf, 64));
     g_pf_inp[g_num_ifiles] = fopen((const char *)oam_file_path, "rb");
+    g_oam_in_file_idx[g_num_oam_in_files] = g_num_ifiles;
+    g_num_oam_in_files++;
     if (NULL == g_pf_inp[g_num_ifiles])
     {
       fseek(oam_file, -OAM_OBJ_DESCRIPTION_SIZE_BYTES, SEEK_CUR);
@@ -1115,8 +1121,8 @@ static IA_ERRORCODE impeghe_read_oam_header(FILE *oam_file, ia_input_config *ptr
   if (ptr_in_cfg->num_objects[obj_sgi] > 0)
   {
     ptr_in_cfg->use_oam_element[obj_sgi] = 1;
-    ptr_in_cfg->num_obj_sig_groups++;
   }
+  ptr_in_cfg->num_obj_sig_groups++;
 
   *num_channels_to_encode = ptr_in_cfg->num_ch_per_sig_grp[ch_grp_idx] + ptr_in_cfg->num_objects[obj_sgi];
 
@@ -2186,6 +2192,7 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
   i_bytes_read = 0; write_offset = 0;
   for (WORD32 ii = 0; ii < pstr_out_cfg->in_frame_length; ii++)
   {
+#if 0
     for (WORD32 jj = 0; jj < g_num_ifiles; jj++)
     {
       if (g_pf_inp[jj])
@@ -2205,6 +2212,48 @@ IA_ERRORCODE impeghe_main_process(WORD32 argc, pWORD8 argv[])
         write_offset += bytes_to_read;
       }
     }
+#else
+    for (WORD32 jj = 0; jj < g_num_ch_in_files; jj++)
+    {
+      WORD32 idx = g_ch_in_file_idx[jj];
+      if (g_pf_inp[idx])
+      {
+        WORD32 pcm_wd_size = (pstr_in_cfg->aud_ch_pcm_cfg[idx].pcm_sz >> 3);
+        WORD32 f_channels = (pstr_in_cfg->aud_ch_pcm_cfg[idx].n_channels);
+        WORD32 bytes_to_read = f_channels * pcm_wd_size;
+        WORD32 ret_val = impeghe_fread((pVOID)&pb_inp_buf[write_offset],
+                                     sizeof(WORD8),
+                                     bytes_to_read,
+                                     g_pf_inp[idx]);
+        i_bytes_read += ret_val;
+        if (ret_val != bytes_to_read)
+        {
+          memset(&pb_inp_buf[i_bytes_read], 0, bytes_to_read - ret_val);
+        }
+        write_offset += bytes_to_read;
+      }
+    }
+    for (WORD32 jj = 0; jj < g_num_oam_in_files; jj++)
+    {
+      WORD32 idx = g_oam_in_file_idx[jj];
+      if (g_pf_inp[idx])
+      {
+        WORD32 pcm_wd_size = (pstr_in_cfg->aud_ch_pcm_cfg[idx].pcm_sz >> 3);
+        WORD32 f_channels = (pstr_in_cfg->aud_ch_pcm_cfg[idx].n_channels);
+        WORD32 bytes_to_read = f_channels * pcm_wd_size;
+        WORD32 ret_val = impeghe_fread((pVOID)&pb_inp_buf[write_offset],
+                                     sizeof(WORD8),
+                                     bytes_to_read,
+                                     g_pf_inp[idx]);
+        i_bytes_read += ret_val;
+        if (ret_val != bytes_to_read)
+        {
+          memset(&pb_inp_buf[i_bytes_read], 0, bytes_to_read - ret_val);
+        }
+        write_offset += bytes_to_read;
+      }
+    }
+#endif
   }
 
   if (g_is_hoa_input)
@@ -2353,14 +2402,17 @@ clean_return:
     g_pf_ec = NULL;
   }
 
-  if (pstr_in_cfg->use_oam_element[0] == 1)
+  for (WORD32 o = 0; o < pstr_in_cfg->num_obj_sig_groups; o++)
   {
-    for (i = 0; i < num_channels_to_encode; i++)
+    if (pstr_in_cfg->use_oam_element[o] == 1)
     {
-      if (g_pf_inp[i])
+      for (i = 0; i < num_channels_to_encode; i++)
       {
-        fclose(g_pf_inp[i]);
-        g_pf_inp[i] = NULL;
+        if (g_pf_inp[i])
+        {
+          fclose(g_pf_inp[i]);
+          g_pf_inp[i] = NULL;
+        }
       }
     }
   }
@@ -2496,6 +2548,10 @@ WORD32 main(WORD32 argc, char *argv[])
       g_num_ifiles = 0;
       g_num_oamfiles = 0;
       g_num_hoafiles = 0;
+      g_num_ch_in_files = 0;
+      g_num_oam_in_files = 0;
+      memset(g_ch_in_file_idx, 0 , sizeof(g_ch_in_file_idx));
+      memset(g_oam_in_file_idx, 0 , sizeof(g_oam_in_file_idx));
       memset(pb_oam_file_name, 0, sizeof(pb_oam_file_name));
       curpos = 0;
       fargc = 0;
@@ -2609,6 +2665,8 @@ WORD32 main(WORD32 argc, char *argv[])
                 err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
                 impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Input File", err_code);
               }
+              g_ch_in_file_idx[g_num_ch_in_files] = g_num_ifiles;
+              g_num_ch_in_files++;
               file_count++;
               f++; g_num_ifiles++;
               p_file_name = (pWORD8)strtok(NULL, p_separator);
@@ -2834,6 +2892,10 @@ WORD32 main(WORD32 argc, char *argv[])
     WORD8 pb_output_file_name[IA_MAX_CMD_LINE_LENGTH] = "";
     WORD32 file_count = 0;
     g_num_ifiles = 0;
+    g_num_ch_in_files = 0;
+    g_num_oam_in_files = 0;
+    memset(g_ch_in_file_idx, 0 , sizeof(g_ch_in_file_idx));
+    memset(g_oam_in_file_idx, 0 , sizeof(g_oam_in_file_idx));
     for (i = 1; i < argc; i++)
     {
       printf("%s ", argv[i]);
@@ -2857,6 +2919,8 @@ WORD32 main(WORD32 argc, char *argv[])
             err_code = IA_TESTBENCH_MFMAN_FATAL_FILE_OPEN_FAILED;
             impeghe_error_handler(&ia_testbench_error_info, (pWORD8) "Input File", err_code);
           }
+          g_ch_in_file_idx[g_num_ch_in_files] = g_num_ifiles;
+          g_num_ch_in_files++;
           file_count++;
           f++; g_num_ifiles++;
           p_file_name = (pWORD8)strtok((char *)NULL, p_separator);

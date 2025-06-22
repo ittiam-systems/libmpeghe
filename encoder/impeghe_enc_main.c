@@ -892,7 +892,7 @@ IA_ERRORCODE impeghe_add_mct_ext_element(ia_usac_encoder_config_struct *pstr_usa
       {
         pstr_usac_data->mct_data[grp].num_channels = pstr_asc->num_objs_per_sig_group[grp];
       }
-      else if (grp == pstr_asc->num_ch_sig_groups + pstr_asc->num_obj_sig_groups)
+      else if (grp == pstr_asc->num_sig_grps - pstr_asc->num_hoa_sig_groups)
       {
         pstr_usac_data->mct_data[grp].num_channels = pstr_asc->num_hoas_per_sig_group[grp];
       }
@@ -978,7 +978,7 @@ IA_ERRORCODE impeghe_add_mct_ext_element(ia_usac_encoder_config_struct *pstr_usa
  */
 IA_ERRORCODE impeghe_add_oam_ext_element(ia_usac_encoder_config_struct *pstr_usac_config,
                                ia_usac_enc_state_struct *pstr_usac_state,
-                               WORD32 sig_idx)
+                               WORD32 sig_idx, WORD32 oam_ele_idx)
 {
   IA_ERRORCODE err_code;
   WORD32 idx;
@@ -1010,7 +1010,7 @@ IA_ERRORCODE impeghe_add_oam_ext_element(ia_usac_encoder_config_struct *pstr_usa
 #endif
   pstr_oam_config.extra_objects = pstr_usac_config->extra_objects[sig_idx];
 
-  err_code = impeghe_obj_md_enc_init(&pstr_usac_data->str_oam_state[sig_idx], &pstr_oam_config);
+  err_code = impeghe_obj_md_enc_init(&pstr_usac_data->str_oam_state[oam_ele_idx], &pstr_oam_config);
   if (err_code & IA_FATAL_ERROR)
   {
     return err_code;
@@ -1025,7 +1025,7 @@ IA_ERRORCODE impeghe_add_oam_ext_element(ia_usac_encoder_config_struct *pstr_usa
   pstr_usac_elem_config->oam_has_core_length = pstr_usac_config->oam_has_core_length[sig_idx];
   if (pstr_usac_config->oam_high_rate != 0)
   {
-    pstr_usac_elem_config->oam_block_size = pstr_usac_data->str_oam_state[sig_idx].oam_block_size;
+    pstr_usac_elem_config->oam_block_size = pstr_usac_data->str_oam_state[oam_ele_idx].oam_block_size;
   }
   else
   {
@@ -1033,19 +1033,19 @@ IA_ERRORCODE impeghe_add_oam_ext_element(ia_usac_encoder_config_struct *pstr_usa
   }
   
   pstr_usac_elem_config->oam_has_scrn_rel_objs = pstr_usac_config->oam_has_scrn_rel_objs[sig_idx];
-  pstr_usac_elem_config->oam_num_objects = pstr_usac_data->str_oam_state[sig_idx].str_config.num_objects;
+  pstr_usac_elem_config->oam_num_objects = pstr_usac_data->str_oam_state[oam_ele_idx].str_config.num_objects;
   for (idx = 0; idx < pstr_usac_elem_config->oam_num_objects; idx++)
   {
     pstr_usac_elem_config->oam_is_scrn_rel_obj[idx] =
         pstr_usac_config->oam_is_scrn_rel_obj[idx];
   }
   pstr_usac_elem_config->oam_has_dyn_obj_priority =
-      pstr_usac_data->str_oam_state[sig_idx].str_config.has_dyn_obj_priority;
+      pstr_usac_data->str_oam_state[oam_ele_idx].str_config.has_dyn_obj_priority;
   pstr_usac_elem_config->oam_has_uniform_spread =
-      pstr_usac_data->str_oam_state[sig_idx].str_config.has_uniform_spread;
+      pstr_usac_data->str_oam_state[oam_ele_idx].str_config.has_uniform_spread;
   
-  pstr_asc->num_audio_objs = pstr_usac_data->str_oam_state[sig_idx].str_config.num_objects;
-  //pstr_asc->num_audio_chs = pstr_usac_data->str_oam_state[sig_idx].str_config.num_channels;
+  pstr_asc->num_audio_objs = pstr_usac_data->str_oam_state[oam_ele_idx].str_config.num_objects;
+  //pstr_asc->num_audio_chs = pstr_usac_data->str_oam_state[oam_ele_idx].str_config.num_channels;
   
   pstr_asc_usac_config->num_elements++;
   pstr_asc_usac_config->num_ext_elements++;
@@ -1127,7 +1127,13 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
   }
 
   pstr_asc->num_sig_grps =
-      pstr_asc->num_ch_sig_groups + pstr_asc->num_obj_sig_groups + pstr_asc->num_hoa_sig_groups;
+      pstr_asc->num_ch_sig_groups + pstr_asc->num_hoa_sig_groups;
+
+  for (WORD32 i = 0; i < pstr_asc->num_obj_sig_groups; i++)
+  {
+    if (pstr_usac_config->use_oam_element[i])
+      pstr_asc->num_sig_grps++;
+  }
 
   if (pstr_asc->num_hoa_sig_groups > 1)
   {
@@ -1164,7 +1170,7 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     }
     pstr_asc->channel_configuration = channel_config;
 
-    for (; g < pstr_asc->num_ch_sig_groups + pstr_asc->num_obj_sig_groups; g++)
+    for (; g < (pstr_asc->num_sig_grps - pstr_asc->num_hoa_sig_groups); g++)
     {
 
       pstr_asc->channel_configuration_grp[g] = 6; // Default value
@@ -1381,11 +1387,12 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
   obj_ele_start = pstr_asc_usac_config->num_elements;
   if (pstr_asc->num_obj_sig_groups > 0)
   {
+    WORD32 active_oam_ele = 0;
     for (j = 0; j < pstr_asc->num_obj_sig_groups; j++)
     {
       if (pstr_usac_config->use_oam_element[j] == 1)
       {
-        IA_ERRORCODE err_code = impeghe_add_oam_ext_element(pstr_usac_config, pstr_usac_state, j);
+        IA_ERRORCODE err_code = impeghe_add_oam_ext_element(pstr_usac_config, pstr_usac_state, j, active_oam_ele);
         if (err_code)
         {
           return err_code;
@@ -1399,6 +1406,7 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
           i++;
           ch_offset_idx++;
         }
+        active_oam_ele++;
       }
     }
   }
@@ -1574,7 +1582,7 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     }
   }
 
-  if (1 == pstr_usac_config->use_oam_element[0])
+  if (pstr_usac_config->num_oam_elements > 0)
   {
     for (; el_id < tc_ele_start; el_id++)
     {
@@ -1584,6 +1592,9 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
         pstr_usac_data->str_qc_main.str_qc_data[i_ch].num_ch = 1;
         pstr_usac_data->str_qc_main.str_qc_data[i_ch].ch_bitrate =
             pstr_usac_config->oam_bitrate / pstr_usac_config->num_oam_ch;
+        pstr_usac_data->str_qc_main.str_qc_data[i_ch].avg_bits =
+            (pstr_usac_data->str_qc_main.str_qc_data[i_ch].ch_bitrate * FRAME_LEN_LONG) /
+            pstr_usac_config->sampling_rate;
         i_ch++;
       }
       else if (ID_USAC_CPE ==
@@ -1593,11 +1604,11 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
         pstr_usac_data->str_qc_main.str_qc_data[i_ch].num_ch = 2;
         pstr_usac_data->str_qc_main.str_qc_data[i_ch].ch_bitrate =
             2 * pstr_usac_config->oam_bitrate / pstr_usac_config->num_oam_ch;
+        pstr_usac_data->str_qc_main.str_qc_data[i_ch].avg_bits =
+            (pstr_usac_data->str_qc_main.str_qc_data[i_ch].ch_bitrate * FRAME_LEN_LONG) /
+            pstr_usac_config->sampling_rate;
         i_ch++;
       }
-      pstr_usac_data->str_qc_main.str_qc_data[i_ch].avg_bits =
-          (pstr_usac_data->str_qc_main.str_qc_data[i_ch].ch_bitrate * FRAME_LEN_LONG) /
-          pstr_usac_config->sampling_rate;
     }
   }
 
