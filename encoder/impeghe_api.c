@@ -109,9 +109,13 @@ IA_ERRORCODE impeghe_process(ia_mpeghe_api_struct *p_obj_mpeghe, WORD32 *header_
  */
 static VOID impeghe_check_config_params(ia_input_config *pstr_input_config)
 {
-  WORD32 num_groups = pstr_input_config->num_obj_sig_groups +
-                      pstr_input_config->num_hoa_sig_groups +
+  WORD32 num_groups = pstr_input_config->num_hoa_sig_groups +
                       pstr_input_config->num_ch_sig_groups;
+  for (WORD32 i = 0; i < pstr_input_config->num_obj_sig_groups; i++)
+  {
+    if (pstr_input_config->use_oam_element[i])
+      num_groups++;
+  }
   for (WORD32 i = 0; i< num_groups; i++)
   {
     if (pstr_input_config->aud_ch_pcm_cfg[i].n_channels > 0)
@@ -389,11 +393,17 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   LOOPIDX idx;
   LOOPIDX i, j;
   ia_usac_audio_specific_config_struct *pstr_asc = &p_obj_mpeghe->config.audio_specific_config;
-  WORD32 num_groups = pstr_input_config->num_obj_sig_groups +
-                      pstr_input_config->num_hoa_sig_groups +
+  WORD32 num_groups = pstr_input_config->num_hoa_sig_groups +
                       pstr_input_config->num_ch_sig_groups;
+
   WORD32 num_core_chn = 0;
   WORD32 num_st_objs = 0; // includes channels from channel based input and objects as well.
+
+  for (WORD32 i = 0; i < pstr_input_config->num_obj_sig_groups; i++)
+  {
+    if (pstr_input_config->use_oam_element[i])
+      num_groups++;
+  }
 
   for (i = 0; i < pstr_input_config->num_ch_sig_groups; i++)
   {
@@ -453,11 +463,11 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   for (idx = 0; idx < pstr_input_config->num_obj_sig_groups; idx++)
   {
     if (OAM_MAX_NUM_OBJECTS < p_obj_mpeghe->config.num_objects[idx])
-  {
+    {
       p_obj_mpeghe->config.extra_objects[idx] = p_obj_mpeghe->config.num_objects[idx] - OAM_MAX_NUM_OBJECTS;
       p_obj_mpeghe->config.num_objects[idx] = OAM_MAX_NUM_OBJECTS;
-    error = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
-  }
+      error = IMPEGHE_CONFIG_NONFATAL_NUM_OBJECTS_UNSUPPORTED;
+    }
 
 
     if (OAM_MAX_NUM_OBJECTS < p_obj_mpeghe->config.num_objects[idx])
@@ -629,7 +639,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
   // OAM Params
   memcpy(p_obj_mpeghe->config.use_oam_element, pstr_input_config->use_oam_element, sizeof(pstr_input_config->use_oam_element));
   p_obj_mpeghe->config.cicp_index = pstr_input_config->cicp_index;
-  if (pstr_input_config->use_oam_element[0])
+  if (p_obj_mpeghe->config.num_oam_ch)
   {
     // If OAM is in use, then ifile option is not valid
     if (pstr_input_config->use_hoa_element)
@@ -1149,7 +1159,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
         pstr_input_config->aud_ch_pcm_cfg[0].n_channels;
     pstr_input_config->str_drc_cfg.str_enc_params.sample_rate =
         pstr_input_config->aud_ch_pcm_cfg[0].sample_rate;
-    if (pstr_input_config->use_oam_element[0])
+    if (p_obj_mpeghe->config.num_oam_ch)
     {
       pstr_input_config->str_drc_cfg.str_uni_drc_config.str_channel_layout.base_ch_count +=
           pstr_input_config->num_oam_ch[0];
@@ -1213,7 +1223,7 @@ static IA_ERRORCODE impeghe_set_config_params(ia_mpeghe_api_struct *p_obj_mpeghe
     p_obj_mpeghe->config.str_ext_cfg_downmix_input = pstr_input_config->str_ext_cfg_downmix_input;
   }
 
-  if ((pstr_input_config->use_oam_element[0]) || (pstr_input_config->use_hoa_element))
+  if ((p_obj_mpeghe->config.num_oam_ch) || (pstr_input_config->use_hoa_element))
   {
     p_obj_mpeghe->config.basic_bitrate =
         p_obj_mpeghe->config.aud_ch * MINIMUM_BITRATE_PER_CHANNEL;
@@ -1742,10 +1752,14 @@ IA_ERRORCODE impeghe_create(pVOID pv_input, pVOID pv_output)
     pstr_input_config->codec_mode = USAC_ONLY_FD;
   }
 
-  if (1 == pstr_input_config->use_oam_element[0])
+  for (WORD32 i = 0; i < pstr_input_config->num_obj_sig_groups; i++)
   {
-    // OAM is always in FD mode.
-    pstr_input_config->codec_mode = USAC_ONLY_FD;
+    if (1 == pstr_input_config->use_oam_element[i])
+    {
+      // OAM is always in FD mode.
+      pstr_input_config->codec_mode = USAC_ONLY_FD;
+      break;
+    }
   }
 
   /*Error*/
