@@ -49,6 +49,205 @@
 #include "impeghe_drc_struct_def.h"
 #include "impeghe_drc_enc.h"
 #include "impeghe_drc_tables.h"
+#include "impeghe_drc_gain_enc.h"
+#define IMPD_DRC_BOUND_CHECK(var, lower_bound, upper_bound) \
+  {                                                         \
+    var = MIN(var, upper_bound);                            \
+    var = MAX(var, lower_bound);                            \
+  }
+
+/**
+ *  impeghe_drc_validate_config_params
+ *
+ *  \brief Validates and bounds DRC information
+ *
+ *  \param [in,out] pstr_inp_config         Pointer to DRC input config
+ *
+ *  \return IA_ERRORCODE Error code
+ */
+IA_ERRORCODE impeghe_drc_validate_config_params(ia_drc_input_config *pstr_inp_config) {
+  LOOPIDX i, j, k;
+  WORD32 curr_start_subband_idx, next_start_subband_idx;
+  ia_drc_uni_drc_config_struct *pstr_uni_drc_config = &pstr_inp_config->str_uni_drc_config;
+  ia_drc_loudness_info_set_struct *pstr_enc_loudness_info_set =
+    &pstr_inp_config->str_enc_loudness_info_set;
+
+  IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->drc_instructions_uni_drc_count, 0,
+    MAX_DRC_INSTRUCTIONS_COUNT);
+  for (i = 0; i < pstr_uni_drc_config->drc_instructions_uni_drc_count; i++) {
+    IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i].drc_set_id, 0,
+      MAX_DRC_SET_ID);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_uni_drc_config->str_drc_instructions_uni_drc[i].additional_downmix_id_count, 0,
+      ADDITIONAL_DOWNMIX_ID_COUNT_MAX);
+    IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i].drc_location, 0,
+      MAX_DRC_LOCATION);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_uni_drc_config->str_drc_instructions_uni_drc[i].drc_set_target_loudness_value_upper,
+      MIN_DRC_TARGET_LOUDNESS, 0);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_uni_drc_config->str_drc_instructions_uni_drc[i].drc_set_target_loudness_value_lower,
+      MIN_DRC_TARGET_LOUDNESS, 0);
+    for (j = 0; j < MAX_CHANNEL_COUNT; j++) {
+      IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i].gain_set_index[j],
+        0, GAIN_SET_COUNT_MAX - 1);
+    }
+    IMPD_DRC_BOUND_CHECK(
+      pstr_uni_drc_config->str_drc_instructions_uni_drc[i].num_drc_channel_groups, 0,
+      MAX_CHANNEL_GROUP_COUNT);
+    for (j = 0; j < pstr_uni_drc_config->str_drc_instructions_uni_drc[i].num_drc_channel_groups;
+      j++) {
+      IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i]
+        .str_gain_modifiers[j]
+        .attenuation_scaling[0],
+        0, MAX_ATTENUATION_SCALING);
+      IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i]
+        .str_gain_modifiers[j]
+        .amplification_scaling[0],
+        0, MAX_AMPLIFICATION_SCALING);
+      IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i]
+        .str_gain_modifiers[j]
+        .gain_offset[0],
+        MIN_DRC_GAIN_OFFSET, MAX_DRC_GAIN_OFFSET);
+    }
+    IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_instructions_uni_drc[i].limiter_peak_target,
+      MIN_LIMITER_PEAK_TARGET, 0.0f);
+  }
+  IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->drc_coefficients_uni_drc_count, 0,
+    MAX_DRC_COEFF_COUNT);
+  for (i = 0; i < pstr_uni_drc_config->drc_coefficients_uni_drc_count; i++) {
+    IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].drc_location, 0,
+      MAX_DRC_LOCATION);
+    IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].gain_set_count, 0,
+      MAX_CHANNEL_GROUP_COUNT);
+    for (j = 0; j < pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].gain_set_count; j++) {
+      IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+        .str_gain_set_params[j]
+        .gain_coding_profile,
+        0, MAX_GAIN_CODING_PROFILE);
+      IMPD_DRC_BOUND_CHECK(
+        pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].str_gain_set_params[j].band_count,
+        0, MAX_BAND_COUNT);
+      for (k = 0;
+        k <
+        pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].str_gain_set_params[j].band_count;
+        k++) {
+        IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+          .str_gain_set_params[j]
+          .gain_params[k]
+          .nb_points,
+          0, MAX_GAIN_POINTS);
+        IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+          .str_gain_set_params[j]
+          .gain_params[k]
+          .drc_characteristic,
+          0, MAX_DRC_CHARACTERISTIC_VALUE);
+        IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+          .str_gain_set_params[j]
+          .gain_params[k]
+          .crossover_freq_index,
+          0, MAX_CROSSOVER_FREQ_INDEX);
+        IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+          .str_gain_set_params[j]
+          .gain_params[k]
+          .start_sub_band_index,
+          0, STFT256_HOP_SIZE - 1);
+        IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].str_gain_set_params[j].gain_params[k].width, -MAX_FLT_VAL_DB, MAX_FLT_VAL_DB);
+        for (WORD32 m = 0; m < pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].str_gain_set_params[j].gain_params[k].nb_points; m++) {
+          IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].str_gain_set_params[j].gain_params[k].gain_points[m].x,
+            -MAX_FLT_VAL_DB, MAX_FLT_VAL_DB);
+          IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+            .str_gain_set_params[j].gain_params[k].gain_points[m].y,
+            -MAX_FLT_VAL_DB, MAX_FLT_VAL_DB);
+        }
+      }
+      for (k = 0; k <
+        pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].str_gain_set_params[j].band_count
+        - 1; k++) {
+        curr_start_subband_idx = pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].
+          str_gain_set_params[j].gain_params[k].start_sub_band_index;
+        next_start_subband_idx = pstr_uni_drc_config->str_drc_coefficients_uni_drc[i].
+          str_gain_set_params[j].gain_params[k + 1].start_sub_band_index;
+        /* It is assumed that the start index of a subband is greater than the start index of its previous subbands for a multiband */
+        if (next_start_subband_idx <= curr_start_subband_idx) {
+          return IMPEGHE_NONFATAL_USAC_INVALID_SUBBAND_INDEX;
+        }
+      }
+    }
+  }
+  IMPD_DRC_BOUND_CHECK(pstr_uni_drc_config->downmix_instructions_count, 0,
+    MAX_DOWNMIX_INSTRUCTION_COUNT);
+
+  IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->loudness_info_count, 0,
+    MAX_LOUDNESS_INFO_COUNT);
+  for (i = 0; i < pstr_enc_loudness_info_set->loudness_info_count; i++) {
+    IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info[i].sample_peak_level,
+      MIN_SAMPLE_PEAK_LEVEL, MAX_SAMPLE_PEAK_LEVEL);
+    IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info[i].true_peak_level,
+      MIN_TRUE_PEAK_LEVEL, MAX_TRUE_PEAK_LEVEL);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_enc_loudness_info_set->str_loudness_info[i].true_peak_level_measurement_system, 0,
+      MAX_MEASUREMENT_SYSTEM_TYPE);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_enc_loudness_info_set->str_loudness_info[i].true_peak_level_reliability, 0,
+      MAX_RELIABILITY_TYPE);
+    IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info[i].measurement_count, 0,
+      MAX_MEASUREMENT_COUNT);
+    for (j = 0; j < pstr_enc_loudness_info_set->str_loudness_info[i].measurement_count; j++) {
+      IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info[i]
+        .str_loudness_measure[j]
+        .method_definition,
+        0, MAX_METHOD_DEFINITION_TYPE);
+      IMPD_DRC_BOUND_CHECK(
+        pstr_enc_loudness_info_set->str_loudness_info[i].str_loudness_measure[j].method_value,
+        MIN_METHOD_VALUE, MAX_METHOD_VALUE);
+      IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info[i]
+        .str_loudness_measure[j]
+        .measurement_system,
+        0, MAX_MEASUREMENT_SYSTEM_TYPE);
+      IMPD_DRC_BOUND_CHECK(
+        pstr_enc_loudness_info_set->str_loudness_info[i].str_loudness_measure[j].reliability, 0,
+        MAX_RELIABILITY_TYPE);
+    }
+  }
+  IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->loudness_info_album_count, 0,
+    MAX_LOUDNESS_INFO_COUNT);
+  for (i = 0; i < pstr_enc_loudness_info_set->loudness_info_album_count; i++) {
+    IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i].sample_peak_level,
+      MIN_SAMPLE_PEAK_LEVEL, MAX_SAMPLE_PEAK_LEVEL);
+    IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i].true_peak_level,
+      MIN_TRUE_PEAK_LEVEL, MAX_TRUE_PEAK_LEVEL);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_enc_loudness_info_set->str_loudness_info_album[i].true_peak_level_measurement_system,
+      0, MAX_MEASUREMENT_SYSTEM_TYPE);
+    IMPD_DRC_BOUND_CHECK(
+      pstr_enc_loudness_info_set->str_loudness_info_album[i].true_peak_level_reliability, 0,
+      MAX_RELIABILITY_TYPE);
+    IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i].measurement_count,
+      0, MAX_MEASUREMENT_COUNT);
+    for (j = 0; j < pstr_enc_loudness_info_set->str_loudness_info_album[i].measurement_count;
+      j++) {
+      IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i]
+        .str_loudness_measure[j]
+        .method_definition,
+        0, MAX_METHOD_DEFINITION_TYPE);
+      IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i]
+        .str_loudness_measure[j]
+        .method_value,
+        MIN_METHOD_VALUE, MAX_METHOD_VALUE);
+      IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i]
+        .str_loudness_measure[j]
+        .measurement_system,
+        0, MAX_MEASUREMENT_SYSTEM_TYPE);
+      IMPD_DRC_BOUND_CHECK(pstr_enc_loudness_info_set->str_loudness_info_album[i]
+        .str_loudness_measure[j]
+        .reliability,
+        0, MAX_RELIABILITY_TYPE);
+    }
+  }
+
+  return IA_NO_ERROR;
+}
 
 /**
  *  impeghe_drc_validate_drc_instructions
@@ -65,22 +264,29 @@ impeghe_drc_validate_drc_instructions(ia_drc_uni_drc_config_struct *pstr_uni_drc
   LOOPIDX i, j;
   WORD32 profile_found = FALSE;
 
-  for (i = 0; i < pstr_uni_drc_config->drc_instructions_uni_drc_count; i++)
-  {
-    profile_found = FALSE;
-    for (j = 0; j < pstr_uni_drc_config->drc_coefficients_uni_drc_count; j++)
-    {
-      if (pstr_uni_drc_config->str_drc_coefficients_uni_drc[j].drc_location == 1)
-      {
-        profile_found = TRUE;
-        break;
-      }
+  for (j = 0; j < pstr_uni_drc_config->drc_coefficients_uni_drc_count; j++) {
+    if (pstr_uni_drc_config->str_drc_coefficients_uni_drc[j].drc_location == 1) {
+      profile_found = TRUE;
+      break;
     }
-    if (pstr_uni_drc_config->uni_drc_config_ext_present &&
-        pstr_uni_drc_config->str_uni_drc_config_ext.parametric_drc_present &&
-        pstr_uni_drc_config->str_uni_drc_config_ext.str_drc_coeff_parametric_drc.drc_location ==
-            1)
-    {
+  }
+  if (pstr_uni_drc_config->uni_drc_config_ext_present &&
+    pstr_uni_drc_config->str_uni_drc_config_ext.parametric_drc_present &&
+    pstr_uni_drc_config->str_uni_drc_config_ext.str_drc_coeff_parametric_drc.drc_location ==
+    1) {
+    profile_found = TRUE;
+  }
+  if ((pstr_uni_drc_config->uni_drc_config_ext_present == 0) && profile_found == FALSE) {
+    return IMPEGHE_CONFIG_FATAL_DRC_INVALID_CONFIG;
+  }
+
+  if (pstr_uni_drc_config->uni_drc_config_ext_present) {
+    ia_drc_uni_drc_config_ext_struct *pstr_uni_drc_config_ext =
+      &pstr_uni_drc_config->str_uni_drc_config_ext;
+    profile_found = FALSE;
+    if (pstr_uni_drc_config->str_uni_drc_config_ext.parametric_drc_present &&
+      pstr_uni_drc_config->str_uni_drc_config_ext.str_drc_coeff_parametric_drc.drc_location ==
+      1) {
       profile_found = TRUE;
     }
     if (profile_found == FALSE)
@@ -110,13 +316,6 @@ IA_ERRORCODE impeghe_drc_enc_init(VOID *pstr_drc_state, VOID *ptr_drc_scratch,
   WORD32 bit_count = 0;
   ia_drc_enc_state *pstr_drc_state_local = pstr_drc_state;
 
-  jmp_buf drc_enc_init_jmp_buf;
-  err_code = setjmp(drc_enc_init_jmp_buf);
-  if (err_code != IA_NO_ERROR)
-  {
-    return IMPEGHE_INIT_FATAL_INSUFFICIENT_DRC_WRITE_BUFFER_SIZE;
-  }
-
   pstr_drc_state_local->drc_scratch_mem = ptr_drc_scratch;
   pstr_drc_state_local->drc_scratch_used = 0;
 
@@ -136,38 +335,59 @@ IA_ERRORCODE impeghe_drc_enc_init(VOID *pstr_drc_state, VOID *ptr_drc_scratch,
                             pstr_drc_state_local->bit_buf_base_out,
                             sizeof(pstr_drc_state_local->bit_buf_base_out));
 
-  pstr_drc_state_local->str_bit_buf_cfg.impeghe_jmp_buf = &drc_enc_init_jmp_buf;
-  pstr_drc_state_local->str_bit_buf_cfg_ext.impeghe_jmp_buf = &drc_enc_init_jmp_buf;
-  pstr_drc_state_local->str_bit_buf_cfg_tmp.impeghe_jmp_buf = &drc_enc_init_jmp_buf;
-  pstr_drc_state_local->str_bit_buf_out.impeghe_jmp_buf = &drc_enc_init_jmp_buf;
 
   err_code = impeghe_drc_gain_enc_init(
       &pstr_drc_state_local->str_gain_enc, &pstr_inp_config->str_uni_drc_config,
       &pstr_inp_config->str_enc_loudness_info_set, pstr_inp_config->str_enc_params.frame_size,
       pstr_inp_config->str_enc_params.sample_rate, pstr_inp_config->str_enc_params.delay_mode,
       pstr_inp_config->str_enc_params.domain);
-  if (err_code & IA_FATAL_ERROR)
-  {
+  if (err_code) {
+    return err_code;
+  }
+
+  err_code = impeghe_drc_validate_drc_instructions(&pstr_inp_config->str_uni_drc_config);
+
+  if (err_code & IA_FATAL_ERROR) {
     return IMPEGHE_CONFIG_FATAL_DRC_INVALID_CONFIG;
   }
 
   pstr_drc_state_local->str_enc_params = pstr_inp_config->str_enc_params;
   pstr_drc_state_local->str_uni_drc_config = pstr_inp_config->str_uni_drc_config;
   pstr_drc_state_local->str_enc_gain_extension = pstr_inp_config->str_enc_gain_extension;
-
-  err_code = impeghe_drc_validate_drc_instructions(&pstr_inp_config->str_uni_drc_config);
-  if (err_code & IA_FATAL_ERROR)
-  {
-    return IMPEGHE_CONFIG_FATAL_DRC_INVALID_CONFIG;
+  pstr_drc_state_local->str_gain_enc.str_uni_drc_config = pstr_inp_config->str_uni_drc_config;
+  pstr_drc_state_local->str_enc_params.gain_sequence_present = FALSE;
+  for (WORD16 k = 0; k < pstr_drc_state_local->str_uni_drc_config.drc_coefficients_uni_drc_count;
+    k++) {
+    if ((pstr_drc_state_local->str_uni_drc_config.str_drc_coefficients_uni_drc[k].drc_location ==
+      1) &&
+      (pstr_drc_state_local->str_uni_drc_config.str_drc_coefficients_uni_drc[k].gain_set_count >
+        0)) {
+      pstr_drc_state_local->str_enc_params.gain_sequence_present = TRUE;
+      break;
+    }
   }
 
-  err_code = impeghe_drc_write_uni_drc_config(pstr_drc_state_local, &bit_count);
+  err_code = impeghe_drc_write_uni_drc_config(pstr_drc_state_local, &bit_count, 1);
   if (err_code & IA_FATAL_ERROR)
   {
     return err_code;
   }
 
   pstr_drc_state_local->drc_config_data_size_bit = bit_count;
+
+  // Loudness info set
+  if (pstr_drc_state_local->str_gain_enc.str_uni_drc_config.loudness_info_set_present == 1) {
+    bit_count = 0;
+    impeghe_reset_bit_buffer(&pstr_drc_state_local->str_bit_buf_cfg_ext);
+    memset(pstr_drc_state_local->bit_buf_base_cfg_ext, 0,
+      sizeof(MAX_DRC_PAYLOAD_BYTES * sizeof(pstr_drc_state_local->bit_buf_base_cfg_ext[0])));
+    err_code = impeghe_drc_write_loudness_info_set(
+      pstr_drc_state, &pstr_drc_state_local->str_bit_buf_cfg_ext, &bit_count, 1);
+    if (err_code & IA_FATAL_ERROR) {
+      return (err_code);
+    }
+    pstr_drc_state_local->drc_config_ext_data_size_bit = bit_count;
+  }
 
   return err_code;
 }
@@ -221,7 +441,7 @@ IA_ERRORCODE impeghe_loudness_info_init(VOID *pstr_drc_state, VOID *ptr_drc_scra
  *
  *  \return VOID
  */
-VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_offset,
+IA_ERRORCODE impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_offset,
                      WORD32 *ptr_bits_written, VOID *pstr_scratch)
 {
   LOOPIDX i, j, k;
@@ -235,6 +455,8 @@ VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_off
   ia_drc_compand_struct *pstr_drc_compand;
   ia_drc_stft_gain_calc_struct *pstr_drc_stft_gain_calc;
 
+  IA_ERRORCODE err_code = IA_NO_ERROR;
+  ia_drc_coefficients_uni_drc_struct *pstr_drc_coefficients_uni_drc = &pstr_uni_drc_config->str_drc_coefficients_uni_drc[0];
   if (pstr_drc_state_local->str_enc_params.gain_sequence_present)
   {
     for (i = 0; i < MAX_DRC_COEFF_COUNT; i++)
@@ -264,16 +486,11 @@ VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_off
                               .band_count;
                k++)
           {
-            if (k == pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
-                             .str_gain_set_params[j]
-                             .band_count -
-                         1)
-            {
+            if (k == pstr_drc_coefficients_uni_drc[i].str_gain_set_params[j].band_count - 1) {
               stop_sub_band_index = STFT256_HOP_SIZE - 1;
             }
-            else
-            {
-              stop_sub_band_index = pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+            else {
+              stop_sub_band_index = pstr_drc_coefficients_uni_drc[i]
                                         .str_gain_set_params[j]
                                         .gain_params[k + 1]
                                         .start_sub_band_index -
@@ -282,7 +499,7 @@ VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_off
 
             impeghe_stft_drc_gain_calc_process(
                 pstr_gain_enc, i, j, k,
-                pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
+                pstr_drc_coefficients_uni_drc[i]
                     .str_gain_set_params[j]
                     .gain_params[k]
                     .start_sub_band_index,
@@ -299,14 +516,15 @@ VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_off
                                            pstr_drc_state_local->gain_buffer[band_count]);
         }
 
-        band_count += pstr_uni_drc_config->str_drc_coefficients_uni_drc[i]
-                          .str_gain_set_params[j]
-                          .band_count;
+        band_count += pstr_drc_coefficients_uni_drc[i].str_gain_set_params[j].band_count;
       }
     }
   }
-  impeghe_drc_encode_uni_drc_gain(pstr_gain_enc, pstr_drc_state_local->gain_buffer[0],
+  err_code = impeghe_drc_encode_uni_drc_gain(pstr_gain_enc, pstr_drc_state_local->gain_buffer[0],
                                   pstr_scratch);
+  if (err_code) {
+    return err_code;
+  }
 
   if (pstr_drc_state_local->is_first_drc_process_complete == 1)
   {
@@ -314,4 +532,5 @@ VOID impeghe_drc_enc(VOID *pstr_drc_state, FLOAT32 **pptr_input, UWORD32 inp_off
   }
 
   *ptr_bits_written = num_bits_payload;
+  return err_code;
 }

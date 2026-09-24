@@ -287,7 +287,6 @@ typedef struct
   ia_sfb_params_struct str_sfb_prms;
   WORD32 fdp_enable;
   ia_drc_internal_config str_internal_drc_cfg;
-  WORD32 use_measured_loudness;
   //pre-roll / IPF frames
   WORD32 random_access_interval;
   WORD32 preroll_flag;
@@ -305,6 +304,7 @@ typedef struct
 
   WORD32 loudness_preset;
   WORD32 loudness_mhas;
+  FLAG is_loudness_configured;
 } ia_usac_encoder_config_struct;
 
 typedef struct
@@ -404,6 +404,7 @@ typedef struct
   WORD32 mct_ele_idx;
   WORD32 mct_ch_off;
   WORD32 obj_ele_idx;
+  WORD32 num_drc_bits;
 } ia_usac_data_struct;
 
 typedef struct

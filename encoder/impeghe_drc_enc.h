@@ -43,11 +43,11 @@ IA_ERRORCODE impeghe_drc_gain_enc_init(ia_drc_gain_enc_struct *pstr_gain_enc,
 
 WORD32 impeghe_drc_get_delta_t_min(const WORD32 sample_rate);
 
-VOID impeghe_drc_encode_uni_drc_gain(ia_drc_gain_enc_struct *pstr_gain_enc,
+IA_ERRORCODE impeghe_drc_encode_uni_drc_gain(ia_drc_gain_enc_struct *pstr_gain_enc,
                                      FLOAT32 *ptr_gain_buffer, VOID *pstr_scratch);
 
 IA_ERRORCODE impeghe_drc_write_uni_drc_config(ia_drc_enc_state *pstr_drc_state,
-                                              WORD32 *ptr_bit_cnt);
+                                              WORD32 *ptr_bit_cnt, FLAG write_bs);
 
 VOID impeghe_drc_write_uni_drc_gain(ia_drc_enc_state *pstr_drc_state, WORD32 *ptr_bit_cnt);
 
@@ -56,5 +56,5 @@ IA_ERRORCODE impeghe_drc_write_measured_loudness_info(ia_drc_enc_state *pstr_drc
 
 IA_ERRORCODE impeghe_drc_write_loudness_info_set(ia_drc_enc_state *pstr_drc_state,
   ia_bit_buf_struct *it_bit_buf,
-  WORD32 *ptr_bit_cnt);
+  WORD32 *ptr_bit_cnt, FLAG write_bs);
 #endif /*IMPEGHE_DRC_ENC_H*/

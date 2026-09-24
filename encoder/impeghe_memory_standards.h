@@ -282,6 +282,7 @@ typedef struct
 {
   UWORD32 truncation_length;
   UWORD32 truncation_from_begin;
+  UWORD32 is_active;
 } ia_audio_truncate;
 
 typedef struct
@@ -375,11 +376,14 @@ typedef struct
   FLAG use_downmix_ext_config;
   ia_mpeghe_ext_cfg_downmix_input_struct str_ext_cfg_downmix_input;
   ia_ec_info_struct str_ec_info_struct;
-  FLAG use_measured_loudness;
   //pre-roll / IPF parameters.
   WORD32 random_access_interval;
   WORD32 num_preroll_frames;
   WORD32 packet_lbl;
+  UWORD32 method_def;
+  FLOAT64 measured_loudness;
+  UWORD32 measurement_system;
+  FLOAT32 sample_peak_level;
 } ia_input_config;
 
 typedef struct
@@ -414,6 +418,7 @@ typedef struct
   UWORD32 profile_info;
   WORD32 in_frame_length;
   WORD32 hoa_mtx_status;
+  FLAG is_loudness_configured;
 } ia_output_config;
 
 typedef struct

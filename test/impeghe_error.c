@@ -87,6 +87,8 @@ pWORD8 ppb_ia_mpeghe_config_fatal[] = {
 /*****************************************************************************/
 /* Non Fatal Errors */
 pWORD8 ppb_ia_mpeghe_init_non_fatal[] = {
+    (pWORD8) "Invalid DRC gain points",
+    (pWORD8) "Invalid start subband index",
     (pWORD8) "",
 };
 /* Fatal Errors */
@@ -94,6 +96,7 @@ pWORD8 ppb_ia_mpeghe_init_fatal[] = {
     (pWORD8) "Insufficient write buffer size",
     (pWORD8) "Insufficient OAM buffer size",
     (pWORD8) "Insufficient DRC buffer size",
+    (pWORD8) "Invalid channel index",
     (pWORD8) "Invalid HOA order",
     (pWORD8) "Invalid HOA quantization",
     (pWORD8) "Invalid HOA interpolation sample size",

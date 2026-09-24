@@ -367,6 +367,7 @@ static WORD32 impeghe_count_static_bits(ia_usac_data_struct *ptr_usac_data,
     }
 #endif
   }
+  stat_bits += ptr_usac_data->num_drc_bits;
 
   return stat_bits;
 }

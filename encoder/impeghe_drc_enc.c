@@ -143,8 +143,8 @@ IA_ERRORCODE impeghe_drc_gain_enc_init(ia_drc_gain_enc_struct *pstr_gain_enc,
 {
   IA_ERRORCODE err_code = IA_NO_ERROR;
   LOOPIDX i, j, k, l, m, ch;
-  WORD32 num_gain_values_max;
   WORD32 params_found;
+  WORD32 num_gain_values_max;
   UWORD8 found_ch_idx;
   UWORD32 ch_idx;
 
@@ -267,6 +267,9 @@ IA_ERRORCODE impeghe_drc_gain_enc_init(ia_drc_gain_enc_struct *pstr_gain_enc,
         }
       }
 
+      if (ch_idx >= (UWORD32)pstr_gain_enc->base_ch_count) {
+        return IMPEGHE_INIT_FATAL_DRC_INVALID_CHANNEL_INDEX;
+      }
       if (pstr_gain_set_params->band_count > 1)
       {
         impeghe_drc_util_stft_read_gain_config(pstr_gain_enc->str_drc_stft_gain_handle[0][j],
@@ -276,8 +279,7 @@ IA_ERRORCODE impeghe_drc_gain_enc_init(ia_drc_gain_enc_struct *pstr_gain_enc,
         for (l = 0; l < pstr_gain_set_params->band_count; l++)
         {
           err_code = impeghe_stft_drc_gain_calc_init(pstr_gain_enc, 0, j, l);
-          if (err_code & IA_FATAL_ERROR)
-          {
+          if (err_code) {
             return err_code;
           }
           pstr_gain_enc->str_drc_stft_gain_handle[0][j][l].ch_idx = ch_idx;
@@ -292,8 +294,7 @@ IA_ERRORCODE impeghe_drc_gain_enc_init(ia_drc_gain_enc_struct *pstr_gain_enc,
         pstr_gain_enc->str_drc_compand[0][j].initial_volume = 0.0f;
 
         err_code = impeghe_td_drc_gain_calc_init(pstr_gain_enc, 0, j);
-        if (err_code & IA_FATAL_ERROR)
-        {
+        if (err_code) {
           return err_code;
         }
         pstr_gain_enc->str_drc_compand[0][j].ch_idx = ch_idx;
@@ -363,19 +364,24 @@ IA_ERRORCODE impeghe_drc_gain_enc_init(ia_drc_gain_enc_struct *pstr_gain_enc,
  *
  *  \return VOID
  */
-VOID impeghe_drc_encode_uni_drc_gain(ia_drc_gain_enc_struct *pstr_gain_enc,
+IA_ERRORCODE impeghe_drc_encode_uni_drc_gain(ia_drc_gain_enc_struct *pstr_gain_enc,
                                      FLOAT32 *ptr_gain_buffer, VOID *pstr_scratch)
 {
   LOOPIDX idx;
 
+  IA_ERRORCODE err_code = IA_NO_ERROR;
   for (idx = 0; idx < pstr_gain_enc->n_sequences; idx++)
   {
-    impeghe_drc_quantize_and_encode_drc_gain(
+    err_code = impeghe_drc_quantize_and_encode_drc_gain(
         pstr_gain_enc, &ptr_gain_buffer[idx * MAX_DRC_FRAME_SIZE],
         &(pstr_gain_enc->drc_gain_per_sample_with_prev_frame[idx][0]),
         pstr_gain_enc->str_delta_time_code_table, &(pstr_gain_enc->str_drc_gain_seq_buf[idx]),
         pstr_scratch);
+    if (err_code) {
+      return err_code;
+    }
   }
+  return err_code;
 }
 
 /**

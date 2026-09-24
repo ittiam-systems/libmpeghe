@@ -1195,6 +1195,10 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     {
       return err_code;
     }
+    if (err_code) {
+      pstr_usac_config->use_drc_element = 0;
+      err_code = IA_NO_ERROR;
+    }
     if (pstr_usac_config->use_drc_element) 
     {
     ia_usac_enc_element_config_struct *pstr_usac_elem_config =
@@ -1278,7 +1282,7 @@ IA_ERRORCODE impeghe_enc_init(ia_usac_encoder_config_struct *pstr_usac_config,
     pstr_asc_usac_config->num_config_extensions++;
     pstr_asc_usac_config->usac_cfg_ext_present = 1;
   }
-  if (pstr_usac_config->loudness_preset && !pstr_usac_config->loudness_mhas) // For Loudness
+  if ((pstr_usac_config->loudness_preset && !pstr_usac_config->loudness_mhas) || (pstr_usac_config->is_loudness_configured)) // For Loudness
   {
     pstr_asc_usac_config->usac_config_ext_type[pstr_asc_usac_config->num_config_extensions] =
         ID_CONFIG_EXT_LOUDNESS_INFO;
@@ -2184,17 +2188,23 @@ static IA_ERRORCODE impeghe_enc_ext_elemts(ia_usac_encoder_config_struct *pstr_u
       if (pstr_usac_data->str_drc_state.is_first_drc_process_complete == 0)
       {
         impeghe_reset_bit_buffer(&pstr_usac_data->str_drc_state.str_bit_buf_out);
-        impeghe_drc_enc(&pstr_usac_data->str_drc_state, pptr_input, 0, &num_bits_payload,
+        err_code = impeghe_drc_enc(&pstr_usac_data->str_drc_state, pptr_input, 0, &num_bits_payload,
                         pstr_scratch);
 
+        if (err_code) {
+          return err_code;
+        }
         pstr_usac_data->str_drc_state.is_first_drc_process_complete = 1;
         num_bits_payload = 0;
       }
 
       impeghe_reset_bit_buffer(&pstr_usac_data->str_drc_state.str_bit_buf_out);
-      impeghe_drc_enc(&pstr_usac_data->str_drc_state, pptr_input, pstr_usac_state->p_config->ccfl,
-                      &num_bits_payload, pstr_scratch);
+      err_code = impeghe_drc_enc(&pstr_usac_data->str_drc_state, pptr_input, pstr_usac_state->p_config->ccfl,
+        &num_bits_payload, pstr_scratch);
 
+      if (err_code) {
+        return err_code;
+      }
       num_byts_payload = (num_bits_payload + 7) >> 3;
     }
     break;
@@ -2762,6 +2772,9 @@ IA_ERRORCODE impeghe_core_coder_process(FLOAT32 **pptr_input,
                                    usac_independency_flg, pptr_input, it_bit_buff,
                                    &num_bits_ext_elem, elem_idx);
       num_bits += num_bits_ext_elem;
+      if (pstr_usac_config->use_drc_element) {
+        pstr_usac_data->num_drc_bits = num_bits_ext_elem;
+      }
       continue;
     }
     if (pstr_asc->str_usac_config.usac_element_type[elem_idx] != ID_USAC_EXT && pstr_asc->str_usac_config.el_len_present)
