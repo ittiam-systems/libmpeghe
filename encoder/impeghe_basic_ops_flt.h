@@ -34,6 +34,8 @@
 
 #ifndef IMPEGHE_BASIC_OPS_FLT_H
 #define IMPEGHE_BASIC_OPS_FLT_H
+#include <float.h>
+#include <math.h>
 
 /**
  *  impeghe_dmult
@@ -60,4 +62,51 @@ static FLOAT64 impeghe_dmult(FLOAT64 a, FLOAT64 b) { return (a * b); }
  */
 static FLOAT64 impeghe_dmac(FLOAT64 a, FLOAT64 b, FLOAT64 c) { return (a + b * c); }
 
+/**
+ *  impeghe_div32
+ *
+ *  \brief Divide FLOAT32 numbers
+ *
+ *  \param [in] num
+ *  \param [in] den
+ *
+ *  \return FLOAT32
+ */
+static FLOAT32 impeghe_div32(FLOAT32 num, FLOAT32 den) {
+  if (fabs(den) < FLT_EPSILON) {
+    if (den < 0.0f) {
+      return -num;
+    }
+    else {
+      return num;
+    }
+  }
+  else {
+    return num / den;
+  }
+}
+
+/**
+ *  impeghe_div64
+ *
+ *  \brief Divide FLOAT64 numbers
+ *
+ *  \param [in] num
+ *  \param [in] den
+ *
+ *  \return FLOAT64
+ */
+static FLOAT64 impeghe_div64(FLOAT64 num, FLOAT64 den) {
+  if (fabs(den) < FLT_EPSILON) {
+    if (den < 0.0) {
+      return -num;
+    }
+    else {
+      return num;
+    }
+  }
+  else {
+    return num / den;
+  }
+}
 #endif /*IMPEGHE_BASIC_OPS_FLT_H*/

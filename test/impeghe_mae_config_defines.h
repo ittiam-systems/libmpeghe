@@ -75,7 +75,7 @@
   "group_preset_definition.disable_gain_interact:"
 #define STRING_GRP_PRESET_DEFN_DISABLE_POSITION_INTRCT                                           \
   "group_preset_definition.disable_position_interact:"
-#define STRING_GRP_PRESET_DEFN_POSITION_FLAG "group_preset_definition.position_flag:"
+#define STRING_GRP_PRESET_DEFN_POSITION_FLAG "group_preset_definition.position_interact:"
 #define STRING_GRP_PRESET_DEFN_AZ_OFFSET "group_preset_definition.azimuth_offset:"
 #define STRING_GRP_PRESET_DEFN_EL_OFFSET "group_preset_definition.elevation_offset:"
 #define STRING_GRP_PRESET_DEFN_DIST_FACTOR "group_preset_definition.dist_factor:"

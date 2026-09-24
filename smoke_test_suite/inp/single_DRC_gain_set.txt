@@ -28,3 +28,26 @@ width:0.01
 attack:10.0
 decay:20.0
 #end gain parameters
+
+#loudness info parameters
+loudness_info_count:1
+#n=0
+drc_set_id:1
+downmix_id:0
+sample_peak_level_present:1
+sample_peak_level:0.0
+true_peak_level_present:1
+true_peak_level:0.0
+true_peak_level_measurement_system:2
+true_peak_level_reliability:3
+measurement_count:1
+#m=0
+method_definition:1
+method_value:-16.0
+measurement_system:2
+reliability:3
+#end loudness info parameters
+
+#loudness info album parameters
+loudness_info_album_count:0
+#end of loudness info album parameters

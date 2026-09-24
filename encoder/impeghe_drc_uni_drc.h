@@ -167,6 +167,28 @@
 #define COMPLEXITY_W_PARAM_LIM_FILT 4.5f
 #define COMPLEXITY_W_PARAM_DRC_ATTACK 136.0f
 
+#define MAX_DRC_SET_ID (63)
+#define MAX_DRC_LOCATION (4)
+#define MIN_DRC_TARGET_LOUDNESS (-63)
+#define MAX_ATTENUATION_SCALING (1.875f)
+#define MAX_AMPLIFICATION_SCALING (1.875f)
+#define MIN_DRC_GAIN_OFFSET (-8.0f)
+#define MAX_DRC_GAIN_OFFSET (8.0f)
+#define MIN_LIMITER_PEAK_TARGET (-31.875f)
+#define MAX_GAIN_CODING_PROFILE (3)
+#define MAX_DRC_CHARACTERISTIC_VALUE (11)
+#define MAX_CROSSOVER_FREQ_INDEX (15)
+#define MIN_SAMPLE_PEAK_LEVEL (-107.0f)
+#define MAX_SAMPLE_PEAK_LEVEL (20.0f)
+#define MIN_TRUE_PEAK_LEVEL (-107.0f)
+#define MAX_TRUE_PEAK_LEVEL (20.0f)
+#define MAX_MEASUREMENT_SYSTEM_TYPE (11)
+#define MAX_RELIABILITY_TYPE (3)
+#define MAX_METHOD_DEFINITION_TYPE (9)
+#define MIN_METHOD_VALUE (-116.0f)
+#define MAX_METHOD_VALUE (121.0f)
+#define MAX_FLT_VAL_DB (770.6367883810890080451095799195f)
+
 typedef struct
 {
   WORD32 level_estim_k_weighting_type;
@@ -279,7 +301,7 @@ typedef struct
   FLOAT32 width;
   FLOAT32 attack;
   FLOAT32 decay;
-  ia_drc_gain_points_struct gain_points[512];
+  ia_drc_gain_points_struct gain_points[MAX_GAIN_POINTS];
 } ia_drc_gain_params_struct;
 
 typedef struct
@@ -652,7 +674,7 @@ typedef struct
   WORD32 uni_drc_config_ext_present;
   ia_drc_uni_drc_config_ext_struct str_uni_drc_config_ext;
   ia_drc_coefficients_basic_struct str_drc_coefficients_basic[MAX_DRC_COEFF_COUNT];
-  ia_drc_instructions_basic_struct str_drc_instructions_basic[MAX_DRC_INSTRUCTIONS_COUNT];
+  ia_drc_instructions_basic_struct str_drc_instructions_basic[MAX_DRC_INSTRUCTIONS_BASIC_COUNT];
   ia_drc_coefficients_uni_drc_struct str_drc_coefficients_uni_drc[MAX_DRC_COEFF_COUNT];
   ia_drc_instructions_uni_drc str_drc_instructions_uni_drc[MAX_DRC_INSTRUCTIONS_COUNT];
   ia_drc_channel_layout_struct str_channel_layout;

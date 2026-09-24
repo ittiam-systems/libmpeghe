@@ -207,10 +207,10 @@ static IA_ERRORCODE impeghe_fd_mdct_long(ia_usac_data_struct *pstr_usac_data,
   case LONG_STOP_SEQUENCE:
     win_len = n_short << prev_mode;
     nflat_ls = (n_long - win_len) >> 1;
-    err_code = impeghe_calc_window(&ptr_win_long, n_long, window_shape);
+    err_code = impeghe_calc_window(&ptr_win_long, n_long, 1);
     if (err_code)
       return err_code;
-    err_code = impeghe_calc_window(&ptr_win_med, win_len, 1);
+    err_code = impeghe_calc_window(&ptr_win_med, win_len, window_shape);
     if (err_code)
       return err_code;
 

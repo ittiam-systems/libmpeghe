@@ -38,7 +38,7 @@
 #define MAX_DRC_PAYLOAD_BYTES (2048)
 #define MAX_SPEAKER_POS_COUNT (128)
 #define MAX_DOWNMIX_COEFF_COUNT (32 * 32)
-#define MAX_CHANNEL_COUNT (128)
+#define MAX_CHANNEL_COUNT (8)
 #define MAX_BAND_COUNT (8)
 #define MAX_SEQUENCE_COUNT (8)
 #define MAX_MEASUREMENT_COUNT (16)
@@ -55,6 +55,8 @@
 #define DELAY_MODE_LOW_DELAY (1)
 #define DELAY_MODE_DEFAULT (DELAY_MODE_REGULAR_DELAY)
 #define MAX_EXT_COUNT (2)
+#define MAX_GAIN_POINTS (256)
+#define MAX_DRC_INSTRUCTIONS_BASIC_COUNT (15)
 
 #define UNIDRC_GAIN_EXT_TERM (0x0)
 #define UNIDRC_LOUD_EXT_TERM (0x0)
@@ -90,6 +92,7 @@
 #define TIME_DOMAIN (1)
 #define SUBBAND_DOMAIN (2)
 #define SLOPE_FACTOR_DB_TO_LINEAR (0.1151f) /* ln(10) / 20 */
+#define MAX_DRC_CONFIG_SIZE_EXPECTED (14336) /* 14 KB*/
 
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

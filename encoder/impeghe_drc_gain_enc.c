@@ -57,6 +57,8 @@
 #include "impeghe_mae_write.h"
 #include "impeghe_config.h"
 #include "impeghe_fft.h"
+#include "impeghe_error_standards.h"
+#include "impeghe_basic_ops_flt.h"
 
 /**
  *  impeghe_drc_limit_drc_gain
@@ -190,7 +192,7 @@ static VOID impeghe_drc_check_overshoot(const WORD32 t_gain_step, const FLOAT32 
   FLOAT32 k1, k2;
   FLOAT32 slope_norm = 1.0f / (FLOAT32)time_delta_min;
   FLOAT32 margin = 0.2f;
-  FLOAT32 step_inv_2 = 2.0f / t_gain_step;
+  FLOAT32 step_inv_2 = impeghe_div32(2.0f, (FLOAT32)t_gain_step);
 
   *overshoot_left = FALSE;
   *overshoot_right = FALSE;
@@ -205,8 +207,7 @@ static VOID impeghe_drc_check_overshoot(const WORD32 t_gain_step, const FLOAT32 
   {
     t_connect = (WORD32)(0.5f + 2.0f * (gain_left - gain_right + norm_slope_0 * t_gain_step) /
                                     (norm_slope_0 - norm_slope_1));
-    t_connect = t_gain_step - t_connect;
-    if ((t_connect >= 0) && (t_connect < t_gain_step))
+    if ((t_gain_step >= t_connect) && (t_connect > 0))
     {
       return;
     }
@@ -258,7 +259,7 @@ static VOID impeghe_drc_check_overshoot(const WORD32 t_gain_step, const FLOAT32 
 
   if ((!*overshoot_left) && (!*overshoot_right))
   {
-    t_gain_step_inv = 1.0f / (FLOAT32)t_gain_step;
+    t_gain_step_inv = impeghe_div32(1.0f, (FLOAT32)t_gain_step);
     t_gain_step_inv_2 = t_gain_step_inv * t_gain_step_inv;
     k1 = (gain_right - gain_left) * t_gain_step_inv_2;
     k2 = norm_slope_1 + norm_slope_0;
@@ -555,7 +556,7 @@ static VOID impeghe_drc_advance_nodes(ia_drc_gain_enc_struct *pstr_gain_enc,
  *
  *  \return VOID
  */
-static VOID impeghe_drc_post_process_nodes(
+static IA_ERRORCODE impeghe_drc_post_process_nodes(
     ia_drc_gain_enc_struct *pstr_gain_enc,
     ia_drc_delta_time_code_table_entry_struct *pstr_delta_time_code_table,
     ia_drc_gain_seq_buf_struct *pstr_drc_gain_seq_buf, VOID *pstr_scratch)
@@ -575,13 +576,14 @@ static VOID impeghe_drc_post_process_nodes(
 
   FLOAT32 delta_gain;
   FLOAT32 delta_gain_quant;
-  FLOAT32 gain_value_quant;
+  FLOAT32 gain_value_quant = 0;
   FLOAT32 slope_average;
   FLOAT32 slope_of_nodes_left;
   FLOAT32 slope_of_nodes_right;
   FLOAT32 thr_low, thr_high;
   FLOAT32 delta_left, delta_right;
   FLOAT32 slope_0, slope_1, slope_2;
+  IA_ERRORCODE err_code = IA_NO_ERROR;
 
   const ia_drc_slope_code_table_entry_struct *pstr_slope_code_table;
   ia_drc_group_for_output_struct *pstr_drc_group_for_output =
@@ -1045,11 +1047,14 @@ static VOID impeghe_drc_post_process_nodes(
     }
     else
     {
-      impeghe_drc_enc_initial_gain(pstr_drc_gain_seq_buf->str_gain_set_params.gain_coding_profile,
+      err_code = impeghe_drc_enc_initial_gain(pstr_drc_gain_seq_buf->str_gain_set_params.gain_coding_profile,
                                    pstr_drc_group_for_output->drc_gain_quant[n],
                                    &gain_value_quant,
                                    &(pstr_drc_group_for_output->gain_code_length[n]),
                                    &(pstr_drc_group_for_output->gain_code[n]));
+      if (err_code) {
+        return err_code;
+      }
     }
     drc_gain_quant_prev = gain_value_quant;
     pstr_drc_group_for_output->drc_gain_quant[n] = gain_value_quant;
@@ -1106,6 +1111,7 @@ static VOID impeghe_drc_post_process_nodes(
           pstr_delta_time_code_table[pstr_drc_group_for_output->time_delta_code_index[n]].code;
     }
   }
+  return err_code;
 }
 
 /**
@@ -1125,7 +1131,7 @@ static VOID impeghe_drc_post_process_nodes(
  *
  *  \return VOID
  */
-static VOID impeghe_drc_quantize_drc_frame(
+static IA_ERRORCODE impeghe_drc_quantize_drc_frame(
     const WORD32 drc_frame_size, const WORD32 time_delta_min, const WORD32 num_gain_values_max,
     const FLOAT32 *ptr_drc_gain_per_sample_with_prev_frame,
     const WORD32 *ptr_delta_time_quant_table, const WORD32 gain_coding_profile,
@@ -1134,7 +1140,7 @@ static VOID impeghe_drc_quantize_drc_frame(
 {
   LOOPIDX i, n;
   WORD32 t, k = 0;
-  WORD32 num_bits, code, tmp;
+  WORD32 num_bits = 0, code = 0, tmp;
   WORD32 t_left, t_right;
   WORD32 time_delta_left, time_delta_right;
   WORD32 restart = TRUE;
@@ -1142,7 +1148,7 @@ static VOID impeghe_drc_quantize_drc_frame(
 
   FLOAT32 slope;
   FLOAT32 delta_gain;
-  FLOAT32 gain_value_quant;
+  FLOAT32 gain_value_quant = 0;
   FLOAT32 delta_gain_quant;
   FLOAT32 max_time_deviation;
   FLOAT32 drc_gain_per_sample_limited;
@@ -1156,6 +1162,7 @@ static VOID impeghe_drc_quantize_drc_frame(
   FLOAT32 *ptr_slope_quant = pstr_drc_group->slope_quant;
   const FLOAT32 *ptr_drc_gain_per_sample =
       ptr_drc_gain_per_sample_with_prev_frame + drc_frame_size;
+  IA_ERRORCODE err_code = IA_NO_ERROR;
 
   while (restart)
   {
@@ -1261,8 +1268,11 @@ static VOID impeghe_drc_quantize_drc_frame(
     }
     else
     {
-      impeghe_drc_enc_initial_gain(gain_coding_profile, drc_gain_per_sample_limited,
+      err_code = impeghe_drc_enc_initial_gain(gain_coding_profile, drc_gain_per_sample_limited,
                                    &gain_value_quant, &num_bits, &code);
+      if (err_code) {
+        return err_code;
+      }
     }
     pstr_drc_group->gain_code[n] = code;
     pstr_drc_group->gain_code_length[n] = num_bits;
@@ -1281,6 +1291,8 @@ static VOID impeghe_drc_quantize_drc_frame(
   pstr_drc_group_for_output->time_quant_next = pstr_drc_group->ts_gain_quant[0] + drc_frame_size;
   pstr_drc_group_for_output->slope_code_index_next = pstr_drc_group->slope_code_index[0];
   pstr_drc_group_for_output->drc_gain_quant_next = pstr_drc_group->drc_gain_quant[0];
+  pstr_drc_group_for_output->drc_gain_quant_prev = pstr_drc_group->drc_gain_quant_prev;
+  return err_code;
 }
 
 /**
@@ -1298,12 +1310,13 @@ static VOID impeghe_drc_quantize_drc_frame(
  *
  *  \return VOID
  */
-VOID impeghe_drc_quantize_and_encode_drc_gain(
+IA_ERRORCODE impeghe_drc_quantize_and_encode_drc_gain(
     ia_drc_gain_enc_struct *pstr_gain_enc, const FLOAT32 *ptr_drc_gain_per_sample,
     FLOAT32 *ptr_drc_gain_per_sample_with_prev_frame,
     ia_drc_delta_time_code_table_entry_struct *pstr_delta_time_code_table,
     ia_drc_gain_seq_buf_struct *pstr_drc_gain_seq_buf, VOID *pstr_scratch)
 {
+  IA_ERRORCODE err_code = IA_NO_ERROR;
   WORD32 drc_frame_size = pstr_gain_enc->drc_frame_size;
   const WORD32 *ptr_delta_time_quant_table = pstr_gain_enc->delta_time_quant_table;
   ia_drc_group_struct *pstr_drc_group;
@@ -1318,13 +1331,17 @@ VOID impeghe_drc_quantize_and_encode_drc_gain(
       pstr_gain_enc, ptr_drc_gain_per_sample, ptr_drc_gain_per_sample_with_prev_frame,
       pstr_drc_group, pstr_drc_gain_seq_buf->str_gain_set_params.full_frame, pstr_scratch);
 
-  impeghe_drc_quantize_drc_frame(drc_frame_size, pstr_gain_enc->delta_tmin,
+  err_code = impeghe_drc_quantize_drc_frame(drc_frame_size, pstr_gain_enc->delta_tmin,
                                  pstr_gain_enc->drc_frame_size / pstr_gain_enc->delta_tmin,
                                  ptr_drc_gain_per_sample_with_prev_frame,
                                  ptr_delta_time_quant_table,
                                  pstr_drc_gain_seq_buf->str_gain_set_params.gain_coding_profile,
                                  pstr_drc_group, pstr_drc_group_for_output);
+  if (err_code) {
+    return err_code;
+  }
 
-  impeghe_drc_post_process_nodes(pstr_gain_enc, pstr_delta_time_code_table, pstr_drc_gain_seq_buf,
+  err_code = impeghe_drc_post_process_nodes(pstr_gain_enc, pstr_delta_time_code_table, pstr_drc_gain_seq_buf,
                                  pstr_scratch);
+  return err_code;
 }

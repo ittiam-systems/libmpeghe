@@ -27,16 +27,16 @@ group_preset_definition.preset_kind:0,0
 group_preset_definition.num_conditions:2,2
 group_preset_definition.reference_id:0,1
 group_preset_definition.cond_on_off:1,0
+group_preset_definition.disable_gain_interact:0,0
 group_preset_definition.gain_flag:0,0
 group_preset_definition.gain:4
-group_preset_definition.disable_gain_interact:0,0
 group_preset_definition.disable_position_interact:0,0
 group_preset_definition.position_interact:0,0
 group_preset_definition.reference_id:0,1
 group_preset_definition.cond_on_off:0,1
+group_preset_definition.disable_gain_interact:0,0
 group_preset_definition.gain_flag:0,0
 group_preset_definition.gain:4
-group_preset_definition.disable_gain_interact:0,0
 group_preset_definition.disable_position_interact:0,0
 group_preset_definition.position_interact:0,0
 #Data sets

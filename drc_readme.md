@@ -9,7 +9,9 @@ The input file follows structure to pass the DRC related information(Instruction
 # 2. Input Structure
 The following input structure describes how inputs are passed to encoder.
 
-# 2.1 DRC instructions
+## 2.1 uniDRC configuration
+
+### 2.1.1 DRC instructions
 
 ```plaintext
 drc_instructions_uni_drc_count:(int)
@@ -21,7 +23,7 @@ drc_instructions_uni_drc_count:(int)
 └──drc_instructions_type:(int)
     └──mae_group_id/mae_group_preset_id:(int)(if drc_instructions_type: != 0 )
 ```
-# 2.2 DRC coefficients
+### 2.1.2 DRC coefficients
 
 ```plaintext
 drc_coefficients_uni_drc_count:(int)
@@ -65,7 +67,7 @@ width:0.01
 attack:10.0
 decay:20.0
 ```
-# 3. Element Descriptions
+### 2.1.3 Element Descriptions
 
 Here is a brief description of each element in the DRC interface txt file.
 
@@ -93,3 +95,84 @@ Here is a brief description of each element in the DRC interface txt file.
 | 9 |`decay:` | Decay value. | Float |
 | 10 |`start_sub_band_index:` | Start sub band index of band count is more than `1`. | Integer |
 
+## 2.2 Loundness configuration
+
+### 2.2.1 loudness info
+```plaintext
+loudness_info_count: (int)
+└── drc_set_id: (int)
+└── downmix_id: (int)
+└── sample_peak_level_present: (int)
+    └── sample_peak_level: (float)
+└── true_peak_level_present: (int)
+    └── true_peak_level: (float)
+    └── true_peak_level_measurement_system: (int)
+    └── true_peak_level_reliability: (int)
+└── measurement_count: (int)
+    └── method_definition: (int)
+    └── method_value: (float)
+    └── measurement_system: (int)
+    └── reliability: (int)
+```
+### 2.2.2 loudness info album
+```plaintext
+loudness_info_album_count: (int)
+└── drc_set_id: (int)
+└── downmix_id: (int)
+└── sample_peak_level_present: (int)
+    └── sample_peak_level: (float)
+└── true_peak_level_present: (int)
+    └── true_peak_level: (float)
+    └── true_peak_level_measurement_system: (int)
+    └── true_peak_level_reliability: (int)
+└── measurement_count: (int)
+    └── method_definition: (int)
+    └── method_value: (float)
+    └── measurement_system: (int)
+    └── reliability: (int)
+```
+
+### 2.2.3 Element description of loudness configuration parameters
+Here is a brief description of each element in loudness configuration.
+| **Sl. No.** | **Element name** | **Element description** | **Element type** | 
+|-----|------|------|------|
+| 1 |`loudness_info_count:` | loudnessInfo count. Valid values are 0 to 31. | Integer | 
+| 2 |`drc_set_id:` | Defines the DRC set relevant to the loudness data. | Integer |
+| 3 |`downmix_id:` | Defines the downmix configuration relevant to the loudness data. | Integer |
+| 4 |`sample_peak_level_present:` | Flag to indicate if sample peak level is present. Valid values are 0 and 1. | Integer |
+| 5 |`sample_peak_level:` | Defines the maximum sample peak level in the audio signal (in dB.) | Float |
+| 6 |`true_peak_level_present:` | Flag to indicate if sample peak level is present. Valid values are 0 and 1. | Integer |
+| 7 |`true_peak_level:` | Defines the maximum true peak level of the audio signal (in dB). | Float |
+| 8 |`true_peak_level_measurement_system:` |  Defines the measurement system used to determine the true peak level. | Integer |
+| 9 |`true_peak_level_reliability:` | Defines the reliability level of the true peak measurement. | Integer |
+| 10 |`measurement_count:` | Defines the number of measurements used to calculate the loudness value. Valid values are 0 to 14 | Integer |
+| 11 |`method_definition:` | Defines the method used to measure loudness level. | Integer |
+| 12 |`method_value:` | Defines the loudness level value associated with the measurement method. | Float |
+| 13 |`measurement_system:` | Defines the measurement system employed to measure the loudness value. | Integer |
+| 14 |`reliability:` | Defines the reliability level of the measured value. | Integer |
+
+Following is an example with loudness info configured in the DRC file:
+```plaintext
+#loudness info parameters
+loudness_info_count:1
+#n=0
+drc_set_id:1
+downmix_id:0
+sample_peak_level_present:1
+sample_peak_level:0.0
+true_peak_level_present:1
+true_peak_level:0.0
+true_peak_level_measurement_system:2
+true_peak_level_reliability:3
+measurement_count:1
+#m=0
+method_definition:1
+method_value:-16.0
+measurement_system:2
+reliability:3
+#end loudness info parameters
+
+#loudness info album parameters
+loudness_info_album_count:0
+#end of loudness info album parameters
+```
